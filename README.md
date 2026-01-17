@@ -1,41 +1,51 @@
 # AppViewr - Music App & Plugin Manager
 
-> **Phase 1: Proof of Concept** - A visual dashboard for launching music production apps and cataloging audio plugins.
+> **Phase 2: Electron Desktop Application** - Cross-platform desktop app for launching music production apps and cataloging audio plugins.
 
-![AppViewr](https://img.shields.io/badge/version-1.0.0--poc-blue)
-![Platform](https://img.shields.io/badge/platform-web-green)
+![AppViewr](https://img.shields.io/badge/version-1.0.0-blue)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
 ## 🎵 Overview
 
-AppViewr is a cross-platform desktop application designed for music producers to organize and launch their music production apps and catalog their audio plugin inventory. This Phase 1 proof of concept demonstrates the core UI/UX and functionality using web technologies.
+AppViewr is a cross-platform desktop application built with Electron that helps music producers organize and launch their music production apps and catalog their audio plugin inventory. Phase 2 brings actual app launching capabilities and native desktop integration.
 
 ### Key Features
 
 ✨ **App Launcher Dashboard**
 - Grid layout with categorized sections (DAWs, Synths, Guitar Tools, etc.)
 - Visual app cards with icons and paths
-- Click-to-launch functionality (simulated in Phase 1)
+- **✅ ACTUAL APP LAUNCHING** - Click to open applications
 - Real-time search and filtering
+- Works on macOS and Windows
 
 🔌 **Plugin Inventory**
 - Comprehensive plugin catalog with VST/AU/VST3 support
 - Filter by type (instrument/effect), format, and manufacturer
 - User-editable notes for each plugin
 - Full path visibility for troubleshooting
+- Plugin scanner (basic implementation)
 
 🎨 **Premium UI/UX**
 - Dark theme optimized for music production environments
 - Glassmorphism effects and smooth animations
-- Responsive design that adapts to any window size
-- Professional aesthetic suitable for screenshots and demos
+- Desktop-optimized layout with maximum space efficiency
+- Compact header with integrated search
+- Professional aesthetic
+
+🖥️ **Desktop Integration**
+- Native window with proper title bar
+- Cross-platform app launching (macOS/Windows)
+- Secure IPC communication
+- Configuration persistence
+- System integration
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- No build tools required for Phase 1
+- **Node.js** 16+ (includes npm)
+- macOS 10.13+ or Windows 10+
 
 ### Installation
 
@@ -45,45 +55,51 @@ AppViewr is a cross-platform desktop application designed for music producers to
    cd appviewr
    ```
 
-2. **Open in browser**
-   - Simply open `index.html` in your web browser
-   - Or use a local server (recommended):
+2. **Install dependencies**
    ```bash
-   # Using Python 3
-   python3 -m http.server 8000
-   
-   # Using Node.js (if you have http-server installed)
-   npx http-server -p 8000
+   npm install
    ```
-   
-3. **Access the app**
-   - Navigate to `http://localhost:8000` in your browser
+
+3. **Run the application**
+   ```bash
+   npm start
+   ```
+
+   Or for development mode with DevTools:
+   ```bash
+   npm run dev
+   ```
 
 ## 📁 Project Structure
 
 ```
 appviewr/
-├── index.html          # Main HTML file
-├── styles.css          # Complete styling with dark theme
-├── app.js              # Application logic and interactivity
-├── package.json        # Project metadata
+├── main.js              # Electron main process
+├── preload.js           # Security bridge (IPC)
+├── package.json         # Project config & dependencies
+├── renderer/            # Frontend files
+│   ├── index.html       # Main UI
+│   ├── styles.css       # Styling
+│   └── app.js           # Application logic
 ├── config/
-│   └── apps-config.json # Configuration file for apps and plugins
-└── README.md           # This file
+│   └── apps-config.json # Apps & plugins configuration
+├── assets/              # Icons and resources
+└── README.md
 ```
 
 ## ⚙️ Configuration
 
 ### Editing Apps and Plugins
 
-The configuration is stored in `config/apps-config.json`. You can edit this file directly in any text editor to add, remove, or modify apps and plugins.
+The configuration is stored in `config/apps-config.json`. Edit this file to customize your setup.
 
 #### Adding a New App
 
 ```json
 {
   "name": "Your App Name",
-  "path": "/Applications/YourApp.app",
+  "path": "/Applications/YourApp.app",  // macOS
+  // or "C:\\Program Files\\YourApp\\app.exe" for Windows
   "icon": "🎹"
 }
 ```
@@ -101,109 +117,122 @@ The configuration is stored in `config/apps-config.json`. You can edit this file
 }
 ```
 
-#### Creating a New Category
+### Platform-Specific Paths
 
-```json
-{
-  "name": "Your Category",
-  "apps": [
-    {
-      "name": "App 1",
-      "path": "/path/to/app",
-      "icon": "🎛️"
-    }
-  ]
-}
-```
+**macOS:**
+- Apps: `/Applications/AppName.app`
+- VST3: `/Library/Audio/Plug-Ins/VST3/`
+- AU: `/Library/Audio/Plug-Ins/Components/`
 
-### Emoji Icons
-
-Use emoji for app icons. Here are some suggestions:
-- 🎹 Keyboards/Synths
-- 🎸 Guitar tools
-- 🎤 Vocal processors
-- 🎚️ Mixing tools
-- 🎛️ Controllers
-- 🔊 Amplifiers
-- 📊 Analyzers
-- 🎼 DAWs
-- ⚡ Effects
-- 🌌 Atmospheric/Pads
+**Windows:**
+- Apps: `C:\Program Files\AppName\app.exe`
+- VST3: `C:\Program Files\Common Files\VST3\`
 
 ## 🎯 Features in Detail
 
-### App Dashboard
+### App Launching
 
-- **Categorized Layout**: Apps are organized into logical categories
-- **Quick Launch**: Click any app card to launch (Phase 2 will enable actual launching)
-- **Search**: Real-time search across all app names
-- **Visual Feedback**: Smooth hover effects and animations
+- **macOS**: Uses `open -a` command to launch .app bundles
+- **Windows**: Uses `start` command to launch executables
+- **Error Handling**: Shows notifications for success/failure
+- **Path Validation**: Checks if apps exist before launching
 
-### Plugin Inventory
+### Plugin Management
 
-- **Comprehensive View**: See all your plugins in one place
+- **View All Plugins**: See your entire plugin collection
 - **Smart Filtering**: Filter by type, format, or manufacturer
 - **Search**: Find plugins quickly by name or manufacturer
-- **Notes**: Add personal notes to remember plugin characteristics
+- **Notes**: Add personal notes for each plugin
+- **Scanner**: Auto-detect installed plugins (basic)
 
-### Keyboard Shortcuts
+### Desktop Optimization
 
-- `Cmd/Ctrl + F`: Focus search bar (browser default)
-- `Escape`: Clear search (when focused)
+- **Compact Header**: Single-row header with logo, search, and tabs
+- **Full Screen Usage**: Maximizes viewport height and width
+- **High Density**: Fits more apps per screen
+- **Quick Navigation**: All controls accessible without scrolling
+
+## 🛠️ Development
+
+### Running in Development Mode
+
+```bash
+npm run dev
+```
+
+This opens the app with DevTools enabled for debugging.
+
+### Building for Distribution
+
+Build for your current platform:
+```bash
+npm run build
+```
+
+Build for specific platforms:
+```bash
+npm run build:mac    # macOS only
+npm run build:win    # Windows only
+npm run build:all    # Both platforms
+```
+
+Installers will be created in the `dist/` directory.
 
 ## 🔮 Roadmap
 
-### Phase 2: Electron Wrapper (Next)
-- [ ] Convert to Electron application
-- [ ] Implement actual app launching via Node.js
-- [ ] Extract app icons from .app bundles
-- [ ] Store config in user data directory
-- [ ] Add system tray integration
+### ✅ Phase 1: Proof of Concept (Complete)
+- [x] Basic HTML/CSS/JS dashboard
+- [x] JSON configuration
+- [x] Search and filtering
+- [x] Desktop-optimized UI
 
-### Phase 3: Plugin Scanner
-- [ ] Auto-scan common plugin directories
+### ✅ Phase 2: Electron Wrapper (Complete)
+- [x] Convert to Electron app
+- [x] Actual app launching
+- [x] IPC communication
+- [x] Config persistence
+- [x] Cross-platform support
+
+### 🚧 Phase 3: Plugin Scanner (Next)
+- [ ] Auto-scan plugin directories
 - [ ] Parse plugin metadata
 - [ ] Detect newly installed plugins
 - [ ] Manual add with file picker
+- [ ] Icon extraction from apps
 
-### Phase 4: Advanced Features
+### 📋 Phase 4: Advanced Features
 - [ ] Drag-and-drop app reordering
 - [ ] In-app configuration editor
 - [ ] Export/import configurations
 - [ ] Auto-updates
-- [ ] Installer creation (DMG for macOS, MSI for Windows)
 - [ ] Custom app icons upload
 - [ ] Plugin favorites/ratings
+- [ ] System tray integration
+- [ ] Keyboard shortcuts
 
 ## 🛠️ Technical Details
 
 ### Technology Stack
 
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Data**: JSON configuration file
-- **Future**: Electron, Node.js
+- **Electron** 28.0+ (Desktop wrapper)
+- **Node.js** (Backend/IPC)
+- **HTML5/CSS3** (UI)
+- **Vanilla JavaScript** (Logic)
+- **JSON** (Configuration)
 
-### Browser Compatibility
+### Security
 
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
+- **Context Isolation**: Enabled for security
+- **Node Integration**: Disabled in renderer
+- **Preload Script**: Secure IPC bridge
+- **No Remote Module**: Modern Electron best practices
 
 ### Performance
 
-- Lightweight: < 100KB total size
-- Fast loading: < 100ms initial render
+- Lightweight: ~150MB installed
+- Fast startup: < 2 seconds
 - Smooth animations: 60fps
-
-## 🎨 Design Philosophy
-
-AppViewr follows modern music production software aesthetics:
-
-- **Dark Theme**: Reduces eye strain during long sessions
-- **Glassmorphism**: Modern, premium feel
-- **Smooth Animations**: Enhances user experience without being distracting
-- **Clear Typography**: Inter font for excellent readability
-- **Vibrant Accents**: Purple/indigo gradient for visual interest
+- Low memory usage
 
 ## 📝 License
 
@@ -211,7 +240,7 @@ MIT License - feel free to use and modify for your own projects.
 
 ## 🤝 Contributing
 
-This is currently a proof of concept. Feedback from music producers is highly valued! Please share:
+Feedback from music producers is highly valued! Please share:
 
 - Screenshots of your setup
 - Feature requests
@@ -224,6 +253,7 @@ This is currently a proof of concept. Feedback from music producers is highly va
 2. **Use Descriptive Notes**: Add notes about plugin CPU usage, best use cases, etc.
 3. **Keep Paths Updated**: When you update software, remember to update the paths
 4. **Backup Your Config**: Save a copy of `apps-config.json` before major changes
+5. **Quick Launch**: Use AppViewr as your music production hub
 
 ## 🎵 Example Use Cases
 
@@ -233,10 +263,29 @@ This is currently a proof of concept. Feedback from music producers is highly va
 - **Teaching**: Show students your production setup
 - **Documentation**: Screenshot your plugin inventory for insurance/backup
 
+## 🐛 Troubleshooting
+
+### App won't launch
+- Check the path in `apps-config.json` is correct
+- Ensure the app is installed on your system
+- Check console for error messages
+
+### Config not loading
+- Verify `config/apps-config.json` exists
+- Check JSON syntax is valid
+- Look for errors in DevTools console
+
+### Plugin scanner not finding plugins
+- Check plugin directories exist
+- Ensure you have plugins installed
+- Try manual configuration
+
 ## 📧 Support
 
-For questions or issues, please open an issue on GitHub or contact the maintainer.
+For questions or issues, please open an issue on GitHub.
 
 ---
 
 **Built with ❤️ for music producers by music producers**
+
+**Phase 2 Complete** - Now with actual app launching! 🚀

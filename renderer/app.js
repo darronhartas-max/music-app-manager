@@ -1,23 +1,42 @@
 // AppViewr - Music App & Plugin Manager
-// Phase 1: Proof of Concept
+// Phase 2: Electron Desktop Application
 
 let appData = null;
 let currentTab = 'apps';
 let currentPluginFilter = 'all';
+let isElectron = false;
 
 // Initialize app on page load
 document.addEventListener('DOMContentLoaded', async () => {
+  // Check if running in Electron
+  isElectron = window.electronAPI && window.electronAPI.isElectron;
+
+  if (isElectron) {
+    console.log('Running in Electron mode');
+    const platform = await window.electronAPI.getPlatform();
+    console.log('Platform:', platform);
+  } else {
+    console.log('Running in browser mode');
+  }
+
   await loadConfig();
   initializeEventListeners();
   renderApps();
 });
 
-// Load configuration from JSON file
+// Load configuration
 async function loadConfig() {
   try {
-    const response = await fetch('config/apps-config.json');
-    appData = await response.json();
-    console.log('Configuration loaded:', appData);
+    if (isElectron) {
+      // Load via Electron IPC
+      appData = await window.electronAPI.loadConfig();
+      console.log('Configuration loaded via Electron:', appData);
+    } else {
+      // Load via fetch (browser mode)
+      const response = await fetch('../config/apps-config.json');
+      appData = await response.json();
+      console.log('Configuration loaded via fetch:', appData);
+    }
   } catch (error) {
     console.error('Error loading configuration:', error);
     showError('Failed to load configuration file');
@@ -50,24 +69,24 @@ function initializeEventListeners() {
 // Switch between tabs
 function switchTab(tabName) {
   currentTab = tabName;
-  
+
   // Update tab buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === tabName);
   });
-  
+
   // Update tab content
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.toggle('active', content.id === `${tabName}Tab`);
   });
-  
+
   // Render appropriate content
   if (tabName === 'apps') {
     renderApps();
   } else if (tabName === 'plugins') {
     renderPlugins();
   }
-  
+
   // Clear search
   document.getElementById('searchInput').value = '';
 }
@@ -75,25 +94,25 @@ function switchTab(tabName) {
 // Render apps dashboard
 function renderApps(searchTerm = '') {
   const container = document.getElementById('appsContainer');
-  
+
   if (!appData || !appData.categories) {
     container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>No configuration data available</p></div>';
     return;
   }
-  
+
   let html = '';
   let hasResults = false;
-  
+
   appData.categories.forEach(category => {
     // Filter apps based on search term
-    const filteredApps = category.apps.filter(app => 
+    const filteredApps = category.apps.filter(app =>
       app.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    
+
     if (filteredApps.length === 0 && searchTerm) return;
-    
+
     hasResults = true;
-    
+
     html += `
       <div class="category">
         <div class="category-header">
@@ -106,7 +125,7 @@ function renderApps(searchTerm = '') {
       </div>
     `;
   });
-  
+
   if (!hasResults) {
     html = `
       <div class="empty-state">
@@ -115,9 +134,9 @@ function renderApps(searchTerm = '') {
       </div>
     `;
   }
-  
+
   container.innerHTML = html;
-  
+
   // Add click handlers to app cards
   document.querySelectorAll('.app-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -137,36 +156,52 @@ function createAppCard(app) {
   `;
 }
 
-// Launch application (Phase 1: just show alert)
-function launchApp(path, name) {
+// Launch application
+async function launchApp(path, name) {
   console.log(`Launching: ${name} at ${path}`);
-  
-  // Phase 1: Show notification (actual launching requires Electron)
-  showNotification(`🚀 Launching ${name}`, `In Phase 2, this will open: ${path}`);
+
+  if (isElectron) {
+    try {
+      // Use Electron API to launch app
+      const result = await window.electronAPI.launchApp(path, name);
+
+      if (result.success) {
+        showNotification(`🚀 Launched ${name}`, `Successfully opened the application`);
+      } else {
+        showError(`Failed to launch ${name}: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Launch error:', error);
+      showError(`Failed to launch ${name}: ${error.message || 'Unknown error'}`);
+    }
+  } else {
+    // Browser mode - show info notification
+    showNotification(`🚀 ${name}`, `Install the Electron app to launch applications`);
+  }
 }
 
 // Render plugins table
 function renderPlugins(searchTerm = '') {
   const tbody = document.getElementById('pluginTableBody');
-  
+
   if (!appData || !appData.plugins) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No plugin data available</td></tr>';
     return;
   }
-  
+
   // Filter plugins
   let filteredPlugins = appData.plugins.filter(plugin => {
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       plugin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       plugin.manufacturer.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesFilter = currentPluginFilter === 'all' ||
       plugin.type === currentPluginFilter ||
       plugin.format === currentPluginFilter;
-    
+
     return matchesSearch && matchesFilter;
   });
-  
+
   if (filteredPlugins.length === 0) {
     tbody.innerHTML = `
       <tr>
@@ -178,7 +213,7 @@ function renderPlugins(searchTerm = '') {
     `;
     return;
   }
-  
+
   tbody.innerHTML = filteredPlugins.map(plugin => `
     <tr>
       <td><strong>${plugin.name}</strong></td>
@@ -194,12 +229,12 @@ function renderPlugins(searchTerm = '') {
 // Set plugin filter
 function setPluginFilter(filter) {
   currentPluginFilter = filter;
-  
+
   // Update filter buttons
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filter === filter);
   });
-  
+
   // Re-render plugins
   const searchTerm = document.getElementById('searchInput').value;
   renderPlugins(searchTerm);
@@ -232,14 +267,14 @@ function showNotification(title, message) {
     z-index: 1000;
     animation: slideIn 0.3s ease;
   `;
-  
+
   notification.innerHTML = `
     <div style="font-weight: 600; margin-bottom: 0.5rem;">${title}</div>
     <div style="color: var(--text-secondary); font-size: 0.875rem;">${message}</div>
   `;
-  
+
   document.body.appendChild(notification);
-  
+
   // Remove after 3 seconds
   setTimeout(() => {
     notification.style.animation = 'slideOut 0.3s ease';
@@ -264,14 +299,14 @@ function showError(message) {
     z-index: 1000;
     color: #fca5a5;
   `;
-  
+
   notification.innerHTML = `
     <div style="font-weight: 600; margin-bottom: 0.5rem;">⚠️ Error</div>
     <div style="font-size: 0.875rem;">${message}</div>
   `;
-  
+
   document.body.appendChild(notification);
-  
+
   setTimeout(() => notification.remove(), 5000);
 }
 
