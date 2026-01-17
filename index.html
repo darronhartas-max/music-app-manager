@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="AppViewr - Music App & Plugin Manager. Visual dashboard for launching music production apps and cataloging audio plugins.">
+  <title>AppViewr - Music App & Plugin Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="container">
+    <!-- Compact Header with Integrated Search -->
+    <header>
+      <div class="header-content">
+        <div class="logo">
+          <span class="logo-icon">🎵</span>
+          <h1>AppViewr</h1>
+        </div>
+
+        <div class="search-container">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="Search apps and plugins..." autocomplete="off">
+        </div>
+
+        <nav class="nav-tabs">
+          <button class="tab-btn active" data-tab="apps">
+            Apps
+          </button>
+          <button class="tab-btn" data-tab="plugins">
+            Plugins
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Apps Tab -->
+    <div id="appsTab" class="tab-content active">
+      <div id="appsContainer">
+        <!-- Apps will be dynamically loaded here -->
+      </div>
+    </div>
+
+    <!-- Plugins Tab -->
+    <div id="pluginsTab" class="tab-content">
+      <div class="plugin-filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="instrument">Instruments</button>
+        <button class="filter-btn" data-filter="effect">Effects</button>
+        <button class="filter-btn" data-filter="VST3">VST3</button>
+        <button class="filter-btn" data-filter="AU">AU</button>
+      </div>
+
+      <div class="plugin-table-container">
+        <table class="plugin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Format</th>
+              <th>Manufacturer</th>
+              <th>Notes</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody id="pluginTableBody">
+            <!-- Plugins will be dynamically loaded here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

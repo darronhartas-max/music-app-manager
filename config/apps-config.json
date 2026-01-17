@@ -1,0 +1,186 @@
+{
+    "categories": [
+        {
+            "name": "DAWs",
+            "apps": [
+                {
+                    "name": "Ableton Live",
+                    "path": "/Applications/Ableton Live 11 Suite.app",
+                    "icon": "🎹"
+                },
+                {
+                    "name": "Logic Pro",
+                    "path": "/Applications/Logic Pro X.app",
+                    "icon": "🎵"
+                },
+                {
+                    "name": "FL Studio",
+                    "path": "/Applications/FL Studio.app",
+                    "icon": "🎼"
+                }
+            ]
+        },
+        {
+            "name": "Synths",
+            "apps": [
+                {
+                    "name": "Serum",
+                    "path": "/Applications/Serum.app",
+                    "icon": "🎛️"
+                },
+                {
+                    "name": "Vital",
+                    "path": "/Applications/Vital.app",
+                    "icon": "⚡"
+                },
+                {
+                    "name": "Omnisphere",
+                    "path": "/Applications/Omnisphere.app",
+                    "icon": "🌌"
+                },
+                {
+                    "name": "Pigments",
+                    "path": "/Applications/Arturia/Pigments.app",
+                    "icon": "🎨"
+                }
+            ]
+        },
+        {
+            "name": "Guitar & Bass",
+            "apps": [
+                {
+                    "name": "Guitar Rig",
+                    "path": "/Applications/Native Instruments/Guitar Rig 6.app",
+                    "icon": "🎸"
+                },
+                {
+                    "name": "Amplitube",
+                    "path": "/Applications/IK Multimedia/Amplitube 5.app",
+                    "icon": "🎚️"
+                },
+                {
+                    "name": "Neural DSP",
+                    "path": "/Applications/Neural DSP/Archetype Gojira.app",
+                    "icon": "🔊"
+                }
+            ]
+        },
+        {
+            "name": "Audio Tools",
+            "apps": [
+                {
+                    "name": "iZotope RX",
+                    "path": "/Applications/iZotope RX 9.app",
+                    "icon": "🔧"
+                },
+                {
+                    "name": "FabFilter Pro-Q",
+                    "path": "/Applications/FabFilter/Pro-Q 3.app",
+                    "icon": "📊"
+                },
+                {
+                    "name": "Melodyne",
+                    "path": "/Applications/Celemony/Melodyne.app",
+                    "icon": "🎤"
+                }
+            ]
+        },
+        {
+            "name": "Utilities",
+            "apps": [
+                {
+                    "name": "Plugin Manager",
+                    "path": "/Applications/Plugin Manager.app",
+                    "icon": "📦"
+                },
+                {
+                    "name": "Sample Manager",
+                    "path": "/Applications/Sample Manager.app",
+                    "icon": "💾"
+                }
+            ]
+        }
+    ],
+    "plugins": [
+        {
+            "name": "Valhalla VintageVerb",
+            "path": "/Library/Audio/Plug-Ins/VST3/ValhallaVintageVerb.vst3",
+            "type": "effect",
+            "format": "VST3",
+            "manufacturer": "Valhalla DSP",
+            "notes": "My go-to reverb for vocals"
+        },
+        {
+            "name": "Serum",
+            "path": "/Library/Audio/Plug-Ins/VST3/Serum.vst3",
+            "type": "instrument",
+            "format": "VST3",
+            "manufacturer": "Xfer Records",
+            "notes": "Best wavetable synth"
+        },
+        {
+            "name": "FabFilter Pro-Q 3",
+            "path": "/Library/Audio/Plug-Ins/AU/FabFilter Pro-Q 3.component",
+            "type": "effect",
+            "format": "AU",
+            "manufacturer": "FabFilter",
+            "notes": "Surgical EQ for mixing"
+        },
+        {
+            "name": "Kontakt 7",
+            "path": "/Library/Audio/Plug-Ins/VST3/Kontakt 7.vst3",
+            "type": "instrument",
+            "format": "VST3",
+            "manufacturer": "Native Instruments",
+            "notes": "Sample library player"
+        },
+        {
+            "name": "Soundtoys Decapitator",
+            "path": "/Library/Audio/Plug-Ins/VST3/Decapitator.vst3",
+            "type": "effect",
+            "format": "VST3",
+            "manufacturer": "Soundtoys",
+            "notes": "Analog saturation"
+        },
+        {
+            "name": "Omnisphere 2",
+            "path": "/Library/Audio/Plug-Ins/AU/Omnisphere.component",
+            "type": "instrument",
+            "format": "AU",
+            "manufacturer": "Spectrasonics",
+            "notes": "Massive sound library"
+        },
+        {
+            "name": "iZotope Ozone 10",
+            "path": "/Library/Audio/Plug-Ins/VST3/Ozone 10.vst3",
+            "type": "effect",
+            "format": "VST3",
+            "manufacturer": "iZotope",
+            "notes": "Mastering suite"
+        },
+        {
+            "name": "Arturia Pigments",
+            "path": "/Library/Audio/Plug-Ins/VST3/Pigments.vst3",
+            "type": "instrument",
+            "format": "VST3",
+            "manufacturer": "Arturia",
+            "notes": "Hybrid synth engine"
+        },
+        {
+            "name": "Valhalla Delay",
+            "path": "/Library/Audio/Plug-Ins/VST3/ValhallaDelay.vst3",
+            "type": "effect",
+            "format": "VST3",
+            "manufacturer": "Valhalla DSP",
+            "notes": "Creative delay effects"
+        },
+        {
+            "name": "Waves SSL G-Master",
+            "path": "/Library/Audio/Plug-Ins/VST3/SSLGMaster.vst3",
+            "type": "effect",
+            "format": "VST3",
+            "manufacturer": "Waves",
+            "notes": "Bus compressor"
+        }
+    ]
+}

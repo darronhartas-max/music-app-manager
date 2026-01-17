@@ -1,0 +1,12 @@
+{
+  "name": "appviewr",
+  "version": "1.0.0",
+  "description": "Music App & Plugin Manager - Visual dashboard for launching music production apps and cataloging audio plugins",
+  "main": "index.html",
+  "scripts": {
+    "dev": "echo 'Open index.html in your browser to view the app'"
+  },
+  "keywords": ["music", "audio", "plugins", "vst", "daw", "launcher"],
+  "author": "",
+  "license": "MIT"
+}
