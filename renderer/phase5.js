@@ -25,6 +25,18 @@ function initializePhase5() {
 
     // Initialize custom icon upload
     setupCustomIconUpload();
+
+    // Hook into toggle edit mode
+    const originalToggleEditMode = window.toggleEditMode;
+    if (typeof originalToggleEditMode === 'function') {
+        window.toggleEditMode = function () {
+            originalToggleEditMode();
+            // Re-render to apply draggable attribute
+            if (typeof renderApps === 'function') {
+                renderApps();
+            }
+        };
+    }
 }
 
 // ============================================
@@ -509,12 +521,9 @@ async function handleIconUpload(e) {
 // ENHANCED RENDERING
 // ============================================
 
-// Override attachAppCardHandlers to include drag-drop
-const originalAttachAppCardHandlers = window.attachAppCardHandlers || attachAppCardHandlers;
-
-function attachAppCardHandlersPhase5() {
-    originalAttachAppCardHandlers();
-
+// Add drag-drop to existing rendering
+// This will be called after apps are rendered
+function setupDragDropAfterRender() {
     if (editMode) {
         enableDragAndDropForCards();
     }
@@ -527,8 +536,8 @@ window.renameCategory = renameCategory;
 window.deleteCategory = deleteCategory;
 window.clearSearchHistory = clearSearchHistory;
 window.selectSearchHistory = selectSearchHistory;
-window.attachAppCardHandlers = attachAppCardHandlersPhase5;
 window.enableDragAndDropForCards = enableDragAndDropForCards;
+window.setupDragDropAfterRender = setupDragDropAfterRender;
 
 console.log('Phase 5 module loaded');
 
@@ -537,10 +546,10 @@ console.log('Phase 5 module loaded');
 // ============================================
 
 function renderCategoryManager() {
-  const categoryList = document.getElementById('categoryList');
-  if (!categoryList || !appData || !appData.categories) return;
-  
-  categoryList.innerHTML = appData.categories.map(category => `
+    const categoryList = document.getElementById('categoryList');
+    if (!categoryList || !appData || !appData.categories) return;
+
+    categoryList.innerHTML = appData.categories.map(category => `
     <div class="category-item">
       <span class="category-drag-handle">☰</span>
       <input type="text" value="${category.name}" 
@@ -553,44 +562,44 @@ function renderCategoryManager() {
 }
 
 function handleCategoryRename(input, oldName) {
-  const newName = input.value.trim();
-  if (newName && newName !== oldName) {
-    renameCategory(oldName, newName);
-  } else {
-    input.value = oldName;
-  }
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) {
+        renameCategory(oldName, newName);
+    } else {
+        input.value = oldName;
+    }
 }
 
 function handleCategoryDelete(name) {
-  deleteCategory(name).then(() => {
-    renderCategoryManager();
-  });
+    deleteCategory(name).then(() => {
+        renderCategoryManager();
+    });
 }
 
 // Add category button handler
 document.addEventListener('DOMContentLoaded', () => {
-  const addCategoryBtn = document.getElementById('addCategoryBtn');
-  if (addCategoryBtn) {
-    addCategoryBtn.addEventListener('click', () => {
-      const name = prompt('Enter category name:');
-      if (name) {
-        addCategory(name).then(() => {
-          renderCategoryManager();
+    const addCategoryBtn = document.getElementById('addCategoryBtn');
+    if (addCategoryBtn) {
+        addCategoryBtn.addEventListener('click', () => {
+            const name = prompt('Enter category name:');
+            if (name) {
+                addCategory(name).then(() => {
+                    renderCategoryManager();
+                });
+            }
         });
-      }
-    });
-  }
+    }
 });
 
 // Render category manager when settings tab is opened
 const originalSwitchTab = window.switchTab;
 if (originalSwitchTab) {
-  window.switchTab = function(tabName) {
-    originalSwitchTab(tabName);
-    if (tabName === 'settings') {
-      setTimeout(() => renderCategoryManager(), 100);
-    }
-  };
+    window.switchTab = function (tabName) {
+        originalSwitchTab(tabName);
+        if (tabName === 'settings') {
+            setTimeout(() => renderCategoryManager(), 100);
+        }
+    };
 }
 
 // Export functions

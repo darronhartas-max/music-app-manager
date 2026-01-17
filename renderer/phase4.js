@@ -182,6 +182,11 @@ function renderAppsPhase4(searchTerm = '') {
 
     // Add click handlers
     attachAppCardHandlers();
+
+    // Setup drag-drop if Phase 5 is loaded
+    if (typeof setupDragDropAfterRender === 'function') {
+        setupDragDropAfterRender();
+    }
 }
 
 // Create app card with Phase 4 features
