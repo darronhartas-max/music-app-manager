@@ -834,8 +834,36 @@ async function handleAppScan() {
       return;
     }
 
-    // Show results with editable table
-    displayAppScanResults(scannedApps);
+    // Filter out apps that are already in the library
+    const existingAppPaths = [];
+    appData.categories.forEach(category => {
+      category.apps.forEach(app => {
+        existingAppPaths.push(app.path);
+      });
+    });
+
+    const totalScanned = scannedApps.length;
+    const newApps = scannedApps.filter(app => !existingAppPaths.includes(app.path));
+    const alreadyAdded = totalScanned - newApps.length;
+
+    if (newApps.length === 0) {
+      appScanResults.innerHTML = `
+        <div class="scan-results-summary">
+          <p><strong>Found ${totalScanned} music apps</strong></p>
+          <p style="color: var(--accent-primary); margin-top: 0.5rem;">
+            ✅ All ${totalScanned} apps are already in your library!
+          </p>
+          <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
+            No new apps to add. Your existing apps remain unchanged.
+          </p>
+        </div>
+      `;
+      appScanResults.style.display = 'block';
+      return;
+    }
+
+    // Show results with editable table (only new apps)
+    displayAppScanResults(newApps, totalScanned, alreadyAdded);
 
   } catch (error) {
     console.error('Error scanning apps:', error);
@@ -846,17 +874,33 @@ async function handleAppScan() {
 }
 
 // Display app scan results with editable fields
-function displayAppScanResults(apps) {
+function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 0) {
   const appScanResults = document.getElementById('appScanResults');
 
   const categories = appData.categories.map(c => c.name);
 
-  appScanResults.innerHTML = `
-    <div class="scan-results-summary">
-      <p><strong>Found ${apps.length} music apps</strong></p>
+  let summaryMessage = `<p><strong>Found ${totalScanned} music apps</strong></p>`;
+
+  if (alreadyAdded > 0) {
+    summaryMessage += `
+      <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
+        ✅ ${alreadyAdded} already in library • 🆕 ${apps.length} new apps found
+      </p>
+      <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">
+        Showing only new apps below. Your existing apps remain unchanged.
+      </p>
+    `;
+  } else {
+    summaryMessage += `
       <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
         Review and edit the details below, then click "Add Selected Apps"
       </p>
+    `;
+  }
+
+  appScanResults.innerHTML = `
+    <div class="scan-results-summary">
+      ${summaryMessage}
     </div>
     
     <div class="app-scan-table-container">
