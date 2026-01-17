@@ -27,10 +27,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializePhase4();
   }
 
-  // Initialize Phase 5 features
-  if (typeof initializePhase5 === 'function') {
-    initializePhase5();
-  }
+  // Initialize Phase 5 features (temporarily disabled)
+  // if (typeof initializePhase5 === 'function') {
+  //   initializePhase5();
+  // }
 
   renderApps();
 });
