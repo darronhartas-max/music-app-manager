@@ -21,6 +21,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await loadConfig();
   initializeEventListeners();
+
+  // Initialize Phase 4 features
+  if (typeof initializePhase4 === 'function') {
+    initializePhase4();
+  }
+
   renderApps();
 });
 
@@ -93,6 +99,13 @@ function switchTab(tabName) {
 
 // Render apps dashboard
 function renderApps(searchTerm = '') {
+  // Use Phase 4 rendering if available
+  if (typeof renderAppsPhase4 === 'function') {
+    renderAppsPhase4(searchTerm);
+    return;
+  }
+
+  // Fallback to original rendering
   const container = document.getElementById('appsContainer');
 
   if (!appData || !appData.categories) {
@@ -185,7 +198,7 @@ function renderPlugins(searchTerm = '') {
   const tbody = document.getElementById('pluginTableBody');
 
   if (!appData || !appData.plugins) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No plugin data available</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No plugin data available</td></tr>';
     return;
   }
 
@@ -195,9 +208,13 @@ function renderPlugins(searchTerm = '') {
       plugin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       plugin.manufacturer.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesFilter = currentPluginFilter === 'all' ||
-      plugin.type === currentPluginFilter ||
-      plugin.format === currentPluginFilter;
+    let matchesFilter = currentPluginFilter === 'all';
+
+    if (currentPluginFilter === 'favorites') {
+      matchesFilter = plugin.favorite === true;
+    } else if (currentPluginFilter !== 'all') {
+      matchesFilter = plugin.type === currentPluginFilter || plugin.format === currentPluginFilter;
+    }
 
     return matchesSearch && matchesFilter;
   });
@@ -205,7 +222,7 @@ function renderPlugins(searchTerm = '') {
   if (filteredPlugins.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
           No plugins found
         </td>
@@ -214,16 +231,24 @@ function renderPlugins(searchTerm = '') {
     return;
   }
 
-  tbody.innerHTML = filteredPlugins.map(plugin => `
-    <tr>
-      <td><strong>${plugin.name}</strong></td>
-      <td><span class="plugin-type ${plugin.type}">${plugin.type}</span></td>
-      <td><span class="plugin-format">${plugin.format}</span></td>
-      <td>${plugin.manufacturer}</td>
-      <td class="plugin-notes">${plugin.notes || '-'}</td>
-      <td style="font-size: 0.75rem; color: var(--text-muted);">${plugin.path}</td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = filteredPlugins.map(plugin => {
+    const favorite = plugin.favorite ? '⭐' : '☆';
+    const rating = plugin.rating ? '★'.repeat(plugin.rating) : '-';
+    const rowClass = plugin.favorite ? 'favorite' : '';
+
+    return `
+      <tr class="${rowClass}" onclick="if(typeof openPluginModal === 'function') openPluginModal(${JSON.stringify(plugin).replace(/"/g, '&quot;')})">
+        <td class="favorite-cell ${plugin.favorite ? 'active' : ''}">${favorite}</td>
+        <td><strong>${plugin.name}</strong></td>
+        <td><span class="plugin-type ${plugin.type}">${plugin.type}</span></td>
+        <td><span class="plugin-format">${plugin.format}</span></td>
+        <td>${plugin.manufacturer}</td>
+        <td class="rating-cell">${rating}</td>
+        <td class="plugin-notes">${plugin.notes || '-'}</td>
+        <td style="font-size: 0.75rem; color: var(--text-muted);">${plugin.path}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // Set plugin filter

@@ -41,6 +41,27 @@
 
     <!-- Apps Tab -->
     <div id="appsTab" class="tab-content active">
+      <div class="apps-toolbar">
+        <div class="quick-filters">
+          <button class="quick-filter-btn active" data-filter="all">All Apps</button>
+          <button class="quick-filter-btn" data-filter="favorites">⭐ Favorites</button>
+          <button class="quick-filter-btn" data-filter="recent">🕐 Recent</button>
+        </div>
+        <div class="view-toggle">
+          <button class="view-btn active" data-view="category">📂 By Category</button>
+          <button class="view-btn" data-view="manufacturer">🏢 By Manufacturer</button>
+        </div>
+        <div class="apps-actions">
+          <button id="addAppBtn" class="toolbar-btn">
+            <span class="btn-icon">➕</span>
+            Add App
+          </button>
+          <button id="editModeBtn" class="toolbar-btn">
+            <span class="btn-icon">✏️</span>
+            Edit Mode
+          </button>
+        </div>
+      </div>
       <div id="appsContainer">
         <!-- Apps will be dynamically loaded here -->
       </div>
@@ -50,6 +71,7 @@
     <div id="pluginsTab" class="tab-content">
       <div class="plugin-filters">
         <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="favorites">⭐ Favorites</button>
         <button class="filter-btn" data-filter="instrument">Instruments</button>
         <button class="filter-btn" data-filter="effect">Effects</button>
         <button class="filter-btn" data-filter="VST3">VST3</button>
@@ -61,10 +83,12 @@
         <table class="plugin-table">
           <thead>
             <tr>
+              <th>⭐</th>
               <th>Name</th>
               <th>Type</th>
               <th>Format</th>
               <th>Manufacturer</th>
+              <th>Rating</th>
               <th>Notes</th>
               <th>Path</th>
             </tr>
@@ -145,6 +169,135 @@
     </div>
   </div>
 
+  <!-- Modal: Add/Edit App -->
+  <div id="appModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="appModalTitle">Add App</h2>
+        <button class="modal-close" onclick="closeModal('appModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>App Name *</label>
+          <input type="text" id="appName" placeholder="e.g., Ableton Live">
+        </div>
+        <div class="form-group">
+          <label>Manufacturer</label>
+          <input type="text" id="appManufacturer" placeholder="e.g., Arturia, Cherry Audio, Native Instruments">
+        </div>
+        <div class="form-group">
+          <label>App Path *</label>
+          <div class="input-with-button">
+            <input type="text" id="appPath" placeholder="/Applications/YourApp.app">
+            <button class="browse-btn" onclick="browseForApp()">Browse...</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Category *</label>
+          <select id="appCategory">
+            <option value="DAWs">DAWs</option>
+            <option value="Synths">Synths</option>
+            <option value="Guitar & Bass">Guitar & Bass</option>
+            <option value="Audio Tools">Audio Tools</option>
+            <option value="Utilities">Utilities</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Icon (Emoji)</label>
+          <input type="text" id="appIcon" placeholder="🎹" maxlength="2">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('appModal')">Cancel</button>
+        <button class="btn-primary" onclick="saveApp()">Save App</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Plugin Notes/Rating -->
+  <div id="pluginModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit Plugin</h2>
+        <button class="modal-close" onclick="closeModal('pluginModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Plugin Name</label>
+          <input type="text" id="pluginName" readonly>
+        </div>
+        <div class="form-group">
+          <label>Rating</label>
+          <div class="rating-input">
+            <span class="star" data-rating="1">☆</span>
+            <span class="star" data-rating="2">☆</span>
+            <span class="star" data-rating="3">☆</span>
+            <span class="star" data-rating="4">☆</span>
+            <span class="star" data-rating="5">☆</span>
+          </div>
+          <input type="hidden" id="pluginRating" value="0">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="pluginNotes" rows="4" placeholder="Add your notes about this plugin..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="pluginFavorite">
+            Mark as Favorite
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('pluginModal')">Cancel</button>
+        <button class="btn-primary" onclick="savePlugin()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Overlay -->
+  <div id="shortcutsOverlay" class="shortcuts-overlay" style="display: none;">
+    <div class="shortcuts-content">
+      <h2>⌨️ Keyboard Shortcuts</h2>
+      <div class="shortcuts-grid">
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>1</kbd>
+          <span>Apps Tab</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>2</kbd>
+          <span>Plugins Tab</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>3</kbd>
+          <span>Tools Tab</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>F</kbd>
+          <span>Focus Search</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>N</kbd>
+          <span>Add New App</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>E</kbd>
+          <span>Toggle Edit Mode</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>?</kbd>
+          <span>Show Shortcuts</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Esc</kbd>
+          <span>Close Modal/Overlay</span>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="closeShortcuts()">Got it!</button>
+    </div>
+  </div>
+
+  <script src="phase4.js"></script>
   <script src="app.js"></script>
 </body>
 
