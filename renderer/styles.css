@@ -1419,3 +1419,39 @@ h1 {
   transform: translateY(-2px) scale(1.02);
 }
 
+
+/* Category Reorder Buttons */
+.category-reorder-btns {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.reorder-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.reorder-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+

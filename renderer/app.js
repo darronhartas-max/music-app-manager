@@ -96,6 +96,11 @@ function switchTab(tabName) {
     renderApps();
   } else if (tabName === 'plugins') {
     renderPlugins();
+  } else if (tabName === 'settings') {
+    // Render category manager when settings tab is opened
+    if (typeof renderCategoryManager === 'function') {
+      setTimeout(() => renderCategoryManager(), 100);
+    }
   }
 
   // Clear search
@@ -623,3 +628,172 @@ switchTab = function (tabName) {
     initializeSettings();
   }
 };
+
+// ============================================
+// CATEGORY REORDERING
+// ============================================
+
+// Render category manager
+function renderCategoryManager() {
+  const categoryList = document.getElementById('categoryList');
+  if (!categoryList || !appData || !appData.categories) return;
+
+  categoryList.innerHTML = appData.categories.map((category, index) => `
+    <div class="category-item">
+      <div class="category-reorder-btns">
+        <button class="reorder-btn" onclick="moveCategoryUp(${index})" ${index === 0 ? 'disabled' : ''}>⬆️</button>
+        <button class="reorder-btn" onclick="moveCategoryDown(${index})" ${index === appData.categories.length - 1 ? 'disabled' : ''}>⬇️</button>
+      </div>
+      <input type="text" value="${category.name}" 
+             onblur="handleCategoryRename(this, '${category.name}')"
+             onkeypress="if(event.key==='Enter') this.blur()">
+      <span style="color: var(--text-muted); font-size: 0.75rem;">${category.apps.length} apps</span>
+      <button class="delete-btn" onclick="handleCategoryDelete('${category.name}')">🗑️</button>
+    </div>
+  `).join('');
+}
+
+// Move category up
+async function moveCategoryUp(index) {
+  if (index === 0) return;
+
+  // Swap with previous
+  const temp = appData.categories[index];
+  appData.categories[index] = appData.categories[index - 1];
+  appData.categories[index - 1] = temp;
+
+  // Save and re-render
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  renderCategoryManager();
+  renderApps();
+  showNotification('✅ Reordered', `Moved ${temp.name} up`);
+}
+
+// Move category down
+async function moveCategoryDown(index) {
+  if (index === appData.categories.length - 1) return;
+
+  // Swap with next
+  const temp = appData.categories[index];
+  appData.categories[index] = appData.categories[index + 1];
+  appData.categories[index + 1] = temp;
+
+  // Save and re-render
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  renderCategoryManager();
+  renderApps();
+  showNotification('✅ Reordered', `Moved ${temp.name} down`);
+}
+
+// Handle category rename
+function handleCategoryRename(input, oldName) {
+  const newName = input.value.trim();
+  if (newName && newName !== oldName) {
+    renameCategory(oldName, newName);
+  } else {
+    input.value = oldName;
+  }
+}
+
+// Rename category
+async function renameCategory(oldName, newName) {
+  if (!newName || !newName.trim()) {
+    showError('Category name is required');
+    return;
+  }
+
+  const category = appData.categories.find(c => c.name === oldName);
+  if (!category) return;
+
+  category.name = newName.trim();
+
+  // Save
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  renderCategoryManager();
+  renderApps();
+  showNotification('✅ Category Renamed', `${oldName} → ${newName}`);
+}
+
+// Handle category delete
+async function handleCategoryDelete(name) {
+  const category = appData.categories.find(c => c.name === name);
+  if (!category) return;
+
+  if (category.apps.length > 0) {
+    const confirmed = confirm(`Delete "${name}" category? This will remove ${category.apps.length} apps.`);
+    if (!confirmed) return;
+  }
+
+  // Remove category
+  appData.categories = appData.categories.filter(c => c.name !== name);
+
+  // Save
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  renderCategoryManager();
+  renderApps();
+  updateStatistics();
+  showNotification('🗑️ Category Deleted', `${name} has been removed`);
+}
+
+// Add category button handler
+document.addEventListener('DOMContentLoaded', () => {
+  const addCategoryBtn = document.getElementById('addCategoryBtn');
+  if (addCategoryBtn) {
+    addCategoryBtn.addEventListener('click', () => {
+      const name = prompt('Enter category name:');
+      if (name && name.trim()) {
+        addCategory(name.trim());
+      }
+    });
+  }
+});
+
+// Add category
+async function addCategory(name) {
+  if (!name || !name.trim()) {
+    showError('Category name is required');
+    return;
+  }
+
+  // Check if exists
+  if (appData.categories.find(c => c.name === name)) {
+    showError('Category already exists');
+    return;
+  }
+
+  // Add category
+  appData.categories.push({
+    name: name.trim(),
+    apps: []
+  });
+
+  // Save
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  renderCategoryManager();
+  renderApps();
+  updateStatistics();
+  showNotification('✅ Category Added', `${name} has been created`);
+}
+
+// Export functions
+window.renderCategoryManager = renderCategoryManager;
+window.moveCategoryUp = moveCategoryUp;
+window.moveCategoryDown = moveCategoryDown;
+window.handleCategoryRename = handleCategoryRename;
+window.handleCategoryDelete = handleCategoryDelete;
+
