@@ -176,6 +176,10 @@
           <p class="settings-description">Manage your AppViewr configuration</p>
 
           <div class="settings-actions">
+            <button id="cleanupAppsBtn" class="action-btn">
+              <span class="btn-icon">🧹</span>
+              Clean Up Missing Apps
+            </button>
             <button id="exportConfigBtn" class="action-btn">
               <span class="btn-icon">📤</span>
               Export Config
@@ -185,6 +189,8 @@
               Reload Config
             </button>
           </div>
+
+          <div id="cleanupResults" class="scan-results" style="display: none;"></div>
         </div>
 
         <div class="settings-section">

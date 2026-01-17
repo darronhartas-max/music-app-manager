@@ -415,6 +415,12 @@ function initializeSettings() {
     scanAppsBtn.addEventListener('click', handleAppScan);
   }
 
+  // Cleanup apps button
+  const cleanupAppsBtn = document.getElementById('cleanupAppsBtn');
+  if (cleanupAppsBtn) {
+    cleanupAppsBtn.addEventListener('click', handleCleanupApps);
+  }
+
   // Update statistics
   updateStatistics();
 
@@ -1033,4 +1039,134 @@ async function addSelectedApps(scannedApps) {
 window.handleAppScan = handleAppScan;
 window.toggleAllAppSelections = toggleAllAppSelections;
 window.addSelectedApps = addSelectedApps;
+
+
+// ============================================
+// CLEANUP MISSING APPS
+// ============================================
+
+// Handle cleanup of missing apps
+async function handleCleanupApps() {
+  const cleanupBtn = document.getElementById('cleanupAppsBtn');
+  const cleanupResults = document.getElementById('cleanupResults');
+
+  try {
+    // Disable button
+    cleanupBtn.disabled = true;
+    cleanupBtn.innerHTML = '<span class="btn-icon">⏳</span> Checking...';
+    cleanupResults.style.display = 'none';
+
+    // Check all apps
+    const missingApps = [];
+    const totalApps = [];
+
+    for (const category of appData.categories) {
+      for (const app of category.apps) {
+        totalApps.push({ app, category: category.name });
+
+        // Check if app exists
+        const exists = await window.electronAPI.checkAppExists(app.path);
+        if (!exists) {
+          missingApps.push({ app, category: category.name });
+        }
+      }
+    }
+
+    // Re-enable button
+    cleanupBtn.disabled = false;
+    cleanupBtn.innerHTML = '<span class="btn-icon">🧹</span> Clean Up Missing Apps';
+
+    if (missingApps.length === 0) {
+      cleanupResults.innerHTML = `
+        <div class="scan-results-summary">
+          <p style="color: var(--accent-primary);">
+            ✅ All ${totalApps.length} apps are installed and accessible!
+          </p>
+          <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
+            No cleanup needed.
+          </p>
+        </div>
+      `;
+      cleanupResults.style.display = 'block';
+      return;
+    }
+
+    // Show missing apps
+    cleanupResults.innerHTML = `
+      <div class="scan-results-summary">
+        <p><strong>Found ${missingApps.length} missing apps</strong></p>
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
+          These apps are in your library but no longer exist on your system.
+        </p>
+      </div>
+      
+      <div class="missing-apps-list">
+        ${missingApps.map(({ app, category }) => `
+          <div class="missing-app-item">
+            <div>
+              <strong>${app.name}</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">
+                ${category} • ${app.manufacturer || 'Unknown'}
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                ${app.path}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div class="scan-results-actions">
+        <button class="action-btn primary" onclick="removeMissingApps(${JSON.stringify(missingApps).replace(/"/g, '&quot;')})">
+          <span class="btn-icon">🗑️</span>
+          Remove ${missingApps.length} Missing Apps
+        </button>
+        <button class="action-btn" onclick="document.getElementById('cleanupResults').style.display='none'">
+          Cancel
+        </button>
+      </div>
+    `;
+
+    cleanupResults.style.display = 'block';
+
+  } catch (error) {
+    console.error('Error checking apps:', error);
+    cleanupBtn.disabled = false;
+    cleanupBtn.innerHTML = '<span class="btn-icon">🧹</span> Clean Up Missing Apps';
+    showError('Failed to check apps: ' + error.message);
+  }
+}
+
+// Remove missing apps from library
+async function removeMissingApps(missingApps) {
+  const confirmed = confirm(
+    `Remove ${missingApps.length} missing apps from your library?\n\n` +
+    `This will not delete any files, only remove them from AppViewr.`
+  );
+
+  if (!confirmed) return;
+
+  // Remove missing apps
+  missingApps.forEach(({ app }) => {
+    appData.categories.forEach(category => {
+      category.apps = category.apps.filter(a => a.path !== app.path);
+    });
+  });
+
+  // Save config
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  // Hide results and update UI
+  document.getElementById('cleanupResults').style.display = 'none';
+  renderApps();
+  updateStatistics();
+
+  showNotification('🗑️ Cleaned Up', `Removed ${missingApps.length} missing apps`);
+}
+
+// Export functions
+window.handleCleanupApps = handleCleanupApps;
+window.removeMissingApps = removeMissingApps;
 

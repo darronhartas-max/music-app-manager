@@ -60,32 +60,6 @@
       ]
     },
     {
-      "name": "Audio Tools",
-      "apps": [
-        {
-          "name": "iZotope RX",
-          "manufacturer": "iZotope",
-          "path": "/Applications/iZotope RX 9.app",
-          "icon": "🔧",
-          "favorite": false
-        },
-        {
-          "name": "FabFilter Pro-Q",
-          "manufacturer": "FabFilter",
-          "path": "/Applications/FabFilter/Pro-Q 3.app",
-          "icon": "📊",
-          "favorite": false
-        },
-        {
-          "name": "Melodyne",
-          "manufacturer": "Celemony",
-          "path": "/Applications/Celemony/Melodyne.app",
-          "icon": "🎤",
-          "favorite": true
-        }
-      ]
-    },
-    {
       "name": "DAWs",
       "apps": [
         {
@@ -115,6 +89,32 @@
           "path": "/Applications/GarageBand.app",
           "icon": "🎵",
           "favorite": false
+        }
+      ]
+    },
+    {
+      "name": "Audio Tools",
+      "apps": [
+        {
+          "name": "iZotope RX",
+          "manufacturer": "iZotope",
+          "path": "/Applications/iZotope RX 9.app",
+          "icon": "🔧",
+          "favorite": false
+        },
+        {
+          "name": "FabFilter Pro-Q",
+          "manufacturer": "FabFilter",
+          "path": "/Applications/FabFilter/Pro-Q 3.app",
+          "icon": "📊",
+          "favorite": false
+        },
+        {
+          "name": "Melodyne",
+          "manufacturer": "Celemony",
+          "path": "/Applications/Celemony/Melodyne.app",
+          "icon": "🎤",
+          "favorite": true
         }
       ]
     },

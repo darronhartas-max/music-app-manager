@@ -161,22 +161,69 @@ function renderAppsPhase4(searchTerm = '') {
     }
 
     // Render groups
-    Object.keys(groups).sort().forEach(groupName => {
-        const apps = groups[groupName];
-        hasResults = true;
+    if (currentView === 'category') {
+        // Iterate through categories in defined order
+        appData.categories.forEach(category => {
+            if (groups[category.name] && groups[category.name].length > 0) {
+                const groupName = category.name;
+                const apps = groups[groupName];
+                hasResults = true;
 
-        html += `
-      <div class="category">
-        <div class="category-header">
-          <h2 class="category-title">${groupName}</h2>
-          <span class="category-count">${apps.length}</span>
-        </div>
-        <div class="app-grid">
-          ${apps.map(app => createAppCardPhase4(app)).join('')}
-        </div>
-      </div>
-    `;
-    });
+                html += `
+              <div class="category">
+                <div class="category-header">
+                  <h2 class="category-title">${groupName}</h2>
+                  <span class="category-count">${apps.length}</span>
+                </div>
+                <div class="app-grid">
+                  ${apps.map(app => createAppCardPhase4(app)).join('')}
+                </div>
+              </div>
+            `;
+            }
+        });
+
+        // Also render any uncategorized apps or categories not in appData
+        Object.keys(groups).forEach(groupName => {
+            // content not found search? The problem is I want to find keys in groups that are NOT in appData.categories
+            const isKnownCategory = appData.categories.some(c => c.name === groupName);
+            if (!isKnownCategory) {
+                const apps = groups[groupName];
+                hasResults = true;
+
+                html += `
+              <div class="category">
+                <div class="category-header">
+                  <h2 class="category-title">${groupName}</h2>
+                  <span class="category-count">${apps.length}</span>
+                </div>
+                <div class="app-grid">
+                  ${apps.map(app => createAppCardPhase4(app)).join('')}
+                </div>
+              </div>
+            `;
+            }
+        })
+
+    } else {
+        // For manufacturer view, alphabetical sort is fine
+        Object.keys(groups).sort().forEach(groupName => {
+            const apps = groups[groupName];
+            hasResults = true;
+
+            html += `
+          <div class="category">
+            <div class="category-header">
+              <h2 class="category-title">${groupName}</h2>
+              <span class="category-count">${apps.length}</span>
+            </div>
+            <div class="app-grid">
+              ${apps.map(app => createAppCardPhase4(app)).join('')}
+            </div>
+          </div>
+        `;
+        });
+    }
 
     container.innerHTML = html;
 
