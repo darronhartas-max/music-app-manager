@@ -32,6 +32,9 @@
           <button class="tab-btn" data-tab="plugins">
             Plugins
           </button>
+          <button class="tab-btn" data-tab="settings">
+            ⚙️ Tools
+          </button>
         </nav>
       </div>
     </header>
@@ -51,6 +54,7 @@
         <button class="filter-btn" data-filter="effect">Effects</button>
         <button class="filter-btn" data-filter="VST3">VST3</button>
         <button class="filter-btn" data-filter="AU">AU</button>
+        <button class="filter-btn" data-filter="unknown">Unknown</button>
       </div>
 
       <div class="plugin-table-container">
@@ -69,6 +73,74 @@
             <!-- Plugins will be dynamically loaded here -->
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Settings/Tools Tab -->
+    <div id="settingsTab" class="tab-content">
+      <div class="settings-container">
+        <div class="settings-section">
+          <h2 class="settings-title">🔍 Plugin Scanner</h2>
+          <p class="settings-description">Automatically scan your system for installed audio plugins (VST, VST3, AU)</p>
+
+          <div class="settings-actions">
+            <button id="scanPluginsBtn" class="action-btn primary">
+              <span class="btn-icon">🔍</span>
+              Scan for Plugins
+            </button>
+            <div id="scanProgress" class="scan-progress" style="display: none;">
+              <div class="progress-bar">
+                <div class="progress-fill"></div>
+              </div>
+              <div class="progress-text">Scanning...</div>
+            </div>
+          </div>
+
+          <div id="scanResults" class="scan-results" style="display: none;"></div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="settings-title">📊 Statistics</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="statApps">0</div>
+              <div class="stat-label">Apps</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statPlugins">0</div>
+              <div class="stat-label">Plugins</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statCategories">0</div>
+              <div class="stat-label">Categories</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="settings-title">💾 Configuration</h2>
+          <p class="settings-description">Manage your AppViewr configuration</p>
+
+          <div class="settings-actions">
+            <button id="exportConfigBtn" class="action-btn">
+              <span class="btn-icon">📤</span>
+              Export Config
+            </button>
+            <button id="reloadConfigBtn" class="action-btn">
+              <span class="btn-icon">🔄</span>
+              Reload Config
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="settings-title">ℹ️ About</h2>
+          <div class="about-info">
+            <p><strong>AppViewr</strong> - Music App & Plugin Manager</p>
+            <p>Version: 1.0.0 (Phase 3)</p>
+            <p id="platformInfo">Platform: Loading...</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>

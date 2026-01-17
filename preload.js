@@ -25,6 +25,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Get platform info
     getPlatform: () => ipcRenderer.invoke('get-platform'),
 
+    // File dialogs
+    selectAppFile: () => ipcRenderer.invoke('select-app-file'),
+    selectPluginFile: () => ipcRenderer.invoke('select-plugin-file'),
+
+    // Merge scanned plugins with config
+    mergePlugins: (scannedPlugins) => ipcRenderer.invoke('merge-plugins', scannedPlugins),
+
+    // Listen for scan progress
+    onScanProgress: (callback) => {
+        ipcRenderer.on('scan-progress', (event, data) => callback(data));
+    },
+
     // Check if running in Electron
     isElectron: true
 });

@@ -336,3 +336,260 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// ============================================
+// PHASE 3: Settings Panel Functionality
+// ============================================
+
+// Initialize settings panel
+function initializeSettings() {
+  if (!isElectron) return;
+
+  // Scan plugins button
+  const scanBtn = document.getElementById('scanPluginsBtn');
+  if (scanBtn) {
+    scanBtn.addEventListener('click', handlePluginScan);
+  }
+
+  // Export config button
+  const exportBtn = document.getElementById('exportConfigBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', handleExportConfig);
+  }
+
+  // Reload config button
+  const reloadBtn = document.getElementById('reloadConfigBtn');
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', handleReloadConfig);
+  }
+
+  // Update statistics
+  updateStatistics();
+
+  // Update platform info
+  updatePlatformInfo();
+
+  // Listen for scan progress
+  if (window.electronAPI.onScanProgress) {
+    window.electronAPI.onScanProgress((data) => {
+      updateScanProgress(data);
+    });
+  }
+}
+
+// Handle plugin scan
+async function handlePluginScan() {
+  const scanBtn = document.getElementById('scanPluginsBtn');
+  const scanProgress = document.getElementById('scanProgress');
+  const scanResults = document.getElementById('scanResults');
+
+  try {
+    // Disable button and show progress
+    scanBtn.disabled = true;
+    scanProgress.style.display = 'flex';
+    scanResults.style.display = 'none';
+
+    // Start scan
+    const result = await window.electronAPI.scanPlugins();
+
+    // Hide progress
+    scanProgress.style.display = 'none';
+
+    // Show results
+    scanResults.style.display = 'block';
+    scanResults.innerHTML = `
+      <h3>✅ Scan Complete!</h3>
+      <p><strong>${result.count}</strong> plugins found</p>
+      <p>Scanned paths: ${result.scannedPaths.length}</p>
+      <div style="margin-top: var(--spacing-md);">
+        <button id="mergePluginsBtn" class="action-btn primary">
+          <span class="btn-icon">📥</span>
+          Add ${result.count} Plugins to Library
+        </button>
+        <button id="viewScannedBtn" class="action-btn">
+          <span class="btn-icon">👁️</span>
+          View Details
+        </button>
+      </div>
+    `;
+
+    // Store scanned plugins temporarily
+    window.scannedPlugins = result.plugins;
+
+    // Add merge button handler
+    document.getElementById('mergePluginsBtn').addEventListener('click', async () => {
+      await handleMergePlugins(result.plugins);
+    });
+
+    // Add view button handler
+    document.getElementById('viewScannedBtn').addEventListener('click', () => {
+      showScannedPluginsDetails(result.plugins);
+    });
+
+  } catch (error) {
+    console.error('Scan error:', error);
+    scanProgress.style.display = 'none';
+    scanResults.style.display = 'block';
+    scanResults.innerHTML = `
+      <h3>⚠️ Scan Error</h3>
+      <p style="color: #fca5a5;">${error.message || 'Failed to scan plugins'}</p>
+    `;
+  } finally {
+    scanBtn.disabled = false;
+  }
+}
+
+// Update scan progress
+function updateScanProgress(data) {
+  const progressText = document.querySelector('.progress-text');
+  if (progressText) {
+    progressText.textContent = `Scanning... ${data.count} plugins found (${data.current})`;
+  }
+}
+
+// Handle merge plugins
+async function handleMergePlugins(plugins) {
+  try {
+    const result = await window.electronAPI.mergePlugins(plugins);
+
+    showNotification(
+      '✅ Plugins Added',
+      `Added ${result.added} new plugins. Total: ${result.total}`
+    );
+
+    // Reload config
+    await loadConfig();
+    updateStatistics();
+
+    // Switch to plugins tab
+    switchTab('plugins');
+
+  } catch (error) {
+    showError(`Failed to merge plugins: ${error.message}`);
+  }
+}
+
+// Show scanned plugins details
+function showScannedPluginsDetails(plugins) {
+  const scanResults = document.getElementById('scanResults');
+
+  // Group by format
+  const byFormat = {};
+  plugins.forEach(p => {
+    if (!byFormat[p.format]) byFormat[p.format] = [];
+    byFormat[p.format].push(p);
+  });
+
+  let html = '<h3>📋 Scanned Plugins</h3>';
+
+  Object.keys(byFormat).forEach(format => {
+    html += `
+      <div style="margin-top: var(--spacing-md);">
+        <strong>${format}</strong>: ${byFormat[format].length} plugins
+      </div>
+    `;
+  });
+
+  html += `
+    <div style="margin-top: var(--spacing-md);">
+      <button id="backToScanBtn" class="action-btn">
+        <span class="btn-icon">←</span>
+        Back
+      </button>
+    </div>
+  `;
+
+  scanResults.innerHTML = html;
+
+  document.getElementById('backToScanBtn').addEventListener('click', () => {
+    handlePluginScan();
+  });
+}
+
+// Handle export config
+async function handleExportConfig() {
+  try {
+    const configJson = JSON.stringify(appData, null, 2);
+    const blob = new Blob([configJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `appviewr-config-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    showNotification('📤 Config Exported', 'Configuration file downloaded');
+  } catch (error) {
+    showError(`Failed to export config: ${error.message}`);
+  }
+}
+
+// Handle reload config
+async function handleReloadConfig() {
+  try {
+    await loadConfig();
+    updateStatistics();
+    renderApps();
+    renderPlugins();
+    showNotification('🔄 Config Reloaded', 'Configuration refreshed successfully');
+  } catch (error) {
+    showError(`Failed to reload config: ${error.message}`);
+  }
+}
+
+// Update statistics
+function updateStatistics() {
+  if (!appData) return;
+
+  // Count apps
+  let totalApps = 0;
+  if (appData.categories) {
+    appData.categories.forEach(cat => {
+      totalApps += cat.apps.length;
+    });
+  }
+
+  // Count plugins
+  const totalPlugins = appData.plugins ? appData.plugins.length : 0;
+
+  // Count categories
+  const totalCategories = appData.categories ? appData.categories.length : 0;
+
+  // Update UI
+  const statApps = document.getElementById('statApps');
+  const statPlugins = document.getElementById('statPlugins');
+  const statCategories = document.getElementById('statCategories');
+
+  if (statApps) statApps.textContent = totalApps;
+  if (statPlugins) statPlugins.textContent = totalPlugins;
+  if (statCategories) statCategories.textContent = totalCategories;
+}
+
+// Update platform info
+async function updatePlatformInfo() {
+  if (!isElectron) return;
+
+  try {
+    const platform = await window.electronAPI.getPlatform();
+    const platformInfo = document.getElementById('platformInfo');
+
+    if (platformInfo) {
+      const platformName = platform.platform === 'darwin' ? 'macOS' :
+        platform.platform === 'win32' ? 'Windows' :
+          platform.platform;
+      platformInfo.textContent = `Platform: ${platformName} (${platform.arch})`;
+    }
+  } catch (error) {
+    console.error('Failed to get platform info:', error);
+  }
+}
+
+// Call initialize settings when settings tab is opened
+const originalSwitchTab = switchTab;
+switchTab = function (tabName) {
+  originalSwitchTab(tabName);
+
+  if (tabName === 'settings' && isElectron) {
+    initializeSettings();
+  }
+};

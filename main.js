@@ -136,10 +136,11 @@ ipcMain.handle('check-app-exists', async (event, appPath) => {
     }
 });
 
-// Scan for plugins (basic implementation)
-ipcMain.handle('scan-plugins', async () => {
+// Scan for plugins (enhanced implementation)
+ipcMain.handle('scan-plugins', async (event) => {
     const platform = process.platform;
     const plugins = [];
+    let scannedCount = 0;
 
     let pluginPaths = [];
 
@@ -158,47 +159,136 @@ ipcMain.handle('scan-plugins', async () => {
             'C:\\Program Files\\Steinberg\\VSTPlugins',
             'C:\\Program Files\\Common Files\\VST2',
             'C:\\Program Files (x86)\\Common Files\\VST3',
-            'C:\\Program Files (x86)\\Steinberg\\VSTPlugins'
+            'C:\\Program Files (x86)\\Steinberg\\VSTPlugins',
+            path.join(os.homedir(), 'AppData\\Local\\Programs\\Common\\VST3')
         ];
     }
 
-    for (const pluginPath of pluginPaths) {
-        if (fs.existsSync(pluginPath)) {
-            try {
-                const files = fs.readdirSync(pluginPath);
+    // Helper function to scan directory recursively
+    const scanDirectory = (dirPath, maxDepth = 2, currentDepth = 0) => {
+        if (currentDepth > maxDepth || !fs.existsSync(dirPath)) return;
 
-                files.forEach(file => {
-                    const fullPath = path.join(pluginPath, file);
+        try {
+            const files = fs.readdirSync(dirPath);
+
+            files.forEach(file => {
+                try {
+                    const fullPath = path.join(dirPath, file);
                     const stats = fs.statSync(fullPath);
 
                     // Determine format
-                    let format = 'Unknown';
-                    if (file.endsWith('.vst3') || stats.isDirectory() && file.endsWith('.vst3')) {
+                    let format = null;
+                    let isPlugin = false;
+
+                    if (file.endsWith('.vst3') || (stats.isDirectory() && file.endsWith('.vst3'))) {
                         format = 'VST3';
-                    } else if (file.endsWith('.vst')) {
+                        isPlugin = true;
+                    } else if (file.endsWith('.vst') || (stats.isDirectory() && file.endsWith('.vst'))) {
                         format = 'VST';
-                    } else if (file.endsWith('.component')) {
+                        isPlugin = true;
+                    } else if (file.endsWith('.component') || (stats.isDirectory() && file.endsWith('.component'))) {
                         format = 'AU';
+                        isPlugin = true;
+                    } else if (file.endsWith('.dll') && dirPath.includes('VST')) {
+                        format = 'VST';
+                        isPlugin = true;
                     }
 
-                    if (format !== 'Unknown') {
+                    if (isPlugin) {
+                        scannedCount++;
+
+                        // Clean up plugin name
+                        let pluginName = file.replace(/\.(vst3|vst|component|dll)$/i, '');
+
+                        // Try to extract manufacturer from path or name
+                        let manufacturer = 'Unknown';
+                        const pathParts = fullPath.split(path.sep);
+
+                        // Look for manufacturer in path (common pattern: .../Manufacturer/PluginName)
+                        if (pathParts.length > 2) {
+                            const possibleManufacturer = pathParts[pathParts.length - 2];
+                            if (possibleManufacturer !== 'VST3' &&
+                                possibleManufacturer !== 'VST' &&
+                                possibleManufacturer !== 'Components' &&
+                                possibleManufacturer !== 'VSTPlugins') {
+                                manufacturer = possibleManufacturer;
+                            }
+                        }
+
+                        // Guess plugin type based on common naming patterns
+                        let type = 'unknown';
+                        const lowerName = pluginName.toLowerCase();
+
+                        // Instrument indicators
+                        if (lowerName.includes('synth') ||
+                            lowerName.includes('piano') ||
+                            lowerName.includes('drum') ||
+                            lowerName.includes('bass') ||
+                            lowerName.includes('guitar') ||
+                            lowerName.includes('organ') ||
+                            lowerName.includes('strings') ||
+                            lowerName.includes('brass') ||
+                            lowerName.includes('sampler') ||
+                            lowerName.includes('kontakt')) {
+                            type = 'instrument';
+                        }
+                        // Effect indicators
+                        else if (lowerName.includes('reverb') ||
+                            lowerName.includes('delay') ||
+                            lowerName.includes('eq') ||
+                            lowerName.includes('compressor') ||
+                            lowerName.includes('limiter') ||
+                            lowerName.includes('saturator') ||
+                            lowerName.includes('distortion') ||
+                            lowerName.includes('chorus') ||
+                            lowerName.includes('flanger') ||
+                            lowerName.includes('phaser')) {
+                            type = 'effect';
+                        }
+
                         plugins.push({
-                            name: file.replace(/\.(vst3|vst|component)$/, ''),
+                            name: pluginName,
                             path: fullPath,
                             format: format,
-                            type: 'unknown', // Would need metadata parsing
-                            manufacturer: 'Unknown',
-                            notes: ''
+                            type: type,
+                            manufacturer: manufacturer,
+                            notes: '',
+                            dateScanned: new Date().toISOString()
                         });
+
+                        // Send progress update
+                        if (mainWindow && scannedCount % 10 === 0) {
+                            mainWindow.webContents.send('scan-progress', {
+                                count: scannedCount,
+                                current: pluginName
+                            });
+                        }
+                    } else if (stats.isDirectory() && currentDepth < maxDepth) {
+                        // Recurse into subdirectories
+                        scanDirectory(fullPath, maxDepth, currentDepth + 1);
                     }
-                });
-            } catch (error) {
-                console.error(`Error scanning ${pluginPath}:`, error);
-            }
+                } catch (err) {
+                    // Skip files we can't access
+                    console.error(`Error scanning file ${file}:`, err.message);
+                }
+            });
+        } catch (error) {
+            console.error(`Error scanning directory ${dirPath}:`, error);
         }
+    };
+
+    // Scan all plugin paths
+    for (const pluginPath of pluginPaths) {
+        console.log(`Scanning: ${pluginPath}`);
+        scanDirectory(pluginPath);
     }
 
-    return plugins;
+    console.log(`Plugin scan complete. Found ${plugins.length} plugins.`);
+    return {
+        plugins: plugins,
+        count: plugins.length,
+        scannedPaths: pluginPaths.filter(p => fs.existsSync(p))
+    };
 });
 
 // Open external link
@@ -213,4 +303,74 @@ ipcMain.handle('get-platform', async () => {
         arch: process.arch,
         version: process.version
     };
+});
+
+// Open file dialog to select app
+ipcMain.handle('select-app-file', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Applications', extensions: process.platform === 'darwin' ? ['app'] : ['exe'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+        return result.filePaths[0];
+    }
+    return null;
+});
+
+// Open file dialog to select plugin
+ipcMain.handle('select-plugin-file', async () => {
+    const { dialog } = require('electron');
+    const filters = process.platform === 'darwin'
+        ? [
+            { name: 'Audio Plugins', extensions: ['vst3', 'vst', 'component'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+        : [
+            { name: 'Audio Plugins', extensions: ['vst3', 'vst', 'dll'] },
+            { name: 'All Files', extensions: ['*'] }
+        ];
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: filters
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+        return result.filePaths[0];
+    }
+    return null;
+});
+
+// Merge scanned plugins with existing config
+ipcMain.handle('merge-plugins', async (event, scannedPlugins) => {
+    try {
+        const configPath = path.join(__dirname, 'config', 'apps-config.json');
+        const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+        // Get existing plugin paths
+        const existingPaths = new Set(configData.plugins.map(p => p.path));
+
+        // Add only new plugins
+        const newPlugins = scannedPlugins.filter(p => !existingPaths.has(p.path));
+
+        // Merge
+        configData.plugins = [...configData.plugins, ...newPlugins];
+
+        // Save
+        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
+
+        return {
+            success: true,
+            added: newPlugins.length,
+            total: configData.plugins.length
+        };
+    } catch (error) {
+        console.error('Error merging plugins:', error);
+        throw error;
+    }
 });
