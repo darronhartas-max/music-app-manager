@@ -1,32 +1,6 @@
 {
   "categories": [
     {
-      "name": "DAWs",
-      "apps": [
-        {
-          "name": "Ableton Live",
-          "manufacturer": "Ableton",
-          "path": "/Applications/Ableton Live 11 Suite.app",
-          "icon": "🎹",
-          "favorite": false
-        },
-        {
-          "name": "Logic Pro",
-          "manufacturer": "Apple",
-          "path": "/Applications/Logic Pro X.app",
-          "icon": "🎵",
-          "favorite": false
-        },
-        {
-          "name": "FL Studio",
-          "manufacturer": "Image-Line",
-          "path": "/Applications/FL Studio.app",
-          "icon": "🎼",
-          "favorite": false
-        }
-      ]
-    },
-    {
       "name": "Synths",
       "apps": [
         {
@@ -67,7 +41,7 @@
           "manufacturer": "Native Instruments",
           "path": "/Applications/Native Instruments/Guitar Rig 6.app",
           "icon": "🎸",
-          "favorite": false
+          "favorite": true
         },
         {
           "name": "Amplitube",
@@ -108,6 +82,32 @@
           "path": "/Applications/Celemony/Melodyne.app",
           "icon": "🎤",
           "favorite": true
+        }
+      ]
+    },
+    {
+      "name": "DAWs",
+      "apps": [
+        {
+          "name": "Ableton Live",
+          "manufacturer": "Ableton",
+          "path": "/Applications/Ableton Live 11 Suite.app",
+          "icon": "🎹",
+          "favorite": false
+        },
+        {
+          "name": "Logic Pro",
+          "manufacturer": "Apple",
+          "path": "/Applications/Logic Pro X.app",
+          "icon": "🎵",
+          "favorite": false
+        },
+        {
+          "name": "FL Studio",
+          "manufacturer": "Image-Line",
+          "path": "/Applications/FL Studio.app",
+          "icon": "🎼",
+          "favorite": false
         }
       ]
     },
@@ -233,7 +233,10 @@
       "rating": 3
     }
   ],
-  "recentApps": [],
+  "recentApps": [
+    "/Applications/Vital.app",
+    "/Applications/Native Instruments/Guitar Rig 6.app"
+  ],
   "settings": {
     "defaultView": "category",
     "showRecentApps": true,

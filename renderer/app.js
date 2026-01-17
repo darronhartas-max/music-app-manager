@@ -398,6 +398,17 @@ function initializeSettings() {
     reloadBtn.addEventListener('click', handleReloadConfig);
   }
 
+  // Add category button
+  const addCategoryBtn = document.getElementById('addCategoryBtn');
+  if (addCategoryBtn) {
+    addCategoryBtn.addEventListener('click', () => {
+      const name = prompt('Enter category name:');
+      if (name && name.trim()) {
+        addCategory(name.trim());
+      }
+    });
+  }
+
   // Update statistics
   updateStatistics();
 
@@ -746,19 +757,6 @@ async function handleCategoryDelete(name) {
   updateStatistics();
   showNotification('🗑️ Category Deleted', `${name} has been removed`);
 }
-
-// Add category button handler
-document.addEventListener('DOMContentLoaded', () => {
-  const addCategoryBtn = document.getElementById('addCategoryBtn');
-  if (addCategoryBtn) {
-    addCategoryBtn.addEventListener('click', () => {
-      const name = prompt('Enter category name:');
-      if (name && name.trim()) {
-        addCategory(name.trim());
-      }
-    });
-  }
-});
 
 // Add category
 async function addCategory(name) {
