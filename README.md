@@ -104,26 +104,32 @@ Installers will be created in the `dist/` directory.
 
 ### ✅ Phase 3: Enhanced Plugin Scanner (Complete)
 - [x] Auto-scan plugin directories
-- [x] Intelligent type detection (instrument/effect)
-- [x] Manufacturer extraction from paths
-- [x] Real-time progress reporting
+- [x] Intelligent type detection
 - [x] Settings/Tools panel
 - [x] Statistics dashboard
-- [x] Config export/reload
-- [x] Duplicate prevention
-- [x] File dialogs for manual selection
 
-### 📋 Phase 4: Advanced Features (Planned)
+### ✅ Phase 4: Advanced Features (Complete)
+- [x] In-app configuration editor (Add/Edit Apps)
+- [x] Manufacturer grouping view
+- [x] Plugin favorites and ratings
+- [x] Recent apps tracking
+- [x] Global keyboard shortcuts (Ctrl/Cmd+K)
+- [x] Quick filters (Favorites, Recent)
+
+### ✅ Phase 5: Tools & Automation (Complete)
+- [x] **App Scanner**: Auto-scan /Applications for music apps
+- [x] **Multi-Strategy Detection**: Keywords, generic terms, formats
+- [x] **Smart Filtering**: New apps only, avoid duplicates
+- [x] **Category Manager**: Reorder, Add, Rename, Delete categories
+- [x] **App Cleanup**: Detect and remove missing apps
+- [x] **Interactive Results**: Edit app details before adding
+
+### 📋 Phase 6: Core User Experience (Planned)
 - [ ] Drag-and-drop app reordering
-- [ ] In-app configuration editor (GUI)
-- [ ] Export/import configurations
-- [ ] Auto-updates mechanism
 - [ ] Custom app icons upload
-- [ ] Plugin favorites/ratings
+- [ ] Advanced search (fuzzy matching)
 - [ ] System tray integration
-- [ ] Global keyboard shortcuts
-- [ ] Recent apps tracking
-- [ ] Plugin notes editing in-app
+- [ ] Cloud sync/backup
 
 ## 🛠️ Technical Details
 
