@@ -1455,3 +1455,74 @@ h1 {
   gap: var(--spacing-sm);
 }
 
+
+/* App Scanner Table */
+.app-scan-table-container {
+  margin: 1rem 0;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.app-scan-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app-scan-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 10;
+}
+
+.app-scan-table th,
+.app-scan-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.app-scan-table th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.app-scan-table tbody tr:hover {
+  background: var(--hover-bg);
+}
+
+.app-scan-table input[type="text"],
+.app-scan-table select {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.app-scan-table input[type="text"]:focus,
+.app-scan-table select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  background: var(--bg-secondary);
+}
+
+.app-scan-table input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.scan-results-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+

@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Merge scanned plugins with config
     mergePlugins: (scannedPlugins) => ipcRenderer.invoke('merge-plugins', scannedPlugins),
 
+    // Scan for music apps
+    scanApps: () => ipcRenderer.invoke('scan-apps'),
+
     // Listen for scan progress
     onScanProgress: (callback) => {
         ipcRenderer.on('scan-progress', (event, data) => callback(data));

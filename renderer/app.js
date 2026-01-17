@@ -409,6 +409,12 @@ function initializeSettings() {
     });
   }
 
+  // Scan apps button
+  const scanAppsBtn = document.getElementById('scanAppsBtn');
+  if (scanAppsBtn) {
+    scanAppsBtn.addEventListener('click', handleAppScan);
+  }
+
   // Update statistics
   updateStatistics();
 
@@ -794,4 +800,193 @@ window.moveCategoryUp = moveCategoryUp;
 window.moveCategoryDown = moveCategoryDown;
 window.handleCategoryRename = handleCategoryRename;
 window.handleCategoryDelete = handleCategoryDelete;
+
+
+// ============================================
+// APP SCANNER
+// ============================================
+
+// Handle app scan
+async function handleAppScan() {
+  const scanBtn = document.getElementById('scanAppsBtn');
+  const appScanResults = document.getElementById('appScanResults');
+
+  try {
+    // Disable button
+    scanBtn.disabled = true;
+    scanBtn.innerHTML = '<span class="btn-icon">⏳</span> Scanning...';
+    appScanResults.style.display = 'none';
+
+    // Scan for apps
+    const scannedApps = await window.electronAPI.scanApps();
+
+    // Re-enable button
+    scanBtn.disabled = false;
+    scanBtn.innerHTML = '<span class="btn-icon">🎵</span> Scan for Music Apps';
+
+    if (scannedApps.length === 0) {
+      appScanResults.innerHTML = `
+        <div class="scan-results-summary">
+          <p>No music apps found in /Applications</p>
+        </div>
+      `;
+      appScanResults.style.display = 'block';
+      return;
+    }
+
+    // Show results with editable table
+    displayAppScanResults(scannedApps);
+
+  } catch (error) {
+    console.error('Error scanning apps:', error);
+    scanBtn.disabled = false;
+    scanBtn.innerHTML = '<span class="btn-icon">🎵</span> Scan for Music Apps';
+    showError('Failed to scan apps: ' + error.message);
+  }
+}
+
+// Display app scan results with editable fields
+function displayAppScanResults(apps) {
+  const appScanResults = document.getElementById('appScanResults');
+
+  const categories = appData.categories.map(c => c.name);
+
+  appScanResults.innerHTML = `
+    <div class="scan-results-summary">
+      <p><strong>Found ${apps.length} music apps</strong></p>
+      <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
+        Review and edit the details below, then click "Add Selected Apps"
+      </p>
+    </div>
+    
+    <div class="app-scan-table-container">
+      <table class="app-scan-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">
+              <input type="checkbox" id="selectAllApps" checked onchange="toggleAllAppSelections(this.checked)">
+            </th>
+            <th>App Name</th>
+            <th>Manufacturer</th>
+            <th>Category</th>
+            <th>Icon</th>
+          </tr>
+        </thead>
+        <tbody id="appScanTableBody">
+          ${apps.map((app, index) => `
+            <tr data-index="${index}">
+              <td>
+                <input type="checkbox" class="app-select-checkbox" checked data-index="${index}">
+              </td>
+              <td>
+                <input type="text" class="app-name-input" value="${app.name}" data-index="${index}">
+              </td>
+              <td>
+                <input type="text" class="app-manufacturer-input" value="${app.manufacturer}" data-index="${index}">
+              </td>
+              <td>
+                <select class="app-category-select" data-index="${index}">
+                  ${categories.map(cat => `
+                    <option value="${cat}" ${cat === app.suggestedCategory ? 'selected' : ''}>${cat}</option>
+                  `).join('')}
+                </select>
+              </td>
+              <td>
+                <input type="text" class="app-icon-input" value="${app.icon}" data-index="${index}" maxlength="2" style="width: 50px; text-align: center;">
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="scan-results-actions">
+      <button class="action-btn primary" onclick="addSelectedApps(${JSON.stringify(apps).replace(/"/g, '&quot;')})">
+        <span class="btn-icon">📥</span>
+        Add Selected Apps
+      </button>
+      <button class="action-btn" onclick="document.getElementById('appScanResults').style.display='none'">
+        Cancel
+      </button>
+    </div>
+  `;
+
+  appScanResults.style.display = 'block';
+}
+
+// Toggle all app selections
+function toggleAllAppSelections(checked) {
+  document.querySelectorAll('.app-select-checkbox').forEach(checkbox => {
+    checkbox.checked = checked;
+  });
+}
+
+// Add selected apps to library
+async function addSelectedApps(scannedApps) {
+  const selectedApps = [];
+
+  document.querySelectorAll('.app-select-checkbox:checked').forEach(checkbox => {
+    const index = parseInt(checkbox.dataset.index);
+    const row = checkbox.closest('tr');
+
+    const name = row.querySelector('.app-name-input').value.trim();
+    const manufacturer = row.querySelector('.app-manufacturer-input').value.trim();
+    const category = row.querySelector('.app-category-select').value;
+    const icon = row.querySelector('.app-icon-input').value.trim();
+
+    if (name) {
+      selectedApps.push({
+        name,
+        manufacturer: manufacturer || 'Unknown',
+        path: scannedApps[index].path,
+        category,
+        icon: icon || '🎵',
+        favorite: false
+      });
+    }
+  });
+
+  if (selectedApps.length === 0) {
+    showError('No apps selected');
+    return;
+  }
+
+  // Add apps to their categories
+  selectedApps.forEach(app => {
+    let categoryObj = appData.categories.find(c => c.name === app.category);
+    if (!categoryObj) {
+      categoryObj = { name: app.category, apps: [] };
+      appData.categories.push(categoryObj);
+    }
+
+    // Check if app already exists
+    const exists = categoryObj.apps.some(existingApp => existingApp.path === app.path);
+    if (!exists) {
+      categoryObj.apps.push({
+        name: app.name,
+        manufacturer: app.manufacturer,
+        path: app.path,
+        icon: app.icon,
+        favorite: false
+      });
+    }
+  });
+
+  // Save config
+  if (isElectron) {
+    await window.electronAPI.saveConfig(appData);
+  }
+
+  // Hide results and update UI
+  document.getElementById('appScanResults').style.display = 'none';
+  renderApps();
+  updateStatistics();
+
+  showNotification('✅ Apps Added', `Added ${selectedApps.length} apps to library`);
+}
+
+// Export functions
+window.handleAppScan = handleAppScan;
+window.toggleAllAppSelections = toggleAllAppSelections;
+window.addSelectedApps = addSelectedApps;
 

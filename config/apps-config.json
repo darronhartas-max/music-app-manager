@@ -107,6 +107,13 @@
           "manufacturer": "Image-Line",
           "path": "/Applications/FL Studio.app",
           "icon": "🎼",
+          "favorite": true
+        },
+        {
+          "name": "GarageBand",
+          "manufacturer": "Apple",
+          "path": "/Applications/GarageBand.app",
+          "icon": "🎵",
           "favorite": false
         }
       ]
