@@ -1,14 +1,14 @@
 # AppViewr - Music App & Plugin Manager
 
-> **Phase 2: Electron Desktop Application** - Cross-platform desktop app for launching music production apps and cataloging audio plugins.
+> **Phase 3: Enhanced Plugin Scanner** - Cross-platform desktop app with intelligent plugin detection and management tools.
 
-![AppViewr](https://img.shields.io/badge/version-1.0.0-blue)
+![AppViewr](https://img.shields.io/badge/version-1.0.0--phase3-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
 ## 🎵 Overview
 
-AppViewr is a cross-platform desktop application built with Electron that helps music producers organize and launch their music production apps and catalog their audio plugin inventory. Phase 2 brings actual app launching capabilities and native desktop integration.
+AppViewr is a cross-platform desktop application built with Electron that helps music producers organize and launch their music production apps and catalog their audio plugin inventory. **Phase 3 brings intelligent plugin scanning, automatic type detection, and a comprehensive settings panel.**
 
 ### Key Features
 
@@ -19,12 +19,23 @@ AppViewr is a cross-platform desktop application built with Electron that helps 
 - Real-time search and filtering
 - Works on macOS and Windows
 
-🔌 **Plugin Inventory**
+🔌 **Plugin Inventory & Scanner**
 - Comprehensive plugin catalog with VST/AU/VST3 support
+- **✅ INTELLIGENT PLUGIN SCANNER** - Auto-detect installed plugins
+- **✅ AUTOMATIC TYPE DETECTION** - Identifies instruments vs effects
+- **✅ MANUFACTURER EXTRACTION** - Parses vendor info from paths
 - Filter by type (instrument/effect), format, and manufacturer
 - User-editable notes for each plugin
 - Full path visibility for troubleshooting
-- Plugin scanner (basic implementation)
+- Duplicate prevention when merging scans
+- Real-time scan progress reporting
+
+⚙️ **Settings & Tools Panel**
+- One-click plugin scanning with progress bar
+- Statistics dashboard (apps, plugins, categories)
+- Configuration export/reload
+- Platform information display
+- Scan results with detailed breakdown
 
 🎨 **Premium UI/UX**
 - Dark theme optimized for music production environments
@@ -32,6 +43,8 @@ AppViewr is a cross-platform desktop application built with Electron that helps 
 - Desktop-optimized layout with maximum space efficiency
 - Compact header with integrated search
 - Professional aesthetic
+- Action buttons with hover effects
+- Progress bars with animations
 
 🖥️ **Desktop Integration**
 - Native window with proper title bar
@@ -39,111 +52,7 @@ AppViewr is a cross-platform desktop application built with Electron that helps 
 - Secure IPC communication
 - Configuration persistence
 - System integration
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Node.js** 16+ (includes npm)
-- macOS 10.13+ or Windows 10+
-
-### Installation
-
-1. **Clone or download this repository**
-   ```bash
-   git clone <repository-url>
-   cd appviewr
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Run the application**
-   ```bash
-   npm start
-   ```
-
-   Or for development mode with DevTools:
-   ```bash
-   npm run dev
-   ```
-
-## 📁 Project Structure
-
-```
-appviewr/
-├── main.js              # Electron main process
-├── preload.js           # Security bridge (IPC)
-├── package.json         # Project config & dependencies
-├── renderer/            # Frontend files
-│   ├── index.html       # Main UI
-│   ├── styles.css       # Styling
-│   └── app.js           # Application logic
-├── config/
-│   └── apps-config.json # Apps & plugins configuration
-├── assets/              # Icons and resources
-└── README.md
-```
-
-## ⚙️ Configuration
-
-### Editing Apps and Plugins
-
-The configuration is stored in `config/apps-config.json`. Edit this file to customize your setup.
-
-#### Adding a New App
-
-```json
-{
-  "name": "Your App Name",
-  "path": "/Applications/YourApp.app",  // macOS
-  // or "C:\\Program Files\\YourApp\\app.exe" for Windows
-  "icon": "🎹"
-}
-```
-
-#### Adding a New Plugin
-
-```json
-{
-  "name": "Plugin Name",
-  "path": "/Library/Audio/Plug-Ins/VST3/YourPlugin.vst3",
-  "type": "effect",
-  "format": "VST3",
-  "manufacturer": "Company Name",
-  "notes": "Your personal notes here"
-}
-```
-
-### Platform-Specific Paths
-
-**macOS:**
-- Apps: `/Applications/AppName.app`
-- VST3: `/Library/Audio/Plug-Ins/VST3/`
-- AU: `/Library/Audio/Plug-Ins/Components/`
-
-**Windows:**
-- Apps: `C:\Program Files\AppName\app.exe`
-- VST3: `C:\Program Files\Common Files\VST3\`
-
-## 🎯 Features in Detail
-
-### App Launching
-
-- **macOS**: Uses `open -a` command to launch .app bundles
-- **Windows**: Uses `start` command to launch executables
-- **Error Handling**: Shows notifications for success/failure
-- **Path Validation**: Checks if apps exist before launching
-
-### Plugin Management
-
-- **View All Plugins**: See your entire plugin collection
-- **Smart Filtering**: Filter by type, format, or manufacturer
-- **Search**: Find plugins quickly by name or manufacturer
-- **Notes**: Add personal notes for each plugin
-- **Scanner**: Auto-detect installed plugins (basic)
+- File dialogs for manual selection
 
 ### Desktop Optimization
 
@@ -193,22 +102,28 @@ Installers will be created in the `dist/` directory.
 - [x] Config persistence
 - [x] Cross-platform support
 
-### 🚧 Phase 3: Plugin Scanner (Next)
-- [ ] Auto-scan plugin directories
-- [ ] Parse plugin metadata
-- [ ] Detect newly installed plugins
-- [ ] Manual add with file picker
-- [ ] Icon extraction from apps
+### ✅ Phase 3: Enhanced Plugin Scanner (Complete)
+- [x] Auto-scan plugin directories
+- [x] Intelligent type detection (instrument/effect)
+- [x] Manufacturer extraction from paths
+- [x] Real-time progress reporting
+- [x] Settings/Tools panel
+- [x] Statistics dashboard
+- [x] Config export/reload
+- [x] Duplicate prevention
+- [x] File dialogs for manual selection
 
-### 📋 Phase 4: Advanced Features
+### 📋 Phase 4: Advanced Features (Planned)
 - [ ] Drag-and-drop app reordering
-- [ ] In-app configuration editor
+- [ ] In-app configuration editor (GUI)
 - [ ] Export/import configurations
-- [ ] Auto-updates
+- [ ] Auto-updates mechanism
 - [ ] Custom app icons upload
 - [ ] Plugin favorites/ratings
 - [ ] System tray integration
-- [ ] Keyboard shortcuts
+- [ ] Global keyboard shortcuts
+- [ ] Recent apps tracking
+- [ ] Plugin notes editing in-app
 
 ## 🛠️ Technical Details
 
@@ -288,4 +203,4 @@ For questions or issues, please open an issue on GitHub.
 
 **Built with ❤️ for music producers by music producers**
 
-**Phase 2 Complete** - Now with actual app launching! 🚀
+**Phase 3 Complete** - Now with intelligent plugin scanning and management tools! 🚀
