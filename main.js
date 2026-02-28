@@ -231,45 +231,78 @@ ipcMain.handle('scan-plugins', async (event) => {
                         let manufacturer = 'Unknown';
                         const pathParts = fullPath.split(path.sep);
 
-                        // Look for manufacturer in path (common pattern: .../Manufacturer/PluginName)
-                        if (pathParts.length > 2) {
+                        // Known manufacturers and their common path/name signatures
+                        const KNOWN_PUBLISHERS = {
+                            'Arturia': /arturia/i,
+                            'Native Instruments': /native instruments|ni /i,
+                            'Waves': /waves/i,
+                            'FabFilter': /fabfilter/i,
+                            'iZotope': /izotope/i,
+                            'Soundtoys': /soundtoys/i,
+                            'Valhalla DSP': /valhalla/i,
+                            'Softube': /softube/i,
+                            'Slate Digital': /slate digital/i,
+                            'Neural DSP': /neural dsp/i,
+                            'IK Multimedia': /ik multimedia/i,
+                            'Plugin Alliance': /plugin alliance|brainworx|spl |unfiltered audio/i,
+                            'u-he': /u-he/i,
+                            'Spectrasonics': /spectrasonics/i,
+                            'Universal Audio': /universal audio|uao/i,
+                            'Output': /output/i,
+                            'Cherry Audio': /cherry audio/i,
+                            'Kilohearts': /kilohearts/i,
+                            'Eventide': /eventide/i,
+                            'Celemony': /celemony/i,
+                            'Antares': /antares/i,
+                            'MeldaProduction': /meldaproduction/i,
+                            'Ableton': /ableton/i,
+                            'Apple': /apple/i,
+                            'Steinberg': /steinberg/i,
+                        };
+
+                        for (const [name, regex] of Object.entries(KNOWN_PUBLISHERS)) {
+                            if (regex.test(fullPath)) {
+                                manufacturer = name;
+                                break;
+                            }
+                        }
+
+                        // Last resort: Look for manufacturer in path (common pattern: .../Manufacturer/PluginName)
+                        if (manufacturer === 'Unknown' && pathParts.length > 2) {
                             const possibleManufacturer = pathParts[pathParts.length - 2];
-                            if (possibleManufacturer !== 'VST3' &&
-                                possibleManufacturer !== 'VST' &&
-                                possibleManufacturer !== 'Components' &&
-                                possibleManufacturer !== 'VSTPlugins') {
+                            const skipDirs = ['vst3', 'vst', 'components', 'vstplugins', 'plugins', 'audio', 'library', 'plug-ins'];
+                            if (!skipDirs.includes(possibleManufacturer.toLowerCase())) {
                                 manufacturer = possibleManufacturer;
                             }
                         }
 
-                        // Guess plugin type based on common naming patterns
+                        // Guess plugin type based on common naming patterns and path keywords
                         let type = 'unknown';
-                        const lowerName = pluginName.toLowerCase();
+                        const haystack = (fullPath + ' ' + pluginName).toLowerCase();
 
                         // Instrument indicators
-                        if (lowerName.includes('synth') ||
-                            lowerName.includes('piano') ||
-                            lowerName.includes('drum') ||
-                            lowerName.includes('bass') ||
-                            lowerName.includes('guitar') ||
-                            lowerName.includes('organ') ||
-                            lowerName.includes('strings') ||
-                            lowerName.includes('brass') ||
-                            lowerName.includes('sampler') ||
-                            lowerName.includes('kontakt')) {
-                            type = 'instrument';
-                        }
+                        const instrKeywords = [
+                            'synth', 'piano', 'drum', 'bass', 'guitar', 'organ', 'strings', 'brass', 'sampler',
+                            'kontakt', 'oscillator', 'vco', 'analog', 'fm', 'wavetable', 'spectral', 'granular',
+                            'kick', 'snare', 'percussion', 'mallet', 'orchestral', 'choir', 'keys', 'rhodes',
+                            'wurli', 'clavi', 'hammond', 'poly', 'mono', 'omnisphere', 'serum', 'vital',
+                            'massive', 'pigments', 'diva', 'zebra', 'hive', 'repro', 'sylenth'
+                        ];
+
                         // Effect indicators
-                        else if (lowerName.includes('reverb') ||
-                            lowerName.includes('delay') ||
-                            lowerName.includes('eq') ||
-                            lowerName.includes('compressor') ||
-                            lowerName.includes('limiter') ||
-                            lowerName.includes('saturator') ||
-                            lowerName.includes('distortion') ||
-                            lowerName.includes('chorus') ||
-                            lowerName.includes('flanger') ||
-                            lowerName.includes('phaser')) {
+                        const effectKeywords = [
+                            'reverb', 'delay', 'eq', 'equalizer', 'compressor', 'limiter', 'satn', 'distortion',
+                            'drive', 'fuzz', 'amp', 'cab', 'speaker', 'chorus', 'flanger', 'phaser', 'tremolo',
+                            'vibrato', 'filter', 'gate', 'expander', 'de-esser', 'transient', 'shaper', 'pitch',
+                            'shift', 'harmony', 'autotune', 'melodyne', 'vocoder', 'convolution', 'plate',
+                            'room', 'hall', 'spring', 'tape', 'tube', 'console', 'channel strip', 'meter',
+                            'visualizer', 'scope', 'analyzer', 'clipper', 'stereo', 'width', 'image', 'utility',
+                            'ozone', 'neutron', 'nectar', 'pro-q', 'pro-c', 'pro-l', 'saturn'
+                        ];
+
+                        if (instrKeywords.some(k => haystack.includes(k))) {
+                            type = 'instrument';
+                        } else if (effectKeywords.some(k => haystack.includes(k))) {
                             type = 'effect';
                         }
 
