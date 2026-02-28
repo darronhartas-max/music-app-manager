@@ -1,6 +1,6 @@
 {
     "name": "music-app-manager",
-    "version": "1.0.0",
+    "version": "1.0.6",
     "description": "Music App Manager - Visual dashboard for launching music production apps and cataloging audio plugins",
     "main": "main.js",
     "scripts": {

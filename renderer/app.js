@@ -121,11 +121,13 @@ async function loadConfig() {
       // Load via Electron IPC
       appData = await window.electronAPI.loadConfig();
       console.log('Configuration loaded via Electron:', appData);
+      console.log(`Loaded ${appData.plugins ? appData.plugins.length : 0} plugins.`);
     } else {
       // Load via fetch (browser mode)
       const response = await fetch('../config/apps-config.json');
       appData = await response.json();
       console.log('Configuration loaded via fetch:', appData);
+      console.log(`Loaded ${appData.plugins ? appData.plugins.length : 0} plugins.`);
     }
   } catch (error) {
     console.error('Error loading configuration:', error);
@@ -286,27 +288,37 @@ async function launchApp(path, name) {
 function renderPlugins(searchTerm = '') {
   const tbody = document.getElementById('pluginTableBody');
 
-  if (!appData || !appData.plugins) {
+  if (!appData || !appData.plugins || !Array.isArray(appData.plugins)) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No plugin data available</td></tr>';
+    console.warn('renderPlugins: No plugins array in appData', appData);
     return;
   }
 
+  console.log(`renderPlugins: Attempting to render ${appData.plugins.length} plugins (filter: ${currentPluginFilter}, search: "${searchTerm}")`);
+
   // Filter plugins
   let filteredPlugins = appData.plugins.filter(plugin => {
-    const matchesSearch = searchTerm === '' ||
-      plugin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plugin.manufacturer.toLowerCase().includes(searchTerm.toLowerCase());
+    const name = (plugin.name || '').toLowerCase();
+    const mfr = (plugin.manufacturer || '').toLowerCase();
+    const type = (plugin.type || 'unknown').toLowerCase();
+    const format = (plugin.format || 'unknown').toUpperCase();
+    const term = (searchTerm || '').toLowerCase();
+
+    const matchesSearch = term === '' || name.includes(term) || mfr.includes(term);
 
     let matchesFilter = currentPluginFilter === 'all';
 
     if (currentPluginFilter === 'favorites') {
       matchesFilter = plugin.favorite === true;
     } else if (currentPluginFilter !== 'all') {
-      matchesFilter = plugin.type === currentPluginFilter || plugin.format === currentPluginFilter;
+      const filterLower = currentPluginFilter.toLowerCase();
+      matchesFilter = (type === filterLower) || (format === currentPluginFilter);
     }
 
     return matchesSearch && matchesFilter;
   });
+
+  console.log(`renderPlugins: ${filteredPlugins.length}/${appData.plugins.length} plugins passed filter.`);
 
   if (filteredPlugins.length === 0) {
     tbody.innerHTML = `
@@ -614,6 +626,7 @@ function updateScanProgress(data) {
 async function handleMergePlugins(plugins) {
   try {
     const result = await window.electronAPI.mergePlugins(plugins);
+    console.log('Merge Result:', result);
 
     showNotification(
       '✅ Plugins Added',
@@ -643,6 +656,7 @@ async function handleMergePlugins(plugins) {
     }, 100);
 
   } catch (error) {
+    console.error('Merge Error:', error);
     showError(`Failed to merge plugins: ${error.message}`);
   }
 }
@@ -1304,7 +1318,50 @@ async function removeMissingApps(missingApps) {
   showNotification('🗑️ Cleaned Up', `Removed ${missingApps.length} missing apps`);
 }
 
+// Reset the library to a clean state
+async function handleStartFresh() {
+  if (!confirm("Would you like to clear your current library and start fresh?\n\nThis will remove all apps, plugins, and recent items from the dashboard so you can run a clean scan. No actual files on your computer will be deleted.")) {
+    return;
+  }
+
+  try {
+    const defaultCategories = [
+      { name: "DAWs", apps: [] },
+      { name: "Synths", apps: [] },
+      { name: "Guitar & Bass", apps: [] },
+      { name: "Audio Tools", apps: [] },
+      { name: "Utilities", apps: [] }
+    ];
+
+    const cleanData = {
+      categories: defaultCategories,
+      plugins: [],
+      recentApps: [],
+      settings: appData.settings || {
+        defaultView: 'category',
+        showRecentApps: true,
+        maxRecentApps: 10
+      }
+    };
+
+    if (isElectron) {
+      await window.electronAPI.saveConfig(cleanData);
+    }
+
+    // Reset first-run flag so welcome screen reappears
+    localStorage.removeItem('mam-welcome-shown');
+
+    // Reload UI from fresh config
+    window.location.reload();
+
+  } catch (error) {
+    console.error('Error resetting library:', error);
+    showError('Failed to reset library: ' + error.message);
+  }
+}
+
 // Export functions
 window.handleCleanupApps = handleCleanupApps;
 window.removeMissingApps = removeMissingApps;
+window.handleStartFresh = handleStartFresh;
 
