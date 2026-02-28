@@ -1150,6 +1150,11 @@ async function addSelectedApps(scannedApps) {
   renderApps();
   updateStatistics();
 
+  // Re-render category manager to update app counts per category in Tools tab
+  if (typeof renderCategoryManager === 'function') {
+    renderCategoryManager();
+  }
+
   showNotification('✅ Apps Added', `Added ${selectedApps.length} apps to library`);
 }
 
