@@ -487,10 +487,24 @@ ipcMain.handle('select-plugin-file', async () => {
 ipcMain.handle('merge-plugins', async (event, scannedPlugins) => {
     try {
         const configPath = path.join(__dirname, 'config', 'apps-config.json');
-        const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        let configData = { categories: [], plugins: [], recentApps: [], settings: {} };
+
+        if (fs.existsSync(configPath)) {
+            try {
+                configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            } catch (e) {
+                console.error("Warning: Could not parse apps-config.json during merge:", e);
+            }
+        }
+
+        if (!configData.plugins || !Array.isArray(configData.plugins)) configData.plugins = [];
+        if (!configData.categories || !Array.isArray(configData.categories)) configData.categories = [];
+        if (!configData.recentApps) configData.recentApps = [];
+
         const existingPaths = new Set(configData.plugins.map(p => p.path));
         const newPlugins = scannedPlugins.filter(p => !existingPaths.has(p.path));
         configData.plugins = [...configData.plugins, ...newPlugins];
+
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
         return { success: true, added: newPlugins.length, total: configData.plugins.length };
     } catch (error) {
@@ -529,13 +543,23 @@ ipcMain.handle('scan-apps', async (event) => {
         'orchestra', 'tuner', 'metronome', 'score', 'notation', 'midi'
     ];
 
-    const suggestCategory = (fileName, bundleId) => {
+    const suggestCategory = (fileName, bundleId, manufacturer) => {
         const haystack = (fileName + ' ' + (bundleId || '')).toLowerCase();
         if (/ableton|logic pro|pro tools|cubase|fl studio|studio one|reaper|bitwig|reason|garageband|mainstage|dorico|finale|sibelius|ardour/.test(haystack)) return 'DAWs';
         if (/serum|massive|vital|omnisphere|pigments|analog lab|v collection|kontakt|maschine|komplete kontrol|instruments|syrene|synergy|diva|zebra|hive|nexus|avenger|phase plant|ca2600|voltage|mercury|synth|korg|moog|arp |obx|reaktor|battery|absynth|fm8|falcon|halion|sampletank|arcade|spire|sylenth|model 72|model 84|augmented|modular|solina|mellotron|synclavier|buchla|cs-80|jup-8|matrix-12|vocoder v|stage-73|b-3 v|farfisa|piano v|synthi v|mini v|prophet|oberheim|dx7|cz v|sq80|emulator|ms-20|jun-6|op-xa|cmi v|clavi v|wurlitzer|vox continental|sem v/.test(haystack)) return 'Synths';
         if (/guitar|amplitube|bias|neural|helix|kemper|amp sim|archetype|rig |tone king|cory wong|gojira|abasi|nolly/.test(haystack)) return 'Guitar & Bass';
         if (/izotope|fabfilter|waves|soundtoys|valhalla|melodyne|auto-tune|ozone|neutron|rx |nectar|slate|brainworx|softube|eventide|mercury recorder|ozone|imager|maximizer|denoiser/.test(haystack)) return 'Audio Tools';
-        if (/traktor|rekordbox|serato|virtual dj|djay|waves central|native access|avid link|splice|software center/.test(haystack)) return 'Utilities';
+        if (/traktor|rekordbox|serato|virtual dj|djay|waves central|native access|avid link|splice|software center|download|install|manager/.test(haystack)) return 'Utilities';
+
+        // Fallback checks by manufacturer
+        const mfr = (manufacturer || '').toLowerCase();
+        if (['arturia', 'spectrasonics', 'u-he', 'vital audio', 'xfer records', 'cherry audio', 'moog', 'korg', 'roland'].includes(mfr)) {
+            return 'Synths';
+        }
+        if (['fabfilter', 'soundtoys', 'valhalla dsp', 'izotope', 'slate digital'].includes(mfr)) {
+            return 'Audio Tools';
+        }
+
         return 'Utilities';
     };
 
@@ -655,7 +679,7 @@ ipcMain.handle('scan-apps', async (event) => {
             }
 
             scannedApps.push({
-                name: appName, path: filePath, manufacturer, suggestedCategory: suggestCategory(fileName, bundleId),
+                name: appName, path: filePath, manufacturer, suggestedCategory: suggestCategory(fileName, bundleId, manufacturer),
                 icon: iconDataUrl || '🎵', detectionMethod, confidence, bundleId
             });
         }

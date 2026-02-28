@@ -338,13 +338,13 @@ function renderPlugins(searchTerm = '') {
     return;
   }
 
-  tbody.innerHTML = filteredPlugins.map(plugin => {
+  tbody.innerHTML = filteredPlugins.map((plugin, index) => {
     const favorite = plugin.favorite ? '⭐' : '☆';
     const rating = plugin.rating ? '★'.repeat(plugin.rating) : '-';
     const rowClass = plugin.favorite ? 'favorite' : '';
 
     return `
-      <tr class="${rowClass}" onclick="if(typeof openPluginModal === 'function') openPluginModal(${JSON.stringify(plugin).replace(/"/g, '&quot;')})">
+      <tr class="${rowClass} plugin-row" data-index="${index}" style="cursor: pointer;">
         <td class="favorite-cell ${plugin.favorite ? 'active' : ''}">${favorite}</td>
         <td><strong>${plugin.name}</strong></td>
         <td><span class="plugin-type ${plugin.type}">${plugin.type}</span></td>
@@ -356,6 +356,16 @@ function renderPlugins(searchTerm = '') {
       </tr>
     `;
   }).join('');
+
+  // Attach event listeners safely
+  document.querySelectorAll('.plugin-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const index = parseInt(row.dataset.index, 10);
+      if (typeof openPluginModal === 'function') {
+        openPluginModal(filteredPlugins[index]);
+      }
+    });
+  });
 }
 
 // Set plugin filter
@@ -616,10 +626,11 @@ async function handlePluginScan() {
     // Store scanned plugins temporarily
     window.scannedPlugins = result.plugins;
 
-    // Add merge button handler
-    document.getElementById('mergePluginsBtn').addEventListener('click', async () => {
-      await handleMergePlugins(result.plugins);
-    });
+    // Add merge button handler via onclick to prevent listener stacking
+    document.getElementById('mergePluginsBtn').onclick = async () => {
+      document.getElementById('mergePluginsBtn').disabled = true;
+      await handleMergePlugins(window.scannedPlugins);
+    };
 
     // Add view button handler
     document.getElementById('viewScannedBtn').addEventListener('click', () => {
@@ -1139,11 +1150,12 @@ function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 
 
   appScanResults.style.display = 'block';
 
-  // Attach event listener dynamically to avoid large base64 inline strings
+  // Set onclick to prevent stacked multi-click corruption
   window.scannedMusicApps = apps;
-  document.getElementById('addSelectedAppsBtn').addEventListener('click', () => {
-    addSelectedApps(window.scannedMusicApps);
-  });
+  document.getElementById('addSelectedAppsBtn').onclick = async () => {
+    document.getElementById('addSelectedAppsBtn').disabled = true;
+    await addSelectedApps(window.scannedMusicApps);
+  };
 }
 
 // Toggle all app selections
@@ -1206,22 +1218,29 @@ async function addSelectedApps(scannedApps) {
     }
   });
 
-  // Save config
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
+  try {
+    // Save config
+    if (isElectron) {
+      await window.electronAPI.saveConfig(appData);
+    }
+
+    // Hide results and update UI
+    document.getElementById('appScanResults').style.display = 'none';
+    renderApps();
+    updateStatistics();
+
+    // Re-render category manager to update app counts per category in Tools tab
+    if (typeof renderCategoryManager === 'function') {
+      setTimeout(() => renderCategoryManager(), 100);
+    }
+
+    showNotification('✅ Apps Added', `Successfully imported ${selectedApps.length} applications.`);
+
+  } catch (err) {
+    console.error('Failed to save selected apps:', err);
+    showError('Error saving apps: ' + err.message);
+    document.getElementById('addSelectedAppsBtn').disabled = false;
   }
-
-  // Hide results and update UI
-  document.getElementById('appScanResults').style.display = 'none';
-  renderApps();
-  updateStatistics();
-
-  // Re-render category manager to update app counts per category in Tools tab
-  if (typeof renderCategoryManager === 'function') {
-    renderCategoryManager();
-  }
-
-  showNotification('✅ Apps Added', `Added ${selectedApps.length} apps to library`);
 }
 
 // Export functions
@@ -1267,27 +1286,27 @@ async function handleCleanupApps() {
 
     if (missingApps.length === 0) {
       cleanupResults.innerHTML = `
-        <div class="scan-results-summary">
+      < div class= "scan-results-summary" >
           <p style="color: var(--accent-primary);">
             ✅ All ${totalApps.length} apps are installed and accessible!
           </p>
           <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
             No cleanup needed.
           </p>
-        </div>
-      `;
+        </div >
+        `;
       cleanupResults.style.display = 'block';
       return;
     }
 
     // Show missing apps
     cleanupResults.innerHTML = `
-      <div class="scan-results-summary">
+        < div class= "scan-results-summary" >
         <p><strong>Found ${missingApps.length} missing apps</strong></p>
         <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
           These apps are in your library but no longer exist on your system.
         </p>
-      </div>
+      </div >
       
       <div class="missing-apps-list">
         ${missingApps.map(({ app, category }) => `
@@ -1313,8 +1332,8 @@ async function handleCleanupApps() {
         <button class="action-btn" onclick="document.getElementById('cleanupResults').style.display='none'">
           Cancel
         </button>
-      </div>
-    `;
+      </div >
+        `;
 
     cleanupResults.style.display = 'block';
 
@@ -1329,7 +1348,7 @@ async function handleCleanupApps() {
 // Remove missing apps from library
 async function removeMissingApps(missingApps) {
   const confirmed = confirm(
-    `Remove ${missingApps.length} missing apps from your library?\n\n` +
+    `Remove ${missingApps.length} missing apps from your library ?\n\n` +
     `This will not delete any files, only remove them from AppViewr.`
   );
 
