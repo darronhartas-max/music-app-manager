@@ -424,6 +424,8 @@ ipcMain.handle('merge-plugins', async (event, scannedPlugins) => {
         // Save
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
 
+        console.log(`Plugin merge success: ${newPlugins.length} added, ${configData.plugins.length} total.`);
+
         return {
             success: true,
             added: newPlugins.length,

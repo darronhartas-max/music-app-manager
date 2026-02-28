@@ -624,16 +624,23 @@ async function handleMergePlugins(plugins) {
     await loadConfig();
     updateStatistics();
 
-    // Reset filter to 'all' so newly-added plugins (which may have type='unknown')
-    // are not hidden by a previously-active filter
+    // Clear search bar and reset filters
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = '';
+
     currentPluginFilter = 'all';
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.filter === 'all');
     });
 
-    // Switch to plugins tab and explicitly render with fresh data
+    // Switch to plugins tab for visual confirmation
     switchTab('plugins');
-    renderPlugins();
+
+    // Force extra render with a small delay to ensure DOM is ready
+    setTimeout(() => {
+      renderPlugins();
+      console.log(`Rendered ${appData.plugins.length} plugins after merge.`);
+    }, 100);
 
   } catch (error) {
     showError(`Failed to merge plugins: ${error.message}`);
@@ -662,7 +669,11 @@ function showScannedPluginsDetails(plugins) {
   });
 
   html += `
-    <div style="margin-top: var(--spacing-md);">
+    <div style="margin-top: var(--spacing-md); display: flex; gap: 0.5rem;">
+      <button id="mergeFromDetailsBtn" class="action-btn primary">
+        <span class="btn-icon">📥</span>
+        Add ${plugins.length} Plugins
+      </button>
       <button id="backToScanBtn" class="action-btn">
         <span class="btn-icon">←</span>
         Back
@@ -671,6 +682,10 @@ function showScannedPluginsDetails(plugins) {
   `;
 
   scanResults.innerHTML = html;
+
+  document.getElementById('mergeFromDetailsBtn').addEventListener('click', async () => {
+    await handleMergePlugins(plugins);
+  });
 
   document.getElementById('backToScanBtn').addEventListener('click', () => {
     handlePluginScan();
