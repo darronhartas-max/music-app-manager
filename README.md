@@ -1,65 +1,48 @@
 # AppViewr - Music App & Plugin Manager
 
-> **Phase 3: Enhanced Plugin Scanner** - Cross-platform desktop app with intelligent plugin detection and management tools.
+> **Phase 5: Tools & Automation** - Intelligent scan-to-library workflow with atomic data protection.
 
-![AppViewr](https://img.shields.io/badge/version-1.0.0--phase3-blue)
+![AppViewr](https://img.shields.io/badge/version-1.0.7--phase5-purple)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
 ## 🎵 Overview
 
-AppViewr is a cross-platform desktop application built with Electron that helps music producers organize and launch their music production apps and catalog their audio plugin inventory. **Phase 3 brings intelligent plugin scanning, automatic type detection, and a comprehensive settings panel.**
+AppViewr is a cross-platform desktop application built with Electron that helps music producers organize and launch their music production apps and catalog their audio plugin inventory. **Phase 5 introduces a robust App Scanner, Atomic Saving, and intelligent automatic categorization for your entire workspace.**
 
 ### Key Features
 
 ✨ **App Launcher Dashboard**
 - Grid layout with categorized sections (DAWs, Synths, Guitar Tools, etc.)
-- Visual app cards with icons and paths
+- Visual app cards with high-fidelity icons automatically extracted from bundles
 - **✅ ACTUAL APP LAUNCHING** - Click to open applications
-- Real-time search and filtering
-- Works on macOS and Windows
+- **✅ APP SCANNER** - Automatically finds your music apps in `/Applications`
+- Real-time search across apps and plugins
 
 🔌 **Plugin Inventory & Scanner**
 - Comprehensive plugin catalog with VST/AU/VST3 support
-- **✅ INTELLIGENT PLUGIN SCANNER** - Auto-detect installed plugins
+- **✅ ATOMIC SAVING** - Prevents data loss with crash-proof file writing
+- **✅ INTELLIGENT PLUGIN SCANNER** - Auto-detects manufacturer and format
 - **✅ AUTOMATIC TYPE DETECTION** - Identifies instruments vs effects
-- **✅ MANUFACTURER EXTRACTION** - Parses vendor info from paths
-- Filter by type (instrument/effect), format, and manufacturer
-- User-editable notes for each plugin
-- Full path visibility for troubleshooting
-- Duplicate prevention when merging scans
-- Real-time scan progress reporting
+- **✅ MANUFACTURER EXTRACTION** - Recognizes Arturia, NI, Waves, etc., and fallbacks to directory names
+- Filter by type, format, favorites, and manufacturer
 
 ⚙️ **Settings & Tools Panel**
-- One-click plugin scanning with progress bar
-- Statistics dashboard (apps, plugins, categories)
-- Configuration export/reload
-- Platform information display
-- Scan results with detailed breakdown
+- **Category Manager**: Add, Rename, Reorder, or delete custom categories
+- **App Cleanup**: Detect and remove orphan apps that no longer exist on disk
+- **Statistics Dashboard**: Total counts for categories, apps, and plugins
+- **Configuration Migration**: Automatically moves your database to system-safe locations
 
 🎨 **Premium UI/UX**
-- Dark theme optimized for music production environments
-- Glassmorphism effects and smooth animations
-- Desktop-optimized layout with maximum space efficiency
-- Compact header with integrated search
-- Professional aesthetic
-- Action buttons with hover effects
-- Progress bars with animations
+- Dark theme optimized for studio environments
+- Glassmorphism effects with macOS native window controls
+- Action-oriented interface with hover micro-animations
+- Search-first navigation
 
 🖥️ **Desktop Integration**
-- Native window with proper title bar
-- Cross-platform app launching (macOS/Windows)
-- Secure IPC communication
-- Configuration persistence
-- System integration
-- File dialogs for manual selection
-
-### Desktop Optimization
-
-- **Compact Header**: Single-row header with logo, search, and tabs
-- **Full Screen Usage**: Maximizes viewport height and width
-- **High Density**: Fits more apps per screen
-- **Quick Navigation**: All controls accessible without scrolling
+- **MacOS Native**: Transparent title bar with drag-to-move support
+- **Production-Ready Storage**: Uses `~/Library/Application Support/` for data persistence
+- **Secure Architecture**: Context-isolated renderer with atomic write-back
 
 ## 🛠️ Development
 
@@ -69,20 +52,11 @@ AppViewr is a cross-platform desktop application built with Electron that helps 
 npm run dev
 ```
 
-This opens the app with DevTools enabled for debugging.
-
 ### Building for Distribution
 
 Build for your current platform:
 ```bash
 npm run build
-```
-
-Build for specific platforms:
-```bash
-npm run build:mac    # macOS only
-npm run build:win    # Windows only
-npm run build:all    # Both platforms
 ```
 
 Installers will be created in the `dist/` directory.
@@ -91,122 +65,50 @@ Installers will be created in the `dist/` directory.
 
 ### ✅ Phase 1: Proof of Concept (Complete)
 - [x] Basic HTML/CSS/JS dashboard
-- [x] JSON configuration
 - [x] Search and filtering
-- [x] Desktop-optimized UI
 
 ### ✅ Phase 2: Electron Wrapper (Complete)
-- [x] Convert to Electron app
-- [x] Actual app launching
-- [x] IPC communication
-- [x] Config persistence
-- [x] Cross-platform support
+- [x] Actual app launching & IPC communication
 
 ### ✅ Phase 3: Enhanced Plugin Scanner (Complete)
 - [x] Auto-scan plugin directories
 - [x] Intelligent type detection
-- [x] Settings/Tools panel
-- [x] Statistics dashboard
 
 ### ✅ Phase 4: Advanced Features (Complete)
-- [x] In-app configuration editor (Add/Edit Apps)
+- [x] In-app configuration editor
 - [x] Manufacturer grouping view
 - [x] Plugin favorites and ratings
-- [x] Recent apps tracking
-- [x] Global keyboard shortcuts (Ctrl/Cmd+K)
-- [x] Quick filters (Favorites, Recent)
 
 ### ✅ Phase 5: Tools & Automation (Complete)
 - [x] **App Scanner**: Auto-scan /Applications for music apps
-- [x] **Multi-Strategy Detection**: Keywords, generic terms, formats
-- [x] **Smart Filtering**: New apps only, avoid duplicates
-- [x] **Category Manager**: Reorder, Add, Rename, Delete categories
-- [x] **App Cleanup**: Detect and remove missing apps
-- [x] **Interactive Results**: Edit app details before adding
+- [x] **Atomic Saving**: Safe, crash-proof configuration management
+- [x] **Category Manager**: Full control over dashboard organization
+- [x] **App Cleanup**: Remove missing/uninstalled applications
+- [x] **Smart Identification**: Mapping for 100+ synths (Arturia V, Serum, etc.)
 
 ### 📋 Phase 6: Core User Experience (Planned)
 - [ ] Drag-and-drop app reordering
-- [ ] Custom app icons upload
-- [ ] Advanced search (fuzzy matching)
+- [ ] Custom app icon uploads
+- [ ] Advanced fuzzy search
 - [ ] System tray integration
-- [ ] Cloud sync/backup
 
 ## 🛠️ Technical Details
 
-### Technology Stack
+### Storage & Configuration
 
-- **Electron** 28.0+ (Desktop wrapper)
-- **Node.js** (Backend/IPC)
-- **HTML5/CSS3** (UI)
-- **Vanilla JavaScript** (Logic)
-- **JSON** (Configuration)
+On macOS, your library and preferences are stored in the system data folder to ensure compatibility with packaged releases.
 
-### Security
+**Configuration Path:**
+`~/Library/Application Support/music-app-manager/config/apps-config.json`
 
-- **Context Isolation**: Enabled for security
-- **Node Integration**: Disabled in renderer
-- **Preload Script**: Secure IPC bridge
-- **No Remote Module**: Modern Electron best practices
-
-### Performance
-
-- Lightweight: ~150MB installed
-- Fast startup: < 2 seconds
-- Smooth animations: 60fps
-- Low memory usage
+The app uses an **Atomic Rename** strategy: it writes a `.tmp` file and only swaps it with the main database once the write is successful. This prevents the "blank library" bug if your computer crashes during a save.
 
 ## 📝 License
 
-MIT License - feel free to use and modify for your own projects.
-
-## 🤝 Contributing
-
-Feedback from music producers is highly valued! Please share:
-
-- Screenshots of your setup
-- Feature requests
-- UI/UX suggestions
-- Bug reports
-
-## 💡 Tips for Music Producers
-
-1. **Organize by Workflow**: Create categories that match your production workflow
-2. **Use Descriptive Notes**: Add notes about plugin CPU usage, best use cases, etc.
-3. **Keep Paths Updated**: When you update software, remember to update the paths
-4. **Backup Your Config**: Save a copy of `apps-config.json` before major changes
-5. **Quick Launch**: Use AppViewr as your music production hub
-
-## 🎵 Example Use Cases
-
-- **Quick Session Start**: Launch your entire production chain with clicks
-- **Plugin Discovery**: Remember what plugins you have before buying duplicates
-- **Workflow Optimization**: See your entire toolkit at a glance
-- **Teaching**: Show students your production setup
-- **Documentation**: Screenshot your plugin inventory for insurance/backup
-
-## 🐛 Troubleshooting
-
-### App won't launch
-- Check the path in `apps-config.json` is correct
-- Ensure the app is installed on your system
-- Check console for error messages
-
-### Config not loading
-- Verify `config/apps-config.json` exists
-- Check JSON syntax is valid
-- Look for errors in DevTools console
-
-### Plugin scanner not finding plugins
-- Check plugin directories exist
-- Ensure you have plugins installed
-- Try manual configuration
-
-## 📧 Support
-
-For questions or issues, please open an issue on GitHub.
+MIT License - feel free to use and modify.
 
 ---
 
 **Built with ❤️ for music producers by music producers**
 
-**Phase 3 Complete** - Now with intelligent plugin scanning and management tools! 🚀
+**Phase 5 Complete** - Atomic protection and full automation suite! 🚀
