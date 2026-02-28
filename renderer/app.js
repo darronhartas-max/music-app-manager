@@ -521,12 +521,20 @@ async function handleMergePlugins(plugins) {
       `Added ${result.added} new plugins. Total: ${result.total}`
     );
 
-    // Reload config
+    // Reload config with fresh data
     await loadConfig();
     updateStatistics();
 
-    // Switch to plugins tab
+    // Reset filter to 'all' so newly-added plugins (which may have type='unknown')
+    // are not hidden by a previously-active filter
+    currentPluginFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === 'all');
+    });
+
+    // Switch to plugins tab and explicitly render with fresh data
     switchTab('plugins');
+    renderPlugins();
 
   } catch (error) {
     showError(`Failed to merge plugins: ${error.message}`);

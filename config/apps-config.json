@@ -1,250 +1,28 @@
 {
   "categories": [
     {
+      "name": "DAWs",
+      "apps": []
+    },
+    {
       "name": "Synths",
-      "apps": [
-        {
-          "name": "Serum",
-          "manufacturer": "Xfer Records",
-          "path": "/Applications/Serum.app",
-          "icon": "🎛️",
-          "favorite": false
-        },
-        {
-          "name": "Vital",
-          "manufacturer": "Vital Audio",
-          "path": "/Applications/Vital.app",
-          "icon": "⚡",
-          "favorite": false
-        },
-        {
-          "name": "Omnisphere",
-          "manufacturer": "Spectrasonics",
-          "path": "/Applications/Omnisphere.app",
-          "icon": "🌌",
-          "favorite": false
-        },
-        {
-          "name": "Pigments",
-          "manufacturer": "Arturia",
-          "path": "/Applications/Arturia/Pigments.app",
-          "icon": "🎨",
-          "favorite": false
-        }
-      ]
+      "apps": []
     },
     {
       "name": "Guitar & Bass",
-      "apps": [
-        {
-          "name": "Guitar Rig",
-          "manufacturer": "Native Instruments",
-          "path": "/Applications/Native Instruments/Guitar Rig 6.app",
-          "icon": "🎸",
-          "favorite": true
-        },
-        {
-          "name": "Amplitube",
-          "manufacturer": "IK Multimedia",
-          "path": "/Applications/IK Multimedia/Amplitube 5.app",
-          "icon": "🎚️",
-          "favorite": false
-        },
-        {
-          "name": "Neural DSP",
-          "manufacturer": "Neural DSP",
-          "path": "/Applications/Neural DSP/Archetype Gojira.app",
-          "icon": "🔊",
-          "favorite": false
-        }
-      ]
-    },
-    {
-      "name": "DAWs",
-      "apps": [
-        {
-          "name": "Ableton Live",
-          "manufacturer": "Ableton",
-          "path": "/Applications/Ableton Live 11 Suite.app",
-          "icon": "🎹",
-          "favorite": false
-        },
-        {
-          "name": "Logic Pro",
-          "manufacturer": "Apple",
-          "path": "/Applications/Logic Pro X.app",
-          "icon": "🎵",
-          "favorite": false
-        },
-        {
-          "name": "FL Studio",
-          "manufacturer": "Image-Line",
-          "path": "/Applications/FL Studio.app",
-          "icon": "🎼",
-          "favorite": true
-        },
-        {
-          "name": "GarageBand",
-          "manufacturer": "Apple",
-          "path": "/Applications/GarageBand.app",
-          "icon": "🎵",
-          "favorite": false
-        }
-      ]
+      "apps": []
     },
     {
       "name": "Audio Tools",
-      "apps": [
-        {
-          "name": "iZotope RX",
-          "manufacturer": "iZotope",
-          "path": "/Applications/iZotope RX 9.app",
-          "icon": "🔧",
-          "favorite": false
-        },
-        {
-          "name": "FabFilter Pro-Q",
-          "manufacturer": "FabFilter",
-          "path": "/Applications/FabFilter/Pro-Q 3.app",
-          "icon": "📊",
-          "favorite": false
-        },
-        {
-          "name": "Melodyne",
-          "manufacturer": "Celemony",
-          "path": "/Applications/Celemony/Melodyne.app",
-          "icon": "🎤",
-          "favorite": true
-        }
-      ]
+      "apps": []
     },
     {
       "name": "Utilities",
-      "apps": [
-        {
-          "name": "Plugin Manager",
-          "manufacturer": "Generic",
-          "path": "/Applications/Plugin Manager.app",
-          "icon": "📦",
-          "favorite": false
-        },
-        {
-          "name": "Sample Manager",
-          "manufacturer": "Generic",
-          "path": "/Applications/Sample Manager.app",
-          "icon": "💾",
-          "favorite": false
-        }
-      ]
+      "apps": []
     }
   ],
-  "plugins": [
-    {
-      "name": "Valhalla VintageVerb",
-      "path": "/Library/Audio/Plug-Ins/VST3/ValhallaVintageVerb.vst3",
-      "type": "effect",
-      "format": "VST3",
-      "manufacturer": "Valhalla DSP",
-      "notes": "My go-to reverb for vocals",
-      "favorite": false,
-      "rating": 5
-    },
-    {
-      "name": "Serum",
-      "path": "/Library/Audio/Plug-Ins/VST3/Serum.vst3",
-      "type": "instrument",
-      "format": "VST3",
-      "manufacturer": "Xfer Records",
-      "notes": "Best wavetable synth",
-      "favorite": true,
-      "rating": 5
-    },
-    {
-      "name": "FabFilter Pro-Q 3",
-      "path": "/Library/Audio/Plug-Ins/AU/FabFilter Pro-Q 3.component",
-      "type": "effect",
-      "format": "AU",
-      "manufacturer": "FabFilter",
-      "notes": "Surgical EQ for mixing",
-      "favorite": true,
-      "rating": 5
-    },
-    {
-      "name": "Kontakt 7",
-      "path": "/Library/Audio/Plug-Ins/VST3/Kontakt 7.vst3",
-      "type": "instrument",
-      "format": "VST3",
-      "manufacturer": "Native Instruments",
-      "notes": "Sample library player",
-      "favorite": false,
-      "rating": 4
-    },
-    {
-      "name": "Soundtoys Decapitator",
-      "path": "/Library/Audio/Plug-Ins/VST3/Decapitator.vst3",
-      "type": "effect",
-      "format": "VST3",
-      "manufacturer": "Soundtoys",
-      "notes": "Analog saturation",
-      "favorite": false,
-      "rating": 4
-    },
-    {
-      "name": "Omnisphere 2",
-      "path": "/Library/Audio/Plug-Ins/AU/Omnisphere.component",
-      "type": "instrument",
-      "format": "AU",
-      "manufacturer": "Spectrasonics",
-      "notes": "Massive sound library",
-      "favorite": false,
-      "rating": 5
-    },
-    {
-      "name": "iZotope Ozone 10",
-      "path": "/Library/Audio/Plug-Ins/VST3/Ozone 10.vst3",
-      "type": "effect",
-      "format": "VST3",
-      "manufacturer": "iZotope",
-      "notes": "Mastering suite",
-      "favorite": false,
-      "rating": 4
-    },
-    {
-      "name": "Arturia Pigments",
-      "path": "/Library/Audio/Plug-Ins/VST3/Pigments.vst3",
-      "type": "instrument",
-      "format": "VST3",
-      "manufacturer": "Arturia",
-      "notes": "Hybrid synth engine",
-      "favorite": false,
-      "rating": 4
-    },
-    {
-      "name": "Valhalla Delay",
-      "path": "/Library/Audio/Plug-Ins/VST3/ValhallaDelay.vst3",
-      "type": "effect",
-      "format": "VST3",
-      "manufacturer": "Valhalla DSP",
-      "notes": "Creative delay effects",
-      "favorite": false,
-      "rating": 4
-    },
-    {
-      "name": "Waves SSL G-Master",
-      "path": "/Library/Audio/Plug-Ins/VST3/SSLGMaster.vst3",
-      "type": "effect",
-      "format": "VST3",
-      "manufacturer": "Waves",
-      "notes": "Bus compressor",
-      "favorite": false,
-      "rating": 3
-    }
-  ],
-  "recentApps": [
-    "/Applications/GarageBand.app",
-    "/Applications/Vital.app",
-    "/Applications/Native Instruments/Guitar Rig 6.app"
-  ],
+  "plugins": [],
+  "recentApps": [],
   "settings": {
     "defaultView": "category",
     "showRecentApps": true,

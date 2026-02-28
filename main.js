@@ -380,146 +380,303 @@ ipcMain.handle('scan-apps', async (event) => {
     const appsDir = process.platform === 'darwin' ? '/Applications' : 'C:\\Program Files';
     const scannedApps = [];
 
+    // Apple's own category identifiers for audio/music apps
+    const MUSIC_CATEGORIES = new Set([
+        'public.app-category.music',
+        'public.app-category.audio',
+    ]);
+
+    // Bundle-ID domain prefix → manufacturer name
+    const BUNDLE_MANUFACTURERS = {
+        'com.ableton': 'Ableton',
+        'com.apple.garageband': 'Apple',
+        'com.apple.logic': 'Apple',
+        'com.apple.mainstage': 'Apple',
+        'com.avid': 'Avid',
+        'com.steinberg': 'Steinberg',
+        'com.image-line': 'Image-Line',
+        'com.presonus': 'PreSonus',
+        'com.cockos': 'Cockos',
+        'com.bitwig': 'Bitwig',
+        'com.reasonstudios': 'Reason Studios',
+        'com.propellerhead': 'Reason Studios',
+        'com.native-instruments': 'Native Instruments',
+        'de.native-instruments': 'Native Instruments',
+        'com.arturia': 'Arturia',
+        'com.xferrecords': 'Xfer Records',
+        'com.spectrasonics': 'Spectrasonics',
+        'com.vitalaudio': 'Vital Audio',
+        'com.matt-tytel': 'Vital Audio',
+        'com.ikmultimedia': 'IK Multimedia',
+        'com.positivegrid': 'Positive Grid',
+        'com.neuraldsp': 'Neural DSP',
+        'com.izotope': 'iZotope',
+        'com.fabfilter': 'FabFilter',
+        'com.waves': 'Waves',
+        'com.soundtoys': 'Soundtoys',
+        'com.valhalladsp': 'Valhalla DSP',
+        'com.celemony': 'Celemony',
+        'com.antarestech': 'Antares',
+        'com.output': 'Output',
+        'com.cherryaudio': 'Cherry Audio',
+        'com.cherry-audio': 'Cherry Audio',
+        'com.softube': 'Softube',
+        'com.plugin-alliance': 'Plugin Alliance',
+        'com.pluginalliance': 'Plugin Alliance',
+        'com.uhe': 'u-he',
+        'de.uhe': 'u-he',
+        'com.kilohearts': 'Kilohearts',
+        'com.noiseengineering': 'Noise Engineering',
+        'com.audiodamage': 'Audio Damage',
+        'com.sugar-bytes': 'Sugar Bytes',
+        'com.sugarbytes': 'Sugar Bytes',
+        'com.zynaptiq': 'Zynaptiq',
+        'com.soundradix': 'SoundRadix',
+        'com.eventide': 'Eventide',
+        'com.goodhertz': 'Goodhertz',
+        'com.slate-digital': 'Slate Digital',
+        'com.slatedigital': 'Slate Digital',
+        'com.exponentialaudio': 'Exponential Audio',
+        'com.2caudio': '2CAudio',
+        'com.liquidsonics': 'Liquid Sonics',
+        'com.audioease': 'Audio Ease',
+        'com.airwindows': 'Airwindows',
+        'com.klanghelm': 'Klanghelm',
+        'uk.co.acustica': 'Acustica Audio',
+        'com.acusticaaudio': 'Acustica Audio',
+        'com.meldaproduction': 'Melda Production',
+        'com.apulsoft': 'Apulsoft',
+        'com.brainworx': 'Brainworx',
+        'com.overloud': 'Overloud',
+        'com.leapwing': 'Leapwing Audio',
+        'com.newfangled': 'Newfangled Audio',
+        'com.roland': 'Roland',
+        'com.korg': 'Korg',
+        'com.yamaha': 'Yamaha',
+        'com.moogmusic': 'Moog',
+        'com.spitfireaudio': 'Spitfire Audio',
+        'com.eastwestsounds': 'EastWest',
+        'com.heavyocity': 'Heavyocity',
+        'com.8dio': '8Dio',
+        'com.orchestraltools': 'Orchestral Tools',
+        'com.algoriddim': 'Algoriddim',
+        'com.pioneerdj': 'Pioneer DJ',
+        'com.serato': 'Serato',
+        'com.makemusic': 'MakeMusic',
+    };
+
+    // Broad fallback keyword list (covers apps whose plist is unhelpful)
+    const KNOWN_KEYWORDS = [
+        'ableton', 'logic pro', 'pro tools', 'cubase', 'nuendo', 'fl studio', 'studio one',
+        'reaper', 'bitwig', 'reason', 'garageband', 'audacity', 'ardour', 'mainstage',
+        'serum', 'massive', 'omnisphere', 'kontakt', 'komplete', 'arturia',
+        'pigments', 'analog lab', 'keyscape', 'trilian', 'stylus rmx',
+        'vital', 'phase plant', 'surge', 'helm', 'dexed', 'tyrell',
+        'guitar rig', 'amplitube', 'bias amp', 'neural', 'helix native',
+        'izotope', 'ozone', 'neutron', 'rx audio', 'nectar', 'stutter edit',
+        'fabfilter', 'pro-q', 'pro-c', 'pro-r', 'pro-l', 'saturn', 'timeless',
+        'waves', 'soundtoys', 'valhalla', 'melodyne', 'auto-tune', 'autotune',
+        'splice', 'output', 'arcade', 'exhale',
+        'spitfire', 'east west', 'heavyocity', '8dio',
+        'u-he', 'diva', 'zebra', 'hive', 'repro', 'bazille',
+        'sylenth', 'nexus', 'avenger', 'sektor',
+        'cherry audio', 'voltage modular', 'mercury-6', 'arp odyssey', 'obx',
+        'softube', 'slate digital', 'plugin alliance',
+        'eventide', 'blackhole', 'h3000', 'micropitch',
+        'goodhertz', 'tone control',
+        'traktor', 'rekordbox', 'serato', 'virtual dj', 'djay',
+        'sonic pi', 'max/msp', 'reaktor',
+        'loopback', 'audio hijack', 'soundsource',
+        'maschine', 'push', 'komplete kontrol',
+        'sibelius', 'dorico', 'musescore', 'finale', 'notion',
+    ];
+
+    const GENERIC_TERMS = [
+        'synth', 'synthesizer', 'sampler', 'drum machine', 'beat maker',
+        'midi controller', 'audio editor', 'reverb unit', 'modular',
+        'vocoder', 'arpeggiator', 'looper', 'sequencer',
+    ];
+
+    // ── Read and parse an app's Info.plist via plutil ──
+    const readPlist = (plistPath) => {
+        try {
+            if (!fs.existsSync(plistPath)) return null;
+            const { execSync } = require('child_process');
+            const json = execSync(
+                `plutil -convert json -o - "${plistPath}"`,
+                { timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'] }
+            );
+            return JSON.parse(json.toString());
+        } catch (e) {
+            return null;
+        }
+    };
+
+    // ── Extract manufacturer from bundle ID ──
+    const manufacturerFromBundleId = (bundleId) => {
+        if (!bundleId) return null;
+        const lower = bundleId.toLowerCase();
+        for (const [domain, name] of Object.entries(BUNDLE_MANUFACTURERS)) {
+            if (lower.startsWith(domain)) return name;
+        }
+        // Auto-format the second segment as a best-guess company name
+        // e.g. "com.cherryaudio.voltage" → "Cherryaudio" → "Cherry Audio" (close enough)
+        const parts = lower.split('.');
+        if (parts.length >= 2) {
+            const seg = parts[1];
+            const skip = new Set(['apple', 'google', 'microsoft', 'adobe', 'electron', 'app', 'com', 'net', 'org']);
+            if (!skip.has(seg)) {
+                return seg
+                    .replace(/-/g, ' ')
+                    .split(' ')
+                    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(' ');
+            }
+        }
+        return null;
+    };
+
+    // ── Suggest a category from all available signals ──
+    const suggestCategory = (fileName, bundleId) => {
+        const haystack = (fileName + ' ' + (bundleId || '')).toLowerCase();
+        if (/ableton|logic pro|pro tools|cubase|fl studio|studio one|reaper|bitwig|reason|garageband|mainstage|ardour/.test(haystack)) return 'DAWs';
+        if (/serum|massive|vital|omnisphere|pigments|analog lab|keyscape|diva|zebra|hive|nexus|avenger|phase plant|cherry|voltage|mercury|synth|korg|moog|arp |obx|reaktor/.test(haystack)) return 'Synths';
+        if (/guitar|amplitube|bias|neural|helix|kemper|amp sim/.test(haystack)) return 'Guitar & Bass';
+        if (/izotope|fabfilter|waves|soundtoys|valhalla|melodyne|auto-tune|ozone|neutron|slate|brainworx|softube|eventide/.test(haystack)) return 'Audio Tools';
+        if (/traktor|rekordbox|serato|virtual dj|djay/.test(haystack)) return 'Utilities';
+        return 'Utilities';
+    };
+
     try {
         const files = fs.readdirSync(appsDir);
 
-        // Multi-strategy music app detection
-
-        // Strategy 1: Known music app/manufacturer keywords
-        const knownMusicKeywords = [
-            'ableton', 'logic', 'pro tools', 'cubase', 'fl studio', 'studio one',
-            'reaper', 'bitwig', 'reason', 'garageband', 'audacity', 'ardour',
-            'serum', 'massive', 'omnisphere', 'kontakt', 'komplete', 'arturia',
-            'native instruments', 'spectrasonics', 'xfer', 'vital', 'pigments',
-            'guitar rig', 'amplitube', 'bias', 'neural', 'izotope', 'ozone',
-            'fabfilter', 'waves', 'soundtoys', 'valhalla', 'melodyne', 'auto-tune',
-            'splice', 'output', 'arcade', 'exhale', 'analog lab', 'keyscape',
-            'spitfire', 'eastwest', 'heavyocity', 'u-he', 'diva', 'zebra',
-            'sylenth', 'nexus', 'avenger', 'phase plant', 'kilohearts'
-        ];
-
-        // Strategy 2: Generic music production terms
-        const genericMusicTerms = [
-            'synth', 'synthesizer', 'sampler', 'drum', 'beat', 'sequencer',
-            'daw', 'audio', 'midi', 'vst', 'plugin', 'effect', 'reverb',
-            'delay', 'compressor', 'eq', 'equalizer', 'limiter', 'mastering',
-            'mixing', 'recording', 'producer', 'composer', 'notation',
-            'score', 'orchestra', 'piano', 'guitar', 'bass', 'vocal',
-            'tuner', 'metronome', 'looper', 'arpeggiator'
-        ];
-
-        // Strategy 3: Audio file extensions/formats in app name
-        const audioFormats = ['wav', 'mp3', 'aiff', 'flac', 'ogg', 'au'];
-
         for (const file of files) {
-            const filePath = path.join(appsDir, file);
-
-            // Only process .app files on macOS or .exe on Windows
             if (process.platform === 'darwin' && !file.endsWith('.app')) continue;
             if (process.platform === 'win32' && !file.endsWith('.exe')) continue;
 
-            const fileName = file.toLowerCase().replace('.app', '').replace('.exe', '');
+            const filePath = path.join(appsDir, file);
+            const appName = file.replace(/\.(app|exe)$/, '');
+            const fileName = appName.toLowerCase();
 
-            // Multi-strategy detection
             let isMusicApp = false;
             let detectionMethod = '';
+            let confidence = 'Low';
+            let manufacturer = 'Unknown';
+            let bundleId = '';
+            let plist = null;
 
-            // Check known keywords (high confidence)
-            if (knownMusicKeywords.some(keyword => fileName.includes(keyword))) {
-                isMusicApp = true;
-                detectionMethod = 'known';
-            }
+            // ── Strategy 1: Read Info.plist (most reliable on macOS) ──
+            if (process.platform === 'darwin') {
+                plist = readPlist(path.join(filePath, 'Contents', 'Info.plist'));
 
-            // Check generic music terms (medium confidence)
-            else if (genericMusicTerms.some(term => fileName.includes(term))) {
-                isMusicApp = true;
-                detectionMethod = 'generic';
-            }
+                if (plist) {
+                    bundleId = (plist.CFBundleIdentifier || '').toLowerCase();
 
-            // Check audio format references (lower confidence)
-            else if (audioFormats.some(format => fileName.includes(format))) {
-                isMusicApp = true;
-                detectionMethod = 'format';
-            }
-
-            // On macOS, check bundle identifier for additional validation
-            if (isMusicApp && process.platform === 'darwin') {
-                try {
-                    const stats = fs.statSync(filePath);
-                    if (stats.isDirectory() || stats.isFile()) {
-                        // Try to extract manufacturer from path or name
-                        let manufacturer = 'Unknown';
-                        const pathParts = filePath.split(path.sep);
-
-                        // Common manufacturer detection
-                        if (fileName.includes('ableton')) manufacturer = 'Ableton';
-                        else if (fileName.includes('logic')) manufacturer = 'Apple';
-                        else if (fileName.includes('pro tools')) manufacturer = 'Avid';
-                        else if (fileName.includes('cubase') || fileName.includes('nuendo')) manufacturer = 'Steinberg';
-                        else if (fileName.includes('fl studio')) manufacturer = 'Image-Line';
-                        else if (fileName.includes('studio one')) manufacturer = 'PreSonus';
-                        else if (fileName.includes('reaper')) manufacturer = 'Cockos';
-                        else if (fileName.includes('bitwig')) manufacturer = 'Bitwig';
-                        else if (fileName.includes('reason')) manufacturer = 'Reason Studios';
-                        else if (fileName.includes('native instruments') || fileName.includes('kontakt') || fileName.includes('massive') || fileName.includes('komplete')) manufacturer = 'Native Instruments';
-                        else if (fileName.includes('arturia') || fileName.includes('pigments') || fileName.includes('analog lab')) manufacturer = 'Arturia';
-                        else if (fileName.includes('serum') || fileName.includes('xfer')) manufacturer = 'Xfer Records';
-                        else if (fileName.includes('omnisphere') || fileName.includes('keyscape') || fileName.includes('trilian')) manufacturer = 'Spectrasonics';
-                        else if (fileName.includes('vital')) manufacturer = 'Vital Audio';
-                        else if (fileName.includes('guitar rig')) manufacturer = 'Native Instruments';
-                        else if (fileName.includes('amplitube')) manufacturer = 'IK Multimedia';
-                        else if (fileName.includes('bias')) manufacturer = 'Positive Grid';
-                        else if (fileName.includes('neural')) manufacturer = 'Neural DSP';
-                        else if (fileName.includes('izotope') || fileName.includes('ozone') || fileName.includes('neutron')) manufacturer = 'iZotope';
-                        else if (fileName.includes('fabfilter')) manufacturer = 'FabFilter';
-                        else if (fileName.includes('waves')) manufacturer = 'Waves';
-                        else if (fileName.includes('soundtoys')) manufacturer = 'Soundtoys';
-                        else if (fileName.includes('valhalla')) manufacturer = 'Valhalla DSP';
-                        else if (fileName.includes('melodyne')) manufacturer = 'Celemony';
-                        else if (fileName.includes('auto-tune') || fileName.includes('autotune')) manufacturer = 'Antares';
-                        else if (fileName.includes('output') || fileName.includes('arcade') || fileName.includes('exhale')) manufacturer = 'Output';
-
-                        // Suggest category based on app type
-                        let suggestedCategory = 'Utilities';
-                        if (fileName.includes('ableton') || fileName.includes('logic') || fileName.includes('pro tools') ||
-                            fileName.includes('cubase') || fileName.includes('fl studio') || fileName.includes('studio one') ||
-                            fileName.includes('reaper') || fileName.includes('bitwig') || fileName.includes('reason')) {
-                            suggestedCategory = 'DAWs';
-                        } else if (fileName.includes('serum') || fileName.includes('massive') || fileName.includes('omnisphere') ||
-                            fileName.includes('vital') || fileName.includes('pigments') || fileName.includes('analog lab') ||
-                            fileName.includes('keyscape')) {
-                            suggestedCategory = 'Synths';
-                        } else if (fileName.includes('guitar') || fileName.includes('amplitube') || fileName.includes('bias') ||
-                            fileName.includes('neural')) {
-                            suggestedCategory = 'Guitar & Bass';
-                        } else if (fileName.includes('izotope') || fileName.includes('fabfilter') || fileName.includes('waves') ||
-                            fileName.includes('soundtoys') || fileName.includes('melodyne')) {
-                            suggestedCategory = 'Audio Tools';
-                        }
-
-                        // Set confidence level
-                        let confidence = 'High';
-                        if (detectionMethod === 'generic') confidence = 'Medium';
-                        if (detectionMethod === 'format') confidence = 'Low';
-
-                        scannedApps.push({
-                            name: file.replace('.app', '').replace('.exe', ''),
-                            path: filePath,
-                            manufacturer: manufacturer,
-                            suggestedCategory: suggestedCategory,
-                            icon: '🎵', // Default icon
-                            detectionMethod: detectionMethod,
-                            confidence: confidence
-                        });
+                    // (a) Apple's own audio/music category flag — definitive
+                    const appCat = (plist.LSApplicationCategoryType || '').toLowerCase();
+                    if (MUSIC_CATEGORIES.has(appCat)) {
+                        isMusicApp = true;
+                        detectionMethod = 'plist-category';
+                        confidence = 'High';
                     }
-                } catch (err) {
-                    // Skip files we can't access
-                    continue;
+
+                    // (b) Bundle ID matches a known music publisher
+                    if (!isMusicApp) {
+                        const knownPublisher = Object.keys(BUNDLE_MANUFACTURERS)
+                            .some(d => bundleId.startsWith(d));
+                        if (knownPublisher) {
+                            isMusicApp = true;
+                            detectionMethod = 'plist-bundleid';
+                            confidence = 'High';
+                        }
+                    }
+
+                    // Resolve manufacturer from bundle ID
+                    const mfrFromId = manufacturerFromBundleId(bundleId);
+                    if (mfrFromId) manufacturer = mfrFromId;
+
+                    // Fallback: parse NSHumanReadableCopyright for company name
+                    if (manufacturer === 'Unknown') {
+                        const copy = plist.NSHumanReadableCopyright || plist.CFBundleGetInfoString || '';
+                        const m = copy.match(/©?\s*\d{4}[\s,\-–]+([^.,()]+)/);
+                        if (m) manufacturer = m[1].trim().replace(/^(by\s+)/i, '');
+                    }
                 }
             }
+
+            // ── Strategy 2: Known music app keyword in filename ──
+            if (!isMusicApp && KNOWN_KEYWORDS.some(k => fileName.includes(k))) {
+                isMusicApp = true;
+                detectionMethod = 'keyword-known';
+                confidence = 'High';
+            }
+
+            // ── Strategy 3: Generic music term in filename ──
+            if (!isMusicApp && GENERIC_TERMS.some(t => fileName.includes(t))) {
+                isMusicApp = true;
+                detectionMethod = 'keyword-generic';
+                confidence = 'Medium';
+            }
+
+            if (!isMusicApp) continue;
+
+            // Keyword-based manufacturer fallback (when plist didn't help)
+            if (manufacturer === 'Unknown') {
+                const mfr = [
+                    [/arturia|pigments|analog lab|v collection/, 'Arturia'],
+                    [/cherry audio|voltage modular|mercury-6/, 'Cherry Audio'],
+                    [/ableton/, 'Ableton'],
+                    [/logic|garageband|mainstage/, 'Apple'],
+                    [/kontakt|massive|komplete|reaktor|guitar rig|traktor|maschine/, 'Native Instruments'],
+                    [/serum|xfer/, 'Xfer Records'],
+                    [/vital/, 'Vital Audio'],
+                    [/omnisphere|keyscape|trilian|stylus/, 'Spectrasonics'],
+                    [/izotope|ozone|neutron|nectar/, 'iZotope'],
+                    [/fabfilter|pro-q|pro-c|pro-r|pro-l|saturn/, 'FabFilter'],
+                    [/waves/, 'Waves'],
+                    [/valhalla/, 'Valhalla DSP'],
+                    [/melodyne/, 'Celemony'],
+                    [/soundtoys/, 'Soundtoys'],
+                    [/slate digital|fresh air/, 'Slate Digital'],
+                    [/softube/, 'Softube'],
+                    [/neural dsp/, 'Neural DSP'],
+                    [/positive grid|bias amp/, 'Positive Grid'],
+                    [/amplitube/, 'IK Multimedia'],
+                    [/u-he|diva|zebra|hive|repro|bazille/, 'u-he'],
+                    [/sugar.bytes/, 'Sugar Bytes'],
+                    [/spitfire/, 'Spitfire Audio'],
+                    [/east.?west/, 'EastWest'],
+                    [/reaper/, 'Cockos'],
+                    [/bitwig/, 'Bitwig'],
+                    [/fl studio|fruity/, 'Image-Line'],
+                    [/studio one/, 'PreSonus'],
+                    [/cubase|nuendo|wavelab/, 'Steinberg'],
+                    [/pro tools/, 'Avid'],
+                    [/rekordbox/, 'Pioneer DJ'],
+                    [/serato/, 'Serato'],
+                    [/djay/, 'Algoriddim'],
+                    [/sibelius/, 'Avid'],
+                    [/finale/, 'MakeMusic'],
+                    [/dorico/, 'Steinberg'],
+                ].find(([re]) => re.test(fileName));
+                if (mfr) manufacturer = mfr[1];
+            }
+
+            scannedApps.push({
+                name: appName,
+                path: filePath,
+                manufacturer: manufacturer,
+                suggestedCategory: suggestCategory(fileName, bundleId),
+                icon: '🎵',
+                detectionMethod: detectionMethod,
+                confidence: confidence,
+                bundleId: bundleId,
+            });
         }
 
+        console.log(`App scan complete. Found ${scannedApps.length} music apps (plist introspection enabled).`);
         return scannedApps;
+
     } catch (error) {
         console.error('Error scanning apps:', error);
         return [];
