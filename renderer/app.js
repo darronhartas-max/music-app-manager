@@ -33,7 +33,86 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   renderApps();
+
+  // Show first-run welcome modal if library is empty and never shown before
+  _checkFirstRun();
 });
+
+// Show welcome modal when the library is completely empty on first launch
+function _checkFirstRun() {
+  const hasSeenWelcome = localStorage.getItem('mam-welcome-shown');
+  if (hasSeenWelcome) return;
+
+  const totalApps = (appData && appData.categories)
+    ? appData.categories.reduce((n, c) => n + c.apps.length, 0)
+    : 0;
+  const totalPlugins = (appData && appData.plugins) ? appData.plugins.length : 0;
+
+  if (totalApps === 0 && totalPlugins === 0) {
+    setTimeout(() => _showWelcomeModal(), 600); // small delay so the app renders first
+  }
+}
+
+function _showWelcomeModal() {
+  const modal = document.getElementById('welcomeModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  document.getElementById('welcomeStartBtn').onclick = () => {
+    _hideWelcomeModal();
+    switchTab('settings');
+    // Scroll to App Scanner section
+    setTimeout(() => {
+      const scanAppsBtn = document.getElementById('scanAppsBtn');
+      if (scanAppsBtn) scanAppsBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
+
+  document.getElementById('welcomeDismissBtn').onclick = () => _hideWelcomeModal();
+
+  // Click backdrop to dismiss
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) _hideWelcomeModal();
+  });
+}
+
+function _hideWelcomeModal() {
+  const modal = document.getElementById('welcomeModal');
+  if (modal) modal.style.display = 'none';
+  localStorage.setItem('mam-welcome-shown', '1');
+}
+
+// Refresh icons for all apps already in the config by re-extracting from their bundles
+async function handleRefreshIcons() {
+  const btn = document.getElementById('refreshIconsBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing...'; }
+
+  if (!appData || !appData.categories) return;
+
+  let updated = 0;
+  for (const cat of appData.categories) {
+    for (const app of cat.apps) {
+      if (!app.path || !app.path.endsWith('.app')) continue;
+      try {
+        const dataUrl = await window.electronAPI.extractAppIcon(app.path);
+        if (dataUrl) {
+          app.icon = dataUrl;
+          updated++;
+        }
+      } catch (e) { /* skip */ }
+    }
+  }
+
+  if (updated > 0) {
+    await window.electronAPI.saveConfig(appData);
+    renderApps();
+    showNotification('🖼️ Icons Refreshed', `Updated ${updated} app icon${updated !== 1 ? 's' : ''}`);
+  } else {
+    showNotification('ℹ️ No Updates', 'All icons are already up to date');
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<span class="btn-icon">🖼️</span> Refresh App Icons'; }
+}
 
 // Load configuration
 async function loadConfig() {
@@ -425,6 +504,15 @@ function initializeSettings() {
   const cleanupAppsBtn = document.getElementById('cleanupAppsBtn');
   if (cleanupAppsBtn) {
     cleanupAppsBtn.addEventListener('click', handleCleanupApps);
+  }
+
+  // Refresh Icons button
+  const refreshIconsBtn = document.getElementById('refreshIconsBtn');
+  if (refreshIconsBtn) {
+    if (!refreshIconsBtn.dataset.bound) {
+      refreshIconsBtn.dataset.bound = 'true';
+      refreshIconsBtn.addEventListener('click', handleRefreshIcons);
+    }
   }
 
   // Update statistics

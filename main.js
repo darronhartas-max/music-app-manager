@@ -662,12 +662,40 @@ ipcMain.handle('scan-apps', async (event) => {
                 if (mfr) manufacturer = mfr[1];
             }
 
+            // ── Extract real app icon from bundle ──
+            let iconDataUrl = null;
+            if (process.platform === 'darwin' && plist) {
+                try {
+                    const { nativeImage } = require('electron');
+                    let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
+                    if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
+                    if (iconFile) {
+                        const icnsPath = path.join(filePath, 'Contents', 'Resources', iconFile);
+                        if (fs.existsSync(icnsPath)) {
+                            const img = nativeImage.createFromPath(icnsPath);
+                            if (!img.isEmpty()) {
+                                iconDataUrl = img.resize({ width: 64, height: 64 }).toDataURL();
+                            }
+                        }
+                    }
+                    // Fallback: let Electron find the icon itself
+                    if (!iconDataUrl) {
+                        const img = nativeImage.createFromPath(filePath);
+                        if (!img.isEmpty()) {
+                            iconDataUrl = img.resize({ width: 64, height: 64 }).toDataURL();
+                        }
+                    }
+                } catch (e) {
+                    // Icon extraction failed — will fall back to emoji
+                }
+            }
+
             scannedApps.push({
                 name: appName,
                 path: filePath,
                 manufacturer: manufacturer,
                 suggestedCategory: suggestCategory(fileName, bundleId),
-                icon: '🎵',
+                icon: iconDataUrl || '🎵',
                 detectionMethod: detectionMethod,
                 confidence: confidence,
                 bundleId: bundleId,
@@ -680,6 +708,40 @@ ipcMain.handle('scan-apps', async (event) => {
     } catch (error) {
         console.error('Error scanning apps:', error);
         return [];
+    }
+});
+// Extract icon for a single app path (used to refresh icons on existing config entries)
+ipcMain.handle('extract-app-icon', async (event, appPath) => {
+    try {
+        const { nativeImage } = require('electron');
+        // Try reading from Info.plist first
+        const plistPath = path.join(appPath, 'Contents', 'Info.plist');
+        if (fs.existsSync(plistPath)) {
+            const { execSync } = require('child_process');
+            const plist = JSON.parse(
+                execSync(`plutil -convert json -o - "${plistPath}"`,
+                    { timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'] }).toString()
+            );
+            let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
+            if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
+            if (iconFile) {
+                const icnsPath = path.join(appPath, 'Contents', 'Resources', iconFile);
+                if (fs.existsSync(icnsPath)) {
+                    const img = nativeImage.createFromPath(icnsPath);
+                    if (!img.isEmpty()) {
+                        return img.resize({ width: 64, height: 64 }).toDataURL();
+                    }
+                }
+            }
+        }
+        // Fallback: Electron's own icon resolver
+        const img = nativeImage.createFromPath(appPath);
+        if (!img.isEmpty()) {
+            return img.resize({ width: 64, height: 64 }).toDataURL();
+        }
+        return null;
+    } catch (e) {
+        return null;
     }
 });
 

@@ -103,9 +103,28 @@
     <!-- Settings/Tools Tab -->
     <div id="settingsTab" class="tab-content">
       <div class="settings-container">
+
+        <!-- 1. App Scanner (first — populate apps before plugins) -->
+        <div class="settings-section">
+          <h2 class="settings-title">🎵 App Scanner</h2>
+          <p class="settings-description">Scan your /Applications folder for music production apps. Reads each app's
+            bundle to identify the manufacturer automatically.</p>
+
+          <div class="settings-actions">
+            <button id="scanAppsBtn" class="action-btn primary">
+              <span class="btn-icon">🎵</span>
+              Scan for Music Apps
+            </button>
+          </div>
+
+          <div id="appScanResults" class="scan-results" style="display: none;"></div>
+        </div>
+
+        <!-- 2. Plugin Scanner -->
         <div class="settings-section">
           <h2 class="settings-title">🔍 Plugin Scanner</h2>
-          <p class="settings-description">Automatically scan your system for installed audio plugins (VST, VST3, AU)</p>
+          <p class="settings-description">Automatically scan your system for installed audio plugins (VST, VST3, AU)
+            across all standard plugin directories.</p>
 
           <div class="settings-actions">
             <button id="scanPluginsBtn" class="action-btn primary">
@@ -123,20 +142,7 @@
           <div id="scanResults" class="scan-results" style="display: none;"></div>
         </div>
 
-        <div class="settings-section">
-          <h2 class="settings-title">🎵 App Scanner</h2>
-          <p class="settings-description">Scan /Applications for music production apps</p>
-
-          <div class="settings-actions">
-            <button id="scanAppsBtn" class="action-btn primary">
-              <span class="btn-icon">🎵</span>
-              Scan for Music Apps
-            </button>
-          </div>
-
-          <div id="appScanResults" class="scan-results" style="display: none;"></div>
-        </div>
-
+        <!-- 3. Statistics -->
         <div class="settings-section">
           <h2 class="settings-title">📊 Statistics</h2>
           <div class="stats-grid">
@@ -155,6 +161,7 @@
           </div>
         </div>
 
+        <!-- 4. Category Manager -->
         <div class="settings-section">
           <h2 class="settings-title">📁 Category Manager</h2>
           <p class="settings-description">Manage your app categories</p>
@@ -169,11 +176,16 @@
           </div>
         </div>
 
+        <!-- 5. Configuration -->
         <div class="settings-section">
           <h2 class="settings-title">💾 Configuration</h2>
-          <p class="settings-description">Manage your AppViewr configuration</p>
+          <p class="settings-description">Manage your Music App Manager configuration and library</p>
 
           <div class="settings-actions">
+            <button id="refreshIconsBtn" class="action-btn">
+              <span class="btn-icon">🖼️</span>
+              Refresh App Icons
+            </button>
             <button id="cleanupAppsBtn" class="action-btn">
               <span class="btn-icon">🧹</span>
               Clean Up Missing Apps
@@ -191,14 +203,67 @@
           <div id="cleanupResults" class="scan-results" style="display: none;"></div>
         </div>
 
+        <!-- 6. About -->
         <div class="settings-section">
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
-            <p><strong>Music App Manager</strong> - App & Plugin Dashboard</p>
+            <p><strong>Music App Manager</strong> - App &amp; Plugin Dashboard</p>
             <p>Version: 1.0.0 (Phase 5)</p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
         </div>
+
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+  <!-- Welcome / First-Run Modal -->
+  <div id="welcomeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <div class="modal-content welcome-modal-content">
+      <div class="welcome-hero">
+        <div class="welcome-logo">🎵</div>
+        <h2 id="welcomeTitle" class="welcome-title">Welcome to Music App Manager</h2>
+        <p class="welcome-subtitle">Your personal dashboard for music production apps and plugins.</p>
+      </div>
+
+      <div class="welcome-steps">
+        <div class="welcome-step">
+          <div class="welcome-step-num">1</div>
+          <div class="welcome-step-body">
+            <strong>Scan for Apps</strong>
+            <p>Go to <em>Tools → App Scanner</em> and click <strong>Scan for Music Apps</strong>. The app reads your
+              /Applications folder and auto-detects music software, identifying the manufacturer from each app's bundle.
+            </p>
+          </div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-num">2</div>
+          <div class="welcome-step-body">
+            <strong>Scan for Plugins</strong>
+            <p>Click <strong>Scan for Plugins</strong> to catalogue your VST, VST3, and AU plugins from all standard
+              directories. Plugins are added to your library in one click.</p>
+          </div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-num">3</div>
+          <div class="welcome-step-body">
+            <strong>Launch &amp; Manage</strong>
+            <p>Click any app card to launch it instantly. Use <em>Edit Mode</em> to drag cards into your preferred
+              order, or use the search bar to find anything fast.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="welcome-actions">
+        <button id="welcomeStartBtn" class="action-btn primary">
+          <span class="btn-icon">🎵</span>
+          Start Scanning — Go to Tools
+        </button>
+        <button id="welcomeDismissBtn" class="action-btn">
+          Maybe Later
+        </button>
       </div>
     </div>
   </div>

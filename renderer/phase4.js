@@ -241,6 +241,11 @@ function createAppCardPhase4(app) {
     const isRecent = recentApps.includes(app.path);
     const isFavorite = app.favorite || false;
 
+    // Real app icon (data URL from bundle) or emoji fallback
+    const iconHtml = app.icon && app.icon.startsWith('data:')
+        ? `<img src="${app.icon}" class="app-icon-img" alt="${app.name}" title="${app.name}">`
+        : `<div class="app-icon">${app.icon || '🎵'}</div>`;
+
     return `
     <div class="app-card ${isRecent ? 'recent' : ''}" 
          data-path="${app.path}" 
@@ -251,7 +256,7 @@ function createAppCardPhase4(app) {
               onclick="toggleAppFavorite(event, '${app.path}')">
         ${isFavorite ? '⭐' : '☆'}
       </button>
-      <div class="app-icon">${app.icon}</div>
+      ${iconHtml}
       <div class="app-name">${app.name}</div>
       <div class="app-path">${app.manufacturer || app.path}</div>
     </div>

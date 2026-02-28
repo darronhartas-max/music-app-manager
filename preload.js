@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Scan for music apps
     scanApps: () => ipcRenderer.invoke('scan-apps'),
 
+    // Extract real icon for an app at a given path
+    extractAppIcon: (appPath) => ipcRenderer.invoke('extract-app-icon', appPath),
+
     // Listen for scan progress
     onScanProgress: (callback) => {
         ipcRenderer.on('scan-progress', (event, data) => callback(data));
