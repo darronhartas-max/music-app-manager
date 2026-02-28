@@ -658,28 +658,42 @@ function updateScanProgress(data) {
   }
 }
 
-// Handle merge plugins
-async function handleMergePlugins(plugins) {
+// Handle merge plugins (Now handles merging locally for better state consistency)
+async function handleMergePlugins(scannedPlugins) {
   try {
-    const result = await window.electronAPI.mergePlugins(plugins);
-    console.log('Merge Result:', result);
+    if (!scannedPlugins || !Array.isArray(scannedPlugins)) {
+      throw new Error('Invalid plugin data received from scanner');
+    }
 
-    showNotification(
-      '✅ Plugins Added',
-      `Added ${result.added} new plugins. Total: ${result.total}`
-    );
-
-    // Reload config with fresh data
+    // Ensure we have current data before merging
     await loadConfig();
 
-    // Safety check: Ensure plugins array exists
     if (!appData.plugins) {
       appData.plugins = [];
     }
 
+    const existingPaths = new Set(appData.plugins.map(p => p.path));
+    const newItems = scannedPlugins.filter(p => !existingPaths.has(p.path));
+
+    if (newItems.length > 0) {
+      // Merge into local appData
+      appData.plugins = [...appData.plugins, ...newItems];
+
+      // Save the merged state atomically
+      if (isElectron) {
+        const saveResult = await window.electronAPI.saveConfig(appData);
+        if (!saveResult.success) throw new Error('Failed to save to disk');
+      }
+    }
+
+    showNotification(
+      '✅ Plugins Added',
+      `Added ${newItems.length} new plugins. Total library size: ${appData.plugins.length}`
+    );
+
     updateStatistics();
 
-    // Clear search bar and reset filters
+    // Clear search bar and reset filters to show the new ones
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
 
@@ -691,15 +705,15 @@ async function handleMergePlugins(plugins) {
     // Switch to plugins tab for visual confirmation
     switchTab('plugins');
 
-    // Force extra render with a small delay to ensure DOM is ready
-    setTimeout(() => {
-      renderPlugins();
-      console.log(`Rendered ${appData.plugins.length} plugins after merge.`);
-    }, 100);
+    // Extra render call to update UI
+    renderPlugins();
 
   } catch (error) {
     console.error('Merge Error:', error);
     showError(`Failed to merge plugins: ${error.message}`);
+  } finally {
+    const btn = document.getElementById('mergePluginsBtn');
+    if (btn) btn.disabled = false;
   }
 }
 

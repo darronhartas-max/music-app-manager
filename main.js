@@ -241,23 +241,64 @@ ipcMain.handle('launch-app', async (event, appPath, appName) => {
     });
 });
 
+// --- Configuration Management ---
+const getConfigPath = () => {
+    // In production, we MUST use the userData directory as the app.asar is read-only
+    const userDataPath = app.getPath('userData');
+    const projectConfigFolder = path.join(__dirname, 'config');
+    const userDataConfigFolder = path.join(userDataPath, 'config');
+    const fileName = 'apps-config.json';
+
+    const projectPath = path.join(projectConfigFolder, fileName);
+    const userPath = path.join(userDataConfigFolder, fileName);
+
+    // Migration: If user data doesn't exist but project data does (e.g. during dev transitions)
+    // we try to move it once.
+    if (!fs.existsSync(userPath) && fs.existsSync(projectPath)) {
+        try {
+            if (!fs.existsSync(userDataConfigFolder)) fs.mkdirSync(userDataConfigFolder, { recursive: true });
+            fs.copyFileSync(projectPath, userPath);
+            console.log('Migrated configuration to userData folder');
+        } catch (e) {
+            console.error('Migration failed:', e);
+        }
+    }
+
+    return userPath;
+};
+
 // Load configuration
 ipcMain.handle('load-config', async () => {
     try {
-        const configPath = path.join(__dirname, 'config', 'apps-config.json');
+        const configPath = getConfigPath();
+        if (!fs.existsSync(configPath)) {
+            return { categories: [], plugins: [], recentApps: [], settings: {} };
+        }
         const configData = fs.readFileSync(configPath, 'utf8');
+        if (!configData.trim()) return { categories: [], plugins: [], recentApps: [], settings: {} };
         return JSON.parse(configData);
     } catch (error) {
         console.error('Error loading config:', error);
-        throw error;
+        return { categories: [], plugins: [], recentApps: [], settings: {} };
     }
 });
 
-// Save configuration
+// Save configuration (Atomic write)
 ipcMain.handle('save-config', async (event, configData) => {
     try {
-        const configPath = path.join(__dirname, 'config', 'apps-config.json');
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
+        const configPath = getConfigPath();
+        const configFolder = path.dirname(configPath);
+
+        if (!fs.existsSync(configFolder)) fs.mkdirSync(configFolder, { recursive: true });
+
+        const tempPath = configPath + '.tmp';
+
+        // Write to temporary file first
+        fs.writeFileSync(tempPath, JSON.stringify(configData, null, 2), 'utf8');
+
+        // Atomically rename it
+        fs.renameSync(tempPath, configPath);
+
         return { success: true };
     } catch (error) {
         console.error('Error saving config:', error);
@@ -481,36 +522,6 @@ ipcMain.handle('select-plugin-file', async () => {
     });
     if (!result.canceled && result.filePaths.length > 0) return result.filePaths[0];
     return null;
-});
-
-// Merge scanned plugins with existing config
-ipcMain.handle('merge-plugins', async (event, scannedPlugins) => {
-    try {
-        const configPath = path.join(__dirname, 'config', 'apps-config.json');
-        let configData = { categories: [], plugins: [], recentApps: [], settings: {} };
-
-        if (fs.existsSync(configPath)) {
-            try {
-                configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            } catch (e) {
-                console.error("Warning: Could not parse apps-config.json during merge:", e);
-            }
-        }
-
-        if (!configData.plugins || !Array.isArray(configData.plugins)) configData.plugins = [];
-        if (!configData.categories || !Array.isArray(configData.categories)) configData.categories = [];
-        if (!configData.recentApps) configData.recentApps = [];
-
-        const existingPaths = new Set(configData.plugins.map(p => p.path));
-        const newPlugins = scannedPlugins.filter(p => !existingPaths.has(p.path));
-        configData.plugins = [...configData.plugins, ...newPlugins];
-
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
-        return { success: true, added: newPlugins.length, total: configData.plugins.length };
-    } catch (error) {
-        console.error('Error merging plugins:', error);
-        throw error;
-    }
 });
 
 // Scan for music apps in /Applications
