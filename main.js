@@ -302,7 +302,6 @@ ipcMain.handle('scan-plugins', async (event) => {
         ];
     }
 
-    // Helper function to scan directory recursively
     const scanDirectory = (dirPath, maxDepth = 5, currentDepth = 0) => {
         if (currentDepth > maxDepth || !fs.existsSync(dirPath)) return;
 
@@ -314,7 +313,6 @@ ipcMain.handle('scan-plugins', async (event) => {
                     const fullPath = path.join(dirPath, file);
                     const stats = fs.statSync(fullPath);
 
-                    // Determine format
                     let format = null;
                     let isPlugin = false;
 
@@ -334,33 +332,23 @@ ipcMain.handle('scan-plugins', async (event) => {
 
                     if (isPlugin) {
                         scannedCount++;
-                        console.log(`[Plugin Found] ${file} (${format}) at ${fullPath}`);
-
-                        // Clean up plugin name
                         let pluginName = file.replace(/\.(vst3|vst|component|dll)$/i, '');
-
-                        // --- Start Enhanced Detection ---
                         let manufacturer = 'Unknown';
                         let type = 'unknown';
 
-                        // 1. Try Info.plist on macOS
                         if (platform === 'darwin' && stats.isDirectory()) {
                             const plistPath = path.join(fullPath, 'Contents/Info.plist');
                             const plist = readPlist(plistPath);
                             if (plist) {
-                                // Extract manufacturer from bundle ID
                                 const bundleId = plist.CFBundleIdentifier || plist.CFBundleName;
                                 const mfr = manufacturerFromBundleId(bundleId);
                                 if (mfr) manufacturer = mfr;
-
-                                // Try to guess type from plist keys or description
                                 const haystack = (JSON.stringify(plist) + ' ' + fullPath).toLowerCase();
                                 if (/instrument|synth|sampler|drum/i.test(haystack)) type = 'instrument';
                                 else if (/effect|filter|reverb|delay|eq/i.test(haystack)) type = 'effect';
                             }
                         }
 
-                        // 2. Fallback to path/name keywords for Manufacturer
                         if (manufacturer === 'Unknown') {
                             const KNOWN_PUBLISHERS = {
                                 'Arturia': /arturia|analog lab|pigments|v collection/i,
@@ -394,7 +382,6 @@ ipcMain.handle('scan-plugins', async (event) => {
                                 'Reveal Sound': /Reveal Sound|Spire/i,
                                 'Vital Audio': /Vital Audio|Vital/i,
                             };
-
                             for (const [name, regex] of Object.entries(KNOWN_PUBLISHERS)) {
                                 if (regex.test(fullPath) || regex.test(pluginName)) {
                                     manufacturer = name;
@@ -403,12 +390,9 @@ ipcMain.handle('scan-plugins', async (event) => {
                             }
                         }
 
-                        // 3. Fallback to secondary path part (e.g. /Manufacturer/Plugin)
                         if (manufacturer === 'Unknown') {
                             const pathParts = fullPath.split(path.sep);
                             if (pathParts.length > 2) {
-                                // Common pattern on Windows: C:\Program Files\VSTPlugins\Manufacturer\Plugin.dll
-                                // Common pattern on macOS: /Library/Audio/Plug-Ins/VST/Manufacturer/Plugin.vst
                                 const possibleManufacturer = pathParts[pathParts.length - 2];
                                 const skipDirs = ['vst3', 'vst', 'components', 'vstplugins', 'plugins', 'audio', 'library', 'plug-ins', 'common files'];
                                 if (!skipDirs.includes(possibleManufacturer.toLowerCase())) {
@@ -417,35 +401,13 @@ ipcMain.handle('scan-plugins', async (event) => {
                             }
                         }
 
-                        // 4. Enhance Type detection
                         if (type === 'unknown') {
                             const haystack = (fullPath + ' ' + pluginName).toLowerCase();
-                            const instrKeywords = [
-                                'synth', 'piano', 'drum', 'bass', 'guitar', 'organ', 'strings', 'brass', 'sampler',
-                                'kontakt', 'oscillator', 'vco', 'analog', 'fm', 'wavetable', 'spectral', 'granular',
-                                'kick', 'snare', 'percussion', 'mallet', 'orchestral', 'choir', 'keys', 'rhodes',
-                                'wurli', 'clavi', 'hammond', 'poly', 'mono', 'omnisphere', 'serum', 'vital',
-                                'massive', 'pigments', 'diva', 'zebra', 'hive', 'repro', 'sylenth', 'arcade',
-                                'falcon', 'halion', 'sampletank', 'spire', 'nexus', 'avenger', 'model 72', 'model 84',
-                                'arp 2600', 'buchla', 'cs-80', 'dx7', 'emulator', 'fairlight', 'jup-8', 'matrix-12',
-                                'mellotron', 'mini v', 'modular v', 'oberheim', 'prophet', 'solina', 'synclavier',
-                                'synthi', 'vocoder v', 'vox continental', 'augmented', 'stage-73', 'b-3 v', 'farfisa'
-                            ];
-                            const effectKeywords = [
-                                'reverb', 'delay', 'eq', 'equalizer', 'compressor', 'limiter', 'satn', 'distortion',
-                                'drive', 'fuzz', 'amp', 'cab', 'speaker', 'chorus', 'flanger', 'phaser', 'tremolo',
-                                'vibrato', 'filter', 'gate', 'expander', 'de-esser', 'transient', 'shaper', 'pitch',
-                                'shift', 'harmony', 'autotune', 'melodyne', 'vocoder', 'convolution', 'plate',
-                                'room', 'hall', 'spring', 'tape', 'tube', 'console', 'channel strip', 'meter',
-                                'visualizer', 'scope', 'analyzer', 'clipper', 'stereo', 'width', 'image', 'utility',
-                                'ozone', 'neutron', 'nectar', 'pro-q', 'pro-c', 'pro-l', 'saturn', 'valhalla',
-                                'shaperbox', 'half-time', 'portal', 'thermal', 'blackhole', 'vintage verb', 'delay vvv'
-                            ];
-
+                            const instrKeywords = ['synth', 'piano', 'drum', 'bass', 'guitar', 'organ', 'strings', 'brass', 'sampler', 'kontakt', 'oscillator', 'vco', 'analog', 'fm', 'wavetable', 'spectral', 'granular', 'kick', 'snare', 'percussion', 'mallet', 'orchestral', 'choir', 'keys', 'rhodes', 'wurli', 'clavi', 'hammond', 'poly', 'mono', 'omnisphere', 'serum', 'vital', 'massive', 'pigments', 'diva', 'zebra', 'hive', 'repro', 'sylenth', 'arcade', 'falcon', 'halion', 'sampletank', 'spire', 'nexus', 'avenger', 'model 72', 'model 84', 'arp 2600', 'buchla', 'cs-80', 'dx7', 'emulator', 'fairlight', 'jup-8', 'matrix-12', 'mellotron', 'mini v', 'modular v', 'oberheim', 'prophet', 'solina', 'synclavier', 'synthi', 'vocoder v', 'vox continental', 'augmented', 'stage-73', 'b-3 v', 'farfisa'];
+                            const effectKeywords = ['reverb', 'delay', 'eq', 'equalizer', 'compressor', 'limiter', 'satn', 'distortion', 'drive', 'fuzz', 'amp', 'cab', 'speaker', 'chorus', 'flanger', 'phaser', 'tremolo', 'vibrato', 'filter', 'gate', 'expander', 'de-esser', 'transient', 'shaper', 'pitch', 'shift', 'harmony', 'autotune', 'melodyne', 'vocoder', 'convolution', 'plate', 'room', 'hall', 'spring', 'tape', 'tube', 'console', 'channel strip', 'meter', 'visualizer', 'scope', 'analyzer', 'clipper', 'stereo', 'width', 'image', 'utility', 'ozone', 'neutron', 'nectar', 'pro-q', 'pro-c', 'pro-l', 'saturn', 'valhalla', 'shaperbox', 'half-time', 'portal', 'thermal', 'blackhole', 'vintage verb', 'delay vvv'];
                             if (instrKeywords.some(k => haystack.includes(k))) type = 'instrument';
                             else if (effectKeywords.some(k => haystack.includes(k))) type = 'effect';
                         }
-                        // --- End Enhanced Detection ---
 
                         plugins.push({
                             name: pluginName,
@@ -457,35 +419,21 @@ ipcMain.handle('scan-plugins', async (event) => {
                             dateScanned: new Date().toISOString()
                         });
 
-                        // Send progress update
                         if (mainWindow && scannedCount % 10 === 0) {
-                            mainWindow.webContents.send('scan-progress', {
-                                count: scannedCount,
-                                current: pluginName
-                            });
+                            mainWindow.webContents.send('scan-progress', { count: scannedCount, current: pluginName });
                         }
                     } else if (stats.isDirectory() && currentDepth < maxDepth) {
-                        // Recurse into subdirectories
-                        console.log(`Recurse into: ${fullPath} (depth: ${currentDepth}/${maxDepth})`);
                         scanDirectory(fullPath, maxDepth, currentDepth + 1);
                     }
-                } catch (err) {
-                    // Skip files we can't access
-                    console.error(`Error scanning file ${file}:`, err.message);
-                }
+                } catch (err) { }
             });
-        } catch (error) {
-            console.error(`Error scanning directory ${dirPath}:`, error);
-        }
+        } catch (error) { }
     };
 
-    // Scan all plugin paths
     for (const pluginPath of pluginPaths) {
-        console.log(`Scanning: ${pluginPath}`);
         scanDirectory(pluginPath);
     }
 
-    console.log(`Plugin scan complete. Found ${plugins.length} plugins.`);
     return {
         plugins: plugins,
         count: plugins.length,
@@ -517,10 +465,7 @@ ipcMain.handle('select-app-file', async () => {
             { name: 'All Files', extensions: ['*'] }
         ]
     });
-
-    if (!result.canceled && result.filePaths.length > 0) {
-        return result.filePaths[0];
-    }
+    if (!result.canceled && result.filePaths.length > 0) return result.filePaths[0];
     return null;
 });
 
@@ -528,23 +473,13 @@ ipcMain.handle('select-app-file', async () => {
 ipcMain.handle('select-plugin-file', async () => {
     const { dialog } = require('electron');
     const filters = process.platform === 'darwin'
-        ? [
-            { name: 'Audio Plugins', extensions: ['vst3', 'vst', 'component'] },
-            { name: 'All Files', extensions: ['*'] }
-        ]
-        : [
-            { name: 'Audio Plugins', extensions: ['vst3', 'vst', 'dll'] },
-            { name: 'All Files', extensions: ['*'] }
-        ];
-
+        ? [{ name: 'Audio Plugins', extensions: ['vst3', 'vst', 'component'] }, { name: 'All Files', extensions: ['*'] }]
+        : [{ name: 'Audio Plugins', extensions: ['vst3', 'vst', 'dll'] }, { name: 'All Files', extensions: ['*'] }];
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         filters: filters
     });
-
-    if (!result.canceled && result.filePaths.length > 0) {
-        return result.filePaths[0];
-    }
+    if (!result.canceled && result.filePaths.length > 0) return result.filePaths[0];
     return null;
 });
 
@@ -553,26 +488,11 @@ ipcMain.handle('merge-plugins', async (event, scannedPlugins) => {
     try {
         const configPath = path.join(__dirname, 'config', 'apps-config.json');
         const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-
-        // Get existing plugin paths
         const existingPaths = new Set(configData.plugins.map(p => p.path));
-
-        // Add only new plugins
         const newPlugins = scannedPlugins.filter(p => !existingPaths.has(p.path));
-
-        // Merge
         configData.plugins = [...configData.plugins, ...newPlugins];
-
-        // Save
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
-
-        console.log(`Plugin merge success: ${newPlugins.length} added, ${configData.plugins.length} total.`);
-
-        return {
-            success: true,
-            added: newPlugins.length,
-            total: configData.plugins.length
-        };
+        return { success: true, added: newPlugins.length, total: configData.plugins.length };
     } catch (error) {
         console.error('Error merging plugins:', error);
         throw error;
@@ -585,7 +505,6 @@ ipcMain.handle('scan-apps', async (event) => {
         if (process.platform === 'darwin') return ['/Applications'];
         if (process.platform === 'win32') {
             const dirs = ['C:\\Program Files', 'C:\\Program Files (x86)'];
-            // Add user-local programs if they exist
             const localApps = path.join(os.homedir(), 'AppData\\Local\\Programs');
             if (fs.existsSync(localApps)) dirs.push(localApps);
             return dirs;
@@ -593,216 +512,174 @@ ipcMain.handle('scan-apps', async (event) => {
         return [];
     };
 
-    const appsDirs = getAppsDirs();
-    const scannedApps = [];
+    const KNOWN_KEYWORDS = [
+        'ableton', 'logic pro', 'pro tools', 'cubase', 'nuendo', 'fl studio', 'studio one', 'reaper', 'bitwig', 'reason',
+        'garageband', 'mainstage', 'dorico', 'finale', 'sibelius', 'serum', 'massive', 'vital', 'omnisphere', 'pigments',
+        'analog lab', 'v collection', 'komplete kontrol', 'kontakt', 'maschine', 'traktor', 'rekordbox', 'serato',
+        'amplitube', 'bias fx', 'neural dsp', 'archetype', 'guir rig', 'melodyne', 'autotune', 'izotope', 'ozone',
+        'neutron', 'nectar', 'waves central', 'arturia software center', 'native access', 'avid link', 'splice',
+        'volca', 'korg', 'moog', 'roland cloud', 'vcv rack', 'cherry audio', 'voltage modular', 'synth', 'tone king'
+    ];
 
-    // Apple's own category identifiers for audio/music apps
-    const MUSIC_CATEGORIES = new Set([
-        'public.app-category.music',
-        'public.app-category.audio',
-    ]);
+    const GENERIC_TERMS = [
+        'audio', 'music', 'sound', 'studio', 'sequencer', 'daw', 'synth', 'synthesizer', 'instrument', 'plugin',
+        'vst', 'vst3', 'vst2', 'au ', 'component', 'sampler', 'drum machine', 'groovebox', 'dj ', 'turntable',
+        'mixing', 'mastering', 'record', 'oscillator', 'filter', 'keyboard', 'piano', 'guitar', 'bass', 'drums',
+        'orchestra', 'tuner', 'metronome', 'score', 'notation', 'midi'
+    ];
 
-    // suggester uses the shared BUNDLE_MANUFACTURERS and helper functions now.
-
-    // ── Suggest a category from all available signals ──
     const suggestCategory = (fileName, bundleId) => {
         const haystack = (fileName + ' ' + (bundleId || '')).toLowerCase();
-        if (/ableton|logic pro|pro tools|cubase|fl studio|studio one|reaper|bitwig|reason|garageband|mainstage|ardour/.test(haystack)) return 'DAWs';
-        if (/serum|massive|vital|omnisphere|pigments|analog lab|keyscape|diva|zebra|hive|nexus|avenger|phase plant|cherry|voltage|mercury|synth|korg|moog|arp |obx|reaktor/.test(haystack)) return 'Synths';
-        if (/guitar|amplitube|bias|neural|helix|kemper|amp sim/.test(haystack)) return 'Guitar & Bass';
-        if (/izotope|fabfilter|waves|soundtoys|valhalla|melodyne|auto-tune|ozone|neutron|slate|brainworx|softube|eventide/.test(haystack)) return 'Audio Tools';
-        if (/traktor|rekordbox|serato|virtual dj|djay/.test(haystack)) return 'Utilities';
+        if (/ableton|logic pro|pro tools|cubase|fl studio|studio one|reaper|bitwig|reason|garageband|mainstage|dorico|finale|sibelius|ardour/.test(haystack)) return 'DAWs';
+        if (/serum|massive|vital|omnisphere|pigments|analog lab|v collection|kontakt|maschine|komplete kontrol|instruments|syrene|synergy|diva|zebra|hive|nexus|avenger|phase plant|ca2600|voltage|mercury|synth|korg|moog|arp |obx|reaktor|battery|absynth|fm8|falcon|halion|sampletank|arcade|spire|sylenth|model 72|model 84|augmented|modular|solina|mellotron|synclavier|buchla|cs-80|jup-8|matrix-12|vocoder v|stage-73|b-3 v|farfisa/.test(haystack)) return 'Synths';
+        if (/guitar|amplitube|bias|neural|helix|kemper|amp sim|archetype|rig |tone king|cory wong|gojira|abasi|nolly/.test(haystack)) return 'Guitar & Bass';
+        if (/izotope|fabfilter|waves|soundtoys|valhalla|melodyne|auto-tune|ozone|neutron|rx |nectar|slate|brainworx|softube|eventide|mercury recorder|ozone|imager|maximizer|denoiser/.test(haystack)) return 'Audio Tools';
+        if (/traktor|rekordbox|serato|virtual dj|djay|waves central|native access|avid link|splice|software center/.test(haystack)) return 'Utilities';
         return 'Utilities';
     };
 
-    for (const appsDir of appsDirs) {
+    const appsDirs = getAppsDirs();
+    const scannedApps = [];
+
+    const scanAppsDirectory = (dirPath, maxDepth = 1, currentDepth = 0) => {
+        if (!fs.existsSync(dirPath)) return;
         try {
-            if (!fs.existsSync(appsDir)) continue;
-            const files = fs.readdirSync(appsDir);
-
+            const files = fs.readdirSync(dirPath);
             for (const file of files) {
-                if (process.platform === 'darwin' && !file.endsWith('.app')) continue;
-                if (process.platform === 'win32' && !file.endsWith('.exe')) continue;
+                const filePath = path.join(dirPath, file);
+                if (file.startsWith('.') || file === 'Contents' || file === 'Frameworks') continue;
 
-                const filePath = path.join(appsDir, file);
-                const appName = file.replace(/\.(app|exe)$/, '');
-                const fileName = appName.toLowerCase();
+                let isApp = false;
+                if (process.platform === 'darwin' && file.endsWith('.app')) isApp = true;
+                if (process.platform === 'win32' && file.endsWith('.exe')) isApp = true;
 
-                let isMusicApp = false;
-                let detectionMethod = '';
-                let confidence = 'Low';
-                let manufacturer = 'Unknown';
-                let bundleId = '';
-                let plist = null;
-
-                // ── Strategy 1: Read Info.plist (most reliable on macOS) ──
-                if (process.platform === 'darwin') {
-                    plist = readPlist(path.join(filePath, 'Contents', 'Info.plist'));
-
-                    if (plist) {
-                        bundleId = (plist.CFBundleIdentifier || '').toLowerCase();
-
-                        // (a) Apple's own audio/music category flag — definitive
-                        const appCat = (plist.LSApplicationCategoryType || '').toLowerCase();
-                        if (MUSIC_CATEGORIES.has(appCat)) {
-                            isMusicApp = true;
-                            detectionMethod = 'plist-category';
-                            confidence = 'High';
-                        }
-
-                        // (b) Bundle ID matches a known music publisher
-                        if (!isMusicApp) {
-                            const knownPublisher = Object.keys(BUNDLE_MANUFACTURERS)
-                                .some(d => bundleId.startsWith(d));
-                            if (knownPublisher) {
-                                isMusicApp = true;
-                                detectionMethod = 'plist-bundleid';
-                                confidence = 'High';
-                            }
-                        }
-
-                        // Resolve manufacturer from bundle ID
-                        const mfrFromId = manufacturerFromBundleId(bundleId);
-                        if (mfrFromId) manufacturer = mfrFromId;
-
-                        // Fallback: parse NSHumanReadableCopyright for company name
-                        if (manufacturer === 'Unknown') {
-                            const copy = plist.NSHumanReadableCopyright || plist.CFBundleGetInfoString || '';
-                            const m = copy.match(/©?\s*\d{4}[\s,\-–]+([^.,()]+)/);
-                            if (m) manufacturer = m[1].trim().replace(/^(by\s+)/i, '');
-                        }
-                    }
-                }
-
-                // ── Strategy 2: Known music app keyword in filename ──
-                if (!isMusicApp && KNOWN_KEYWORDS.some(k => fileName.includes(k))) {
-                    isMusicApp = true;
-                    detectionMethod = 'keyword-known';
-                    confidence = 'High';
-                }
-
-                // ── Strategy 3: Generic music term in filename ──
-                if (!isMusicApp && GENERIC_TERMS.some(t => fileName.includes(t))) {
-                    isMusicApp = true;
-                    detectionMethod = 'keyword-generic';
-                    confidence = 'Medium';
-                }
-
-                if (!isMusicApp) continue;
-
-                // Keyword-based manufacturer fallback (when plist didn't help)
-                if (manufacturer === 'Unknown') {
-                    const mfr = [
-                        [/arturia|pigments|analog lab|v collection/, 'Arturia'],
-                        [/cherry audio|voltage modular|mercury-6/, 'Cherry Audio'],
-                        [/ableton/, 'Ableton'],
-                        [/logic|garageband|mainstage/, 'Apple'],
-                        [/kontakt|massive|komplete|reaktor|guitar rig|traktor|maschine/, 'Native Instruments'],
-                        [/serum|xfer/, 'Xfer Records'],
-                        [/vital/, 'Vital Audio'],
-                        [/omnisphere|keyscape|trilian|stylus/, 'Spectrasonics'],
-                        [/izotope|ozone|neutron|nectar/, 'iZotope'],
-                        [/fabfilter|pro-q|pro-c|pro-r|pro-l|saturn/, 'FabFilter'],
-                        [/waves/, 'Waves'],
-                        [/valhalla/, 'Valhalla DSP'],
-                        [/melodyne/, 'Celemony'],
-                        [/soundtoys/, 'Soundtoys'],
-                        [/slate digital|fresh air/, 'Slate Digital'],
-                        [/softube/, 'Softube'],
-                        [/neural dsp/, 'Neural DSP'],
-                        [/positive grid|bias amp/, 'Positive Grid'],
-                        [/amplitube/, 'IK Multimedia'],
-                        [/u-he|diva|zebra|hive|repro|bazille/, 'u-he'],
-                        [/sugar.bytes/, 'Sugar Bytes'],
-                        [/spitfire/, 'Spitfire Audio'],
-                        [/east.?west/, 'EastWest'],
-                        [/reaper/, 'Cockos'],
-                        [/bitwig/, 'Bitwig'],
-                        [/fl studio|fruity/, 'Image-Line'],
-                        [/studio one/, 'PreSonus'],
-                        [/cubase|nuendo|wavelab/, 'Steinberg'],
-                        [/pro tools/, 'Avid'],
-                        [/rekordbox/, 'Pioneer DJ'],
-                        [/serato/, 'Serato'],
-                        [/djay/, 'Algoriddim'],
-                        [/sibelius/, 'Avid'],
-                        [/finale/, 'MakeMusic'],
-                        [/dorico/, 'Steinberg'],
-                    ].find(([re]) => re.test(fileName));
-                    if (mfr) manufacturer = mfr[1];
-                }
-
-                // ── Extract real app icon via sips (.icns → PNG → base64) ──
-                // nativeImage.createFromPath does NOT support .icns — use sips instead
-                let iconDataUrl = null;
-                if (process.platform === 'darwin' && plist) {
+                if (isApp) {
+                    processAppFile(filePath, file);
+                } else if (currentDepth < maxDepth) {
                     try {
-                        let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
-                        if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
-                        if (iconFile) {
-                            const icnsPath = path.join(filePath, 'Contents', 'Resources', iconFile);
-                            if (fs.existsSync(icnsPath)) {
-                                const tmpPng = path.join(os.tmpdir(), `icon_${Date.now()}_${Math.random().toString(36).slice(2)}.png`);
-                                execSyncSafe(`sips -s format png -z 64 64 "${icnsPath}" --out "${tmpPng}"`);
-                                if (fs.existsSync(tmpPng)) {
-                                    const pngData = fs.readFileSync(tmpPng);
-                                    iconDataUrl = 'data:image/png;base64,' + pngData.toString('base64');
-                                    fs.unlinkSync(tmpPng);
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        // Icon extraction failed — will fall back to emoji
+                        const stats = fs.statSync(filePath);
+                        if (stats.isDirectory()) scanAppsDirectory(filePath, maxDepth, currentDepth + 1);
+                    } catch (e) { }
+                }
+            }
+        } catch (error) { }
+    };
+
+    const processAppFile = (filePath, file) => {
+        const appName = file.replace(/\.(app|exe)$/, '');
+        const fileName = appName.toLowerCase();
+        let isMusicApp = false;
+        let detectionMethod = '';
+        let confidence = 'Low';
+        let manufacturer = 'Unknown';
+        let bundleId = '';
+        let plist = null;
+
+        if (process.platform === 'darwin') {
+            plist = readPlist(path.join(filePath, 'Contents', 'Info.plist'));
+            if (plist) {
+                bundleId = (plist.CFBundleIdentifier || '').toLowerCase();
+                const appCat = (plist.LSApplicationCategoryType || '').toLowerCase();
+                if (appCat.includes('music') || appCat.includes('audio')) {
+                    isMusicApp = true; detectionMethod = 'plist-category'; confidence = 'High';
+                }
+                if (!isMusicApp) {
+                    const knownPublisher = Object.keys(BUNDLE_MANUFACTURERS).some(d => bundleId.startsWith(d));
+                    if (knownPublisher) {
+                        isMusicApp = true; detectionMethod = 'plist-bundleid'; confidence = 'High';
                     }
                 }
-
-                scannedApps.push({
-                    name: appName,
-                    path: filePath,
-                    manufacturer: manufacturer,
-                    suggestedCategory: suggestCategory(fileName, bundleId),
-                    icon: iconDataUrl || '🎵',
-                    detectionMethod: detectionMethod,
-                    confidence: confidence,
-                    bundleId: bundleId,
-                });
+                const mfrFromId = manufacturerFromBundleId(bundleId);
+                if (mfrFromId) manufacturer = mfrFromId;
             }
-        } catch (error) {
-            console.error(`Error scanning directory ${appsDir}:`, error);
         }
-    }
 
-    console.log(`App scan complete. Found ${scannedApps.length} music apps.`);
+        if (!isMusicApp && KNOWN_KEYWORDS.some(k => fileName.includes(k))) {
+            isMusicApp = true; detectionMethod = 'keyword-known'; confidence = 'High';
+        }
+        if (!isMusicApp && GENERIC_TERMS.some(t => fileName.includes(t))) {
+            isMusicApp = true; detectionMethod = 'keyword-generic'; confidence = 'Medium';
+        }
+
+        if (isMusicApp) {
+            // Manufacturer identification lookup map
+            if (manufacturer === 'Unknown') {
+                const MFR_LOOKUP = [
+                    { name: 'Arturia', re: /arturia|analog lab|pigments|v collection|mcl|augmented|vocoder v|stage-73|b-3 v|farfisa/i },
+                    { name: 'Native Instruments', re: /native instruments| kontakt|massive|komplete|reaktor|maschine|traktor|guitar rig|battery|fm8|absynth/i },
+                    { name: 'Output', re: /output |arcade|exhale|portal|thermal|movement|substance/i },
+                    { name: 'Slate Digital', re: /slate digital|fresh air|virtual mix|meta/i },
+                    { name: 'Cherry Audio', re: /cherry audio|voltage|ca2600|polymode|mercury|gx-80|dreamsynth|elka/i },
+                    { name: 'Waves', re: /waves |central/i },
+                    { name: 'FabFilter', re: /fabfilter|pro-q|pro-c|pro-r|pro-l|saturn|timeless|volcano/i },
+                    { name: 'Spitfire Audio', re: /spitfire |labs/i },
+                    { name: 'Valhalla DSP', re: /valhalla/i },
+                    { name: 'Neural DSP', re: /neural dsp|tone king|archetype|cory wong|gojira|abasi|nolly/i },
+                    { name: 'u-he', re: /u-he|diva|zebra|hive|repro|bazille/i },
+                    { name: 'Spectrasonics', re: /spectrasonics|omnisphere|keyscape|trilian/i },
+                    { name: 'Xfer Records', re: /xfer|serum|ott/i },
+                    { name: 'Vital Audio', re: /vital/i },
+                    { name: 'iZotope', re: /izotope|ozone|neutron|rx |nectar/i },
+                    { name: 'Ableton', re: /ableton/i },
+                    { name: 'Apple', re: /logic|garageband|mainstage/i },
+                    { name: 'Steinberg', re: /steinberg|cubase|nuendo|wavelab|dorico/i },
+                    { name: 'Avid', re: /avid|pro tools|sibelius/i },
+                    { name: 'PreSonus', re: /presonus|studio one/i },
+                    { name: 'Image-Line', re: /fl studio|fruity/i },
+                    { name: 'Bitwig', re: /bitwig/i },
+                    { name: 'Reason Studios', re: /reason/i },
+                    { name: 'Cockos', re: /reaper/i },
+                ];
+                const match = MFR_LOOKUP.find(m => m.re.test(fileName) || m.re.test(bundleId));
+                if (match) manufacturer = match.name;
+            }
+
+            let iconDataUrl = null;
+            if (process.platform === 'darwin' && plist) {
+                try {
+                    let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
+                    if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
+                    if (iconFile) {
+                        const icnsPath = path.join(filePath, 'Contents', 'Resources', iconFile);
+                        if (fs.existsSync(icnsPath)) {
+                            const tmpPng = path.join(os.tmpdir(), `icon_${Date.now()}_${Math.random().toString(36).slice(2)}.png`);
+                            execSyncSafe(`sips -s format png -z 64 64 "${icnsPath}" --out "${tmpPng}"`);
+                            if (fs.existsSync(tmpPng)) {
+                                iconDataUrl = 'data:image/png;base64,' + fs.readFileSync(tmpPng).toString('base64');
+                                fs.unlinkSync(tmpPng);
+                            }
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            scannedApps.push({
+                name: appName, path: filePath, manufacturer, suggestedCategory: suggestCategory(fileName, bundleId),
+                icon: iconDataUrl || '🎵', detectionMethod, confidence, bundleId
+            });
+        }
+    };
+
+    appsDirs.forEach(dir => scanAppsDirectory(dir));
     return scannedApps;
 });
-// Extract icon for a single app path (used to refresh icons on existing config entries)
+
 ipcMain.handle('extract-app-icon', async (event, appPath) => {
     try {
         const plistPath = path.join(appPath, 'Contents', 'Info.plist');
-        if (fs.existsSync(plistPath)) {
-            const plist = JSON.parse(
-                execSyncSafe(`plutil -convert json -o - "${plistPath}"`)
-            );
-            if (plist) {
-                let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
-                if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
-                if (iconFile) {
-                    const icnsPath = path.join(appPath, 'Contents', 'Resources', iconFile);
-                    if (fs.existsSync(icnsPath)) {
-                        const tmpPng = path.join(os.tmpdir(), `icon_${Date.now()}.png`);
-                        execSyncSafe(`sips -s format png -z 64 64 "${icnsPath}" --out "${tmpPng}"`);
-                        if (fs.existsSync(tmpPng)) {
-                            const pngData = fs.readFileSync(tmpPng);
-                            fs.unlinkSync(tmpPng);
-                            return 'data:image/png;base64,' + pngData.toString('base64');
-                        }
-                    }
-                }
+        const plist = readPlist(plistPath);
+        if (plist) {
+            let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
+            if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
+            const icnsPath = path.join(appPath, 'Contents', 'Resources', iconFile);
+            if (fs.existsSync(icnsPath)) {
+                const tmpPng = path.join(os.tmpdir(), `icon_${Date.now()}.png`);
+                execSyncSafe(`sips -s format png -z 64 64 "${icnsPath}" --out "${tmpPng}"`);
+                const data = 'data:image/png;base64,' + fs.readFileSync(tmpPng).toString('base64');
+                fs.unlinkSync(tmpPng);
+                return data;
             }
         }
-        return null;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { }
+    return null;
 });
-

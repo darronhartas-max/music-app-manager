@@ -142,44 +142,10 @@
           <div id="scanResults" class="scan-results" style="display: none;"></div>
         </div>
 
-        <!-- 3. Statistics -->
-        <div class="settings-section">
-          <h2 class="settings-title">📊 Statistics</h2>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value" id="statApps">0</div>
-              <div class="stat-label">Apps</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="statPlugins">0</div>
-              <div class="stat-label">Plugins</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="statCategories">0</div>
-              <div class="stat-label">Categories</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 4. Category Manager -->
-        <div class="settings-section">
-          <h2 class="settings-title">📁 Category Manager</h2>
-          <p class="settings-description">Manage your app categories</p>
-
-          <div class="category-manager">
-            <div class="category-list" id="categoryList">
-              <!-- Categories will be loaded dynamically -->
-            </div>
-            <button class="add-category-btn" id="addCategoryBtn">
-              + Add Category
-            </button>
-          </div>
-        </div>
-
-        <!-- 5. Configuration -->
+        <!-- 3. Configuration -->
         <div class="settings-section">
           <h2 class="settings-title">💾 Configuration</h2>
-          <p class="settings-description">Manage your Music App Manager configuration and library</p>
+          <p class="settings-description">Manage your library and settings</p>
 
           <div class="settings-actions">
             <button id="refreshIconsBtn" class="action-btn">
@@ -200,12 +166,13 @@
             </button>
             <button id="startFreshBtn" class="action-btn" onclick="handleStartFresh()">
               <span class="btn-icon">✨</span>
-              Start Fresh
+              Reset & Start Fresh
             </button>
           </div>
 
           <div id="cleanupResults" class="scan-results" style="display: none;"></div>
         </div>
+
 
         <!-- 6. About -->
         <div class="settings-section">

@@ -129,6 +129,12 @@ async function loadConfig() {
       console.log('Configuration loaded via fetch:', appData);
       console.log(`Loaded ${appData.plugins ? appData.plugins.length : 0} plugins.`);
     }
+
+    // Ensure all required fields exist
+    if (!appData.plugins) appData.plugins = [];
+    if (!appData.categories) appData.categories = [];
+    if (!appData.recentApps) appData.recentApps = [];
+
   } catch (error) {
     console.error('Error loading configuration:', error);
     showError('Failed to load configuration file');
@@ -572,18 +578,37 @@ async function handlePluginScan() {
 
     // Show results
     scanResults.style.display = 'block';
+    // Show results summary and a preview
+    const preview = result.plugins.slice(0, 5);
+    let previewHtml = `
+      <div class="scan-preview" style="margin-top: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 4px; border: 1px solid var(--border-color);">
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Preview</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+          ${preview.map(p => `
+            <tr>
+              <td style="padding: 2px 0;"><strong>${p.name}</strong></td>
+              <td style="padding: 2px 0; color: var(--text-muted); text-align: right;">${p.manufacturer}</td>
+            </tr>
+          `).join('')}
+        </table>
+        ${result.count > 5 ? `<div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem;">+ ${result.count - 5} more...</div>` : ''}
+      </div>
+    `;
+
     scanResults.innerHTML = `
       <h3>✅ Scan Complete!</h3>
-      <p><strong>${result.count}</strong> plugins found</p>
-      <p>Scanned paths: ${result.scannedPaths.length}</p>
-      <div style="margin-top: var(--spacing-md);">
+      <p><strong>${result.count}</strong> plugins found in standard folders.</p>
+      
+      ${previewHtml}
+
+      <div style="margin-top: var(--spacing-md); display: flex; gap: 0.5rem;">
         <button id="mergePluginsBtn" class="action-btn primary">
           <span class="btn-icon">📥</span>
-          Add ${result.count} Plugins to Library
+          Add All to Library
         </button>
         <button id="viewScannedBtn" class="action-btn">
           <span class="btn-icon">👁️</span>
-          View Details
+          Full Details
         </button>
       </div>
     `;
@@ -635,6 +660,12 @@ async function handleMergePlugins(plugins) {
 
     // Reload config with fresh data
     await loadConfig();
+
+    // Safety check: Ensure plugins array exists
+    if (!appData.plugins) {
+      appData.plugins = [];
+    }
+
     updateStatistics();
 
     // Clear search bar and reset filters
@@ -1325,6 +1356,7 @@ async function handleStartFresh() {
   }
 
   try {
+    console.log('Starting fresh reset...');
     const defaultCategories = [
       { name: "DAWs", apps: [] },
       { name: "Synths", apps: [] },
@@ -1337,7 +1369,7 @@ async function handleStartFresh() {
       categories: defaultCategories,
       plugins: [],
       recentApps: [],
-      settings: appData.settings || {
+      settings: (appData && appData.settings) ? appData.settings : {
         defaultView: 'category',
         showRecentApps: true,
         maxRecentApps: 10
@@ -1345,13 +1377,17 @@ async function handleStartFresh() {
     };
 
     if (isElectron) {
-      await window.electronAPI.saveConfig(cleanData);
+      console.log('Saving clean config to disk...');
+      const result = await window.electronAPI.saveConfig(cleanData);
+      console.log('Save result:', result);
     }
 
     // Reset first-run flag so welcome screen reappears
     localStorage.removeItem('mam-welcome-shown');
+    console.log('First-run flag reset.');
 
     // Reload UI from fresh config
+    console.log('Reloading window...');
     window.location.reload();
 
   } catch (error) {
