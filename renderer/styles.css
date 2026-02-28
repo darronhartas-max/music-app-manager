@@ -1526,3 +1526,121 @@ h1 {
   border-top: 1px solid var(--border-color);
 }
 
+/* ============================================
+   PHASE 5: Drag-Drop, Search History, Icons
+   ============================================ */
+
+/* --- Drag & Drop --- */
+.app-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.96);
+  border-color: var(--accent-primary);
+  box-shadow: none;
+}
+
+.app-card.drag-over-left {
+  border-left: 3px solid var(--accent-primary);
+  box-shadow: -4px 0 12px rgba(99, 102, 241, 0.5);
+}
+
+.app-card.drag-over-right {
+  border-right: 3px solid var(--accent-primary);
+  box-shadow: 4px 0 12px rgba(99, 102, 241, 0.5);
+}
+
+/* Show a grab cursor when in Edit Mode */
+.edit-mode .app-card {
+  cursor: grab;
+}
+
+.edit-mode .app-card:active {
+  cursor: grabbing;
+}
+
+/* --- Edit Mode button active state --- */
+#editModeBtn.active {
+  background: var(--accent-gradient);
+  color: white;
+  border-color: transparent;
+  box-shadow: var(--shadow-glow);
+}
+
+/* --- Search: Clear button --- */
+.search-clear-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.search-clear-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+/* --- Search: History dropdown --- */
+.search-history-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 500;
+  overflow: hidden;
+  animation: fadeIn 0.15s ease;
+}
+
+.search-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.search-history-clear-btn {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+
+.search-history-clear-btn:hover {
+  text-decoration: underline;
+}
+
+.search-history-item {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.search-history-item:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+

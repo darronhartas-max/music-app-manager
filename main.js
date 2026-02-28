@@ -1,4 +1,4 @@
-// Electron Main Process
+// Music App Manager - Electron Main Process
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');

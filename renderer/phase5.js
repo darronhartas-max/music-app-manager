@@ -1,478 +1,382 @@
 // ============================================
-// PHASE 5: Core UX Features Implementation
-// Session 1: Drag-drop, Icons, Search, Categories
+// PHASE 5: UX Enhancement Features
+// Drag-drop reordering, Fuzzy search, Custom icon upload
 // ============================================
 
 // Global state for Phase 5
 let draggedElement = null;
 let draggedAppData = null;
-let dropIndicator = null;
 let searchHistory = [];
-let maxSearchHistory = 10;
+const MAX_SEARCH_HISTORY = 10;
+let p5SearchTimeout = null;
 
-// Initialize Phase 5 features
+// ============================================
+// ENTRY POINT — called from app.js after DOMContentLoaded
+// ============================================
+
 function initializePhase5() {
-    console.log('Initializing Phase 5 features...');
+    console.log('Phase 5: Initializing...');
 
-    // Initialize drag and drop
-    setupDragAndDrop();
+    _p5_setupDragAndDrop();
+    _p5_setupAdvancedSearch();
+    _p5_setupCustomIconUpload();
+    _p5_loadSearchHistory();
 
-    // Initialize advanced search
-    setupAdvancedSearch();
+    // Expose enableDragAndDropForCards so Phase 4's renderAppsPhase4 can call it
+    window.enableDragAndDropForCards = _p5_enableDragAndDropForCards;
+    window.setupDragDropAfterRender  = _p5_setupDragDropAfterRender;
 
-    // Initialize category management
-    setupCategoryManagement();
-
-    // Initialize custom icon upload
-    setupCustomIconUpload();
-
-    // Hook into toggle edit mode
-    const originalToggleEditMode = window.toggleEditMode;
-    if (typeof originalToggleEditMode === 'function') {
-        window.toggleEditMode = function () {
-            originalToggleEditMode();
-            // Re-render to apply draggable attribute
-            if (typeof renderApps === 'function') {
-                renderApps();
-            }
-        };
-    }
+    console.log('Phase 5: Ready.');
 }
 
 // ============================================
 // 1. DRAG AND DROP REORDERING
 // ============================================
 
-function setupDragAndDrop() {
-    // Create drop indicator element
-    dropIndicator = document.createElement('div');
-    dropIndicator.className = 'drop-indicator';
-    dropIndicator.style.display = 'none';
-    document.body.appendChild(dropIndicator);
+function _p5_setupDragAndDrop() {
+    // Nothing to pre-initialise — cards are attached after each render
 }
 
-// Enable drag and drop when rendering apps
-function enableDragAndDropForCards() {
-    if (!editMode) return;
+// Called after renderAppsPhase4 renders cards (already called in phase4.js if this is available)
+function _p5_setupDragDropAfterRender() {
+    if (typeof editMode !== 'undefined' && editMode) {
+        _p5_enableDragAndDropForCards();
+    }
+}
 
+function _p5_enableDragAndDropForCards() {
     document.querySelectorAll('.app-card').forEach(card => {
         card.setAttribute('draggable', 'true');
+        // Remove stale listeners by cloning (avoids duplicate event handlers on re-render)
+        const clone = card.cloneNode(true);
+        card.parentNode.replaceChild(clone, card);
+    });
 
-        card.addEventListener('dragstart', handleDragStart);
-        card.addEventListener('dragend', handleDragEnd);
-        card.addEventListener('dragover', handleDragOver);
-        card.addEventListener('drop', handleDrop);
-        card.addEventListener('dragleave', handleDragLeave);
+    // Re-query after clone
+    document.querySelectorAll('.app-card').forEach(card => {
+        card.setAttribute('draggable', 'true');
+        card.addEventListener('dragstart',  _p5_handleDragStart);
+        card.addEventListener('dragend',    _p5_handleDragEnd);
+        card.addEventListener('dragover',   _p5_handleDragOver);
+        card.addEventListener('drop',       _p5_handleDrop);
+        card.addEventListener('dragleave',  _p5_handleDragLeave);
+        // Re-attach click handler (lost when cloned)
+        card.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('favorite-btn') && !editMode) {
+                launchAppPhase4(card.dataset.path, card.dataset.name);
+            }
+        });
+        // Re-attach favorite handler
+        const favBtn = card.querySelector('.favorite-btn');
+        if (favBtn) {
+            favBtn.addEventListener('click', (e) => {
+                toggleAppFavorite(e, card.dataset.path);
+            });
+        }
     });
 }
 
-function handleDragStart(e) {
+function _p5_handleDragStart(e) {
     draggedElement = e.currentTarget;
     draggedAppData = {
-        path: draggedElement.dataset.path,
-        name: draggedElement.dataset.name,
+        path:         draggedElement.dataset.path,
+        name:         draggedElement.dataset.name,
         manufacturer: draggedElement.dataset.manufacturer
     };
-
-    e.currentTarget.classList.add('dragging');
+    draggedElement.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.currentTarget.innerHTML);
+    e.dataTransfer.setData('text/plain', draggedElement.dataset.path);
 }
 
-function handleDragEnd(e) {
-    e.currentTarget.classList.remove('dragging');
-
-    // Remove all drag-over classes
+function _p5_handleDragEnd(e) {
+    if (draggedElement) draggedElement.classList.remove('dragging');
     document.querySelectorAll('.app-card').forEach(card => {
-        card.classList.remove('drag-over', 'drag-over-left', 'drag-over-right');
+        card.classList.remove('drag-over-left', 'drag-over-right');
     });
-
-    if (dropIndicator) {
-        dropIndicator.style.display = 'none';
-    }
+    draggedElement = null;
+    draggedAppData = null;
 }
 
-function handleDragOver(e) {
-    if (e.preventDefault) {
-        e.preventDefault();
-    }
-
+function _p5_handleDragOver(e) {
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
     const card = e.currentTarget;
     if (card === draggedElement) return;
 
-    // Determine drop position (left or right)
-    const rect = card.getBoundingClientRect();
-    const midpoint = rect.left + rect.width / 2;
-    const isLeftSide = e.clientX < midpoint;
+    const rect     = card.getBoundingClientRect();
+    const isLeft   = e.clientX < rect.left + rect.width / 2;
 
-    // Remove previous indicators
     document.querySelectorAll('.app-card').forEach(c => {
         c.classList.remove('drag-over-left', 'drag-over-right');
     });
 
-    // Add indicator
-    if (isLeftSide) {
-        card.classList.add('drag-over-left');
-    } else {
-        card.classList.add('drag-over-right');
-    }
-
-    return false;
+    card.classList.add(isLeft ? 'drag-over-left' : 'drag-over-right');
 }
 
-function handleDrop(e) {
-    if (e.stopPropagation) {
-        e.stopPropagation();
-    }
-
-    const dropTarget = e.currentTarget;
-    if (dropTarget === draggedElement) return false;
-
-    // Determine drop position
-    const rect = dropTarget.getBoundingClientRect();
-    const midpoint = rect.left + rect.width / 2;
-    const isLeftSide = e.clientX < midpoint;
-
-    // Reorder apps in config
-    reorderApps(draggedAppData, dropTarget.dataset.path, isLeftSide);
-
-    return false;
-}
-
-function handleDragLeave(e) {
+function _p5_handleDragLeave(e) {
     e.currentTarget.classList.remove('drag-over-left', 'drag-over-right');
 }
 
-async function reorderApps(draggedApp, targetAppPath, insertBefore) {
-    // Find the category and apps
-    let draggedCategory = null;
-    let draggedIndex = -1;
-    let targetCategory = null;
-    let targetIndex = -1;
+async function _p5_handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
 
-    // Find dragged app
-    appData.categories.forEach(category => {
-        const index = category.apps.findIndex(app => app.path === draggedApp.path);
-        if (index !== -1) {
-            draggedCategory = category;
-            draggedIndex = index;
-        }
-    });
+    const dropTarget = e.currentTarget;
+    if (!draggedAppData || dropTarget === draggedElement) return;
 
-    // Find target app
-    appData.categories.forEach(category => {
-        const index = category.apps.findIndex(app => app.path === targetAppPath);
-        if (index !== -1) {
-            targetCategory = category;
-            targetIndex = index;
-        }
+    const rect   = dropTarget.getBoundingClientRect();
+    const isLeft = e.clientX < rect.left + rect.width / 2;
+
+    await _p5_reorderApp(draggedAppData.path, dropTarget.dataset.path, isLeft);
+}
+
+async function _p5_reorderApp(draggedPath, targetPath, insertBefore) {
+    let draggedCategory = null, draggedIndex = -1;
+    let targetCategory  = null, targetIndex  = -1;
+
+    appData.categories.forEach(cat => {
+        const dIdx = cat.apps.findIndex(a => a.path === draggedPath);
+        if (dIdx !== -1) { draggedCategory = cat; draggedIndex = dIdx; }
+
+        const tIdx = cat.apps.findIndex(a => a.path === targetPath);
+        if (tIdx !== -1) { targetCategory = cat;  targetIndex  = tIdx; }
     });
 
     if (!draggedCategory || !targetCategory) return;
 
-    // Remove from original position
+    // Remove dragged app
     const [movedApp] = draggedCategory.apps.splice(draggedIndex, 1);
 
-    // If moving within same category, adjust target index
+    // Adjust index if same category and dragged was before target
     if (draggedCategory === targetCategory && draggedIndex < targetIndex) {
         targetIndex--;
     }
 
-    // Insert at new position
-    const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-    targetCategory.apps.splice(insertIndex, 0, movedApp);
+    const insertIdx = insertBefore ? targetIndex : targetIndex + 1;
+    targetCategory.apps.splice(insertIdx, 0, movedApp);
 
-    // Save config
-    if (isElectron) {
+    if (typeof isElectron !== 'undefined' && isElectron) {
         await window.electronAPI.saveConfig(appData);
     }
 
-    // Re-render
     renderAppsPhase4();
     showNotification('✅ Reordered', `Moved ${movedApp.name}`);
 }
 
 // ============================================
-// 2. ADVANCED SEARCH
+// 2. ADVANCED FUZZY SEARCH
 // ============================================
 
-function setupAdvancedSearch() {
+function _p5_loadSearchHistory() {
+    try {
+        const saved = localStorage.getItem('appviewr-search-history');
+        if (saved) searchHistory = JSON.parse(saved);
+    } catch (e) {
+        searchHistory = [];
+    }
+}
+
+function _p5_setupAdvancedSearch() {
     const searchInput = document.getElementById('searchInput');
     if (!searchInput) return;
 
-    // Add search history dropdown
-    const searchContainer = searchInput.parentElement;
+    const container = searchInput.parentElement;
+
+    // --- History dropdown ---
     const historyDropdown = document.createElement('div');
+    historyDropdown.id = 'searchHistoryDropdown';
     historyDropdown.className = 'search-history-dropdown';
     historyDropdown.style.display = 'none';
-    searchContainer.appendChild(historyDropdown);
+    container.appendChild(historyDropdown);
 
-    // Load search history from localStorage
-    const saved = localStorage.getItem('appviewr-search-history');
-    if (saved) {
-        searchHistory = JSON.parse(saved);
-    }
-
-    // Show history on focus
-    searchInput.addEventListener('focus', () => {
-        if (searchHistory.length > 0 && !searchInput.value) {
-            showSearchHistory(historyDropdown);
-        }
-    });
-
-    // Hide history on blur (with delay for clicks)
-    searchInput.addEventListener('blur', () => {
-        setTimeout(() => {
-            historyDropdown.style.display = 'none';
-        }, 200);
-    });
-
-    // Enhanced search with fuzzy matching
-    let searchTimeout;
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            const query = e.target.value.trim();
-            if (query) {
-                performAdvancedSearch(query);
-                addToSearchHistory(query);
-            } else {
-                renderApps();
-            }
-        }, 300); // Debounce
-    });
-
-    // Clear search button
+    // --- Clear (✕) button ---
     const clearBtn = document.createElement('button');
     clearBtn.className = 'search-clear-btn';
     clearBtn.innerHTML = '✕';
+    clearBtn.title = 'Clear search';
     clearBtn.style.display = 'none';
-    clearBtn.onclick = () => {
+    clearBtn.addEventListener('click', () => {
         searchInput.value = '';
-        searchInput.dispatchEvent(new Event('input'));
         clearBtn.style.display = 'none';
-    };
-    searchContainer.appendChild(clearBtn);
+        historyDropdown.style.display = 'none';
+        renderApps();
+    });
+    container.appendChild(clearBtn);
 
+    // --- Show/hide history on focus/blur ---
+    searchInput.addEventListener('focus', () => {
+        if (searchHistory.length > 0 && !searchInput.value) {
+            _p5_renderHistoryDropdown(historyDropdown);
+        }
+    });
+
+    searchInput.addEventListener('blur', () => {
+        setTimeout(() => { historyDropdown.style.display = 'none'; }, 200);
+    });
+
+    // --- Intercept the existing input event (added in app.js initializeEventListeners)
+    //     by replacing the search handler with our enhanced version ---
+    // We achieve this by overriding handleSearch globally.
+    const _origHandleSearch = window.handleSearch || handleSearch;
+    window.handleSearch = function(term) {
+        if (currentTab === 'apps') {
+            if (term && term.trim().length > 0) {
+                _p5_performFuzzySearch(term.trim());
+                _p5_addToHistory(term.trim());
+            } else {
+                renderApps();
+            }
+        } else {
+            _origHandleSearch(term);
+        }
+    };
+
+    // Track the clear button visibility
     searchInput.addEventListener('input', (e) => {
-        clearBtn.style.display = e.target.value ? 'block' : 'none';
+        clearBtn.style.display = e.target.value ? 'flex' : 'none';
+        if (!e.target.value) historyDropdown.style.display = 'none';
     });
 }
 
-function fuzzyMatch(search, text) {
-    const searchLower = search.toLowerCase();
-    const textLower = text.toLowerCase();
+function _p5_fuzzyScore(query, text) {
+    if (!text) return 0;
+    const q = query.toLowerCase();
+    const t = text.toLowerCase();
 
-    // Exact match gets highest score
-    if (textLower.includes(searchLower)) return 100;
+    // Exact substring = highest score
+    if (t.includes(q)) return 100 + (100 - t.indexOf(q)); // reward early matches
 
-    // Fuzzy match
-    let searchIndex = 0;
-    let score = 0;
-
-    for (let i = 0; i < textLower.length; i++) {
-        if (textLower[i] === searchLower[searchIndex]) {
-            searchIndex++;
+    // Character-sequence fuzzy
+    let qi = 0, score = 0;
+    for (let i = 0; i < t.length; i++) {
+        if (t[i] === q[qi]) {
+            qi++;
             score += 10;
-            if (searchIndex === searchLower.length) return score;
+            if (qi === q.length) return score;
         }
     }
-
-    return searchIndex === searchLower.length ? score : 0;
+    return 0;
 }
 
-function performAdvancedSearch(query) {
-    // Get all apps with scores
-    let results = [];
+function _p5_performFuzzySearch(query) {
+    if (!appData || !appData.categories) return;
 
-    appData.categories.forEach(category => {
-        category.apps.forEach(app => {
-            const nameScore = fuzzyMatch(query, app.name);
-            const manufacturerScore = fuzzyMatch(query, app.manufacturer || '');
-            const categoryScore = fuzzyMatch(query, category.name);
+    const results = [];
 
-            const totalScore = nameScore * 3 + manufacturerScore * 2 + categoryScore;
+    appData.categories.forEach(cat => {
+        cat.apps.forEach(app => {
+            const score =
+                _p5_fuzzyScore(query, app.name)         * 3 +
+                _p5_fuzzyScore(query, app.manufacturer)  * 2 +
+                _p5_fuzzyScore(query, cat.name);
 
-            if (totalScore > 0) {
-                results.push({
-                    app: { ...app, category: category.name },
-                    score: totalScore
-                });
+            if (score > 0) {
+                results.push({ app: { ...app, category: cat.name }, score });
             }
         });
     });
 
-    // Sort by score
     results.sort((a, b) => b.score - a.score);
 
-    // Render results
-    renderSearchResults(results.map(r => r.app));
-}
-
-function renderSearchResults(apps) {
     const container = document.getElementById('appsContainer');
+    if (!container) return;
 
-    if (apps.length === 0) {
+    if (results.length === 0) {
         container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🔍</div>
-        <p>No apps found</p>
-      </div>
-    `;
+            <div class="empty-state">
+                <div class="empty-state-icon">🔍</div>
+                <p>No apps found for "<strong>${query}</strong>"</p>
+            </div>`;
         return;
     }
 
-    const html = `
-    <div class="category">
-      <div class="category-header">
-        <h2 class="category-title">Search Results</h2>
-        <span class="category-count">${apps.length}</span>
-      </div>
-      <div class="app-grid">
-        ${apps.map(app => createAppCardPhase4(app)).join('')}
-      </div>
-    </div>
-  `;
+    container.innerHTML = `
+        <div class="category">
+            <div class="category-header">
+                <h2 class="category-title">Search Results</h2>
+                <span class="category-count">${results.length}</span>
+            </div>
+            <div class="app-grid">
+                ${results.map(r => createAppCardPhase4(r.app)).join('')}
+            </div>
+        </div>`;
 
-    container.innerHTML = html;
     attachAppCardHandlers();
-    if (editMode) enableDragAndDropForCards();
-}
-
-function addToSearchHistory(query) {
-    if (!query || searchHistory.includes(query)) return;
-
-    searchHistory.unshift(query);
-    if (searchHistory.length > maxSearchHistory) {
-        searchHistory = searchHistory.slice(0, maxSearchHistory);
+    if (typeof editMode !== 'undefined' && editMode) {
+        _p5_enableDragAndDropForCards();
     }
-
-    localStorage.setItem('appviewr-search-history', JSON.stringify(searchHistory));
 }
 
-function showSearchHistory(dropdown) {
-    if (searchHistory.length === 0) return;
+function _p5_addToHistory(query) {
+    if (!query || searchHistory.includes(query)) return;
+    searchHistory.unshift(query);
+    if (searchHistory.length > MAX_SEARCH_HISTORY) {
+        searchHistory = searchHistory.slice(0, MAX_SEARCH_HISTORY);
+    }
+    try {
+        localStorage.setItem('appviewr-search-history', JSON.stringify(searchHistory));
+    } catch(e) {}
+}
+
+function _p5_renderHistoryDropdown(dropdown) {
+    if (!searchHistory.length) return;
 
     dropdown.innerHTML = `
-    <div class="search-history-header">
-      <span>Recent Searches</span>
-      <button onclick="clearSearchHistory()">Clear</button>
-    </div>
-    ${searchHistory.map(query => `
-      <div class="search-history-item" onclick="selectSearchHistory('${query}')">
-        🔍 ${query}
-      </div>
-    `).join('')}
-  `;
+        <div class="search-history-header">
+            <span>Recent Searches</span>
+            <button class="search-history-clear-btn" onclick="p5ClearSearchHistory()">Clear</button>
+        </div>
+        ${searchHistory.map(q => `
+            <div class="search-history-item" onclick="p5SelectHistory('${q.replace(/'/g, "\\'")}')">
+                🔍 ${q}
+            </div>
+        `).join('')}`;
 
     dropdown.style.display = 'block';
 }
 
-function selectSearchHistory(query) {
-    const searchInput = document.getElementById('searchInput');
-    searchInput.value = query;
-    searchInput.dispatchEvent(new Event('input'));
-    searchInput.focus();
-}
-
-function clearSearchHistory() {
+// Exposed globally for inline onclick handlers
+window.p5ClearSearchHistory = function() {
     searchHistory = [];
-    localStorage.removeItem('appviewr-search-history');
-    document.querySelector('.search-history-dropdown').style.display = 'none';
+    try { localStorage.removeItem('appviewr-search-history'); } catch(e) {}
+    const d = document.getElementById('searchHistoryDropdown');
+    if (d) d.style.display = 'none';
     showNotification('🗑️ Cleared', 'Search history cleared');
-}
+};
+
+window.p5SelectHistory = function(query) {
+    const input = document.getElementById('searchInput');
+    if (!input) return;
+    input.value = query;
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+};
 
 // ============================================
-// 3. CATEGORY MANAGEMENT
+// 3. CUSTOM ICON UPLOAD (for Add App modal)
 // ============================================
 
-function setupCategoryManagement() {
-    // Add category manager to Tools tab
-    // This will be added to the settings tab HTML
+function _p5_setupCustomIconUpload() {
+    // The modal isn't in the DOM until opened — set up lazily by watching for the modal
+    // We hook into openAddAppModal (defined in phase4.js)
+    const _origOpenModal = window.openAddAppModal;
+    if (typeof _origOpenModal === 'function') {
+        window.openAddAppModal = function() {
+            _origOpenModal();
+            // Give DOM a tick to render, then inject upload button
+            setTimeout(_p5_injectIconUpload, 50);
+        };
+    }
 }
 
-async function addCategory(name) {
-    if (!name || !name.trim()) {
-        showError('Category name is required');
-        return;
-    }
+function _p5_injectIconUpload() {
+    // Avoid adding twice
+    if (document.getElementById('appIconFile')) return;
 
-    // Check if exists
-    if (appData.categories.find(c => c.name === name)) {
-        showError('Category already exists');
-        return;
-    }
-
-    // Add category
-    appData.categories.push({
-        name: name.trim(),
-        apps: []
-    });
-
-    // Save
-    if (isElectron) {
-        await window.electronAPI.saveConfig(appData);
-    }
-
-    renderApps();
-    updateStatistics();
-    showNotification('✅ Category Added', `${name} has been created`);
-}
-
-async function renameCategory(oldName, newName) {
-    if (!newName || !newName.trim()) {
-        showError('Category name is required');
-        return;
-    }
-
-    const category = appData.categories.find(c => c.name === oldName);
-    if (!category) return;
-
-    category.name = newName.trim();
-
-    // Save
-    if (isElectron) {
-        await window.electronAPI.saveConfig(appData);
-    }
-
-    renderApps();
-    showNotification('✅ Category Renamed', `${oldName} → ${newName}`);
-}
-
-async function deleteCategory(name) {
-    const category = appData.categories.find(c => c.name === name);
-    if (!category) return;
-
-    if (category.apps.length > 0) {
-        const confirmed = confirm(`Delete "${name}" category? This will remove ${category.apps.length} apps.`);
-        if (!confirmed) return;
-    }
-
-    // Remove category
-    appData.categories = appData.categories.filter(c => c.name !== name);
-
-    // Save
-    if (isElectron) {
-        await window.electronAPI.saveConfig(appData);
-    }
-
-    renderApps();
-    updateStatistics();
-    showNotification('🗑️ Category Deleted', `${name} has been removed`);
-}
-
-// ============================================
-// 4. CUSTOM ICON UPLOAD
-// ============================================
-
-function setupCustomIconUpload() {
-    // Add icon upload to app modal
     const iconInput = document.getElementById('appIcon');
     if (!iconInput) return;
 
-    // Add file input for custom icons
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
@@ -482,128 +386,38 @@ function setupCustomIconUpload() {
     const uploadBtn = document.createElement('button');
     uploadBtn.type = 'button';
     uploadBtn.className = 'browse-btn';
-    uploadBtn.textContent = 'Upload Icon';
-    uploadBtn.onclick = () => fileInput.click();
+    uploadBtn.style.marginLeft = '0.5rem';
+    uploadBtn.textContent = '🖼️ Upload';
+    uploadBtn.title = 'Upload a custom image icon';
+    uploadBtn.addEventListener('click', () => fileInput.click());
 
-    iconInput.parentElement.appendChild(uploadBtn);
-    iconInput.parentElement.appendChild(fileInput);
-
-    fileInput.addEventListener('change', handleIconUpload);
-}
-
-async function handleIconUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-        showError('Please select an image file');
-        return;
-    }
-
-    // Read file as data URL
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-        const dataUrl = event.target.result;
-
-        // Store in config (for now, we'll use data URLs)
-        // In production, you'd save to assets folder via IPC
-        document.getElementById('appIcon').value = dataUrl;
-        document.getElementById('appIcon').dataset.iconType = 'image';
-
-        showNotification('✅ Icon Uploaded', 'Custom icon will be used');
-    };
-
-    reader.readAsDataURL(file);
-}
-
-// ============================================
-// ENHANCED RENDERING
-// ============================================
-
-// Add drag-drop to existing rendering
-// This will be called after apps are rendered
-function setupDragDropAfterRender() {
-    if (editMode) {
-        enableDragAndDropForCards();
-    }
-}
-
-// Export Phase 5 functions
-window.initializePhase5 = initializePhase5;
-window.addCategory = addCategory;
-window.renameCategory = renameCategory;
-window.deleteCategory = deleteCategory;
-window.clearSearchHistory = clearSearchHistory;
-window.selectSearchHistory = selectSearchHistory;
-window.enableDragAndDropForCards = enableDragAndDropForCards;
-window.setupDragDropAfterRender = setupDragDropAfterRender;
-
-console.log('Phase 5 module loaded');
-
-// ============================================
-// CATEGORY MANAGER UI
-// ============================================
-
-function renderCategoryManager() {
-    const categoryList = document.getElementById('categoryList');
-    if (!categoryList || !appData || !appData.categories) return;
-
-    categoryList.innerHTML = appData.categories.map(category => `
-    <div class="category-item">
-      <span class="category-drag-handle">☰</span>
-      <input type="text" value="${category.name}" 
-             onblur="handleCategoryRename(this, '${category.name}')"
-             onkeypress="if(event.key==='Enter') this.blur()">
-      <span style="color: var(--text-muted); font-size: 0.75rem;">${category.apps.length} apps</span>
-      <button class="delete-btn" onclick="handleCategoryDelete('${category.name}')">🗑️</button>
-    </div>
-  `).join('');
-}
-
-function handleCategoryRename(input, oldName) {
-    const newName = input.value.trim();
-    if (newName && newName !== oldName) {
-        renameCategory(oldName, newName);
-    } else {
-        input.value = oldName;
-    }
-}
-
-function handleCategoryDelete(name) {
-    deleteCategory(name).then(() => {
-        renderCategoryManager();
-    });
-}
-
-// Add category button handler
-document.addEventListener('DOMContentLoaded', () => {
-    const addCategoryBtn = document.getElementById('addCategoryBtn');
-    if (addCategoryBtn) {
-        addCategoryBtn.addEventListener('click', () => {
-            const name = prompt('Enter category name:');
-            if (name) {
-                addCategory(name).then(() => {
-                    renderCategoryManager();
-                });
-            }
-        });
-    }
-});
-
-// Render category manager when settings tab is opened
-const originalSwitchTab = window.switchTab;
-if (originalSwitchTab) {
-    window.switchTab = function (tabName) {
-        originalSwitchTab(tabName);
-        if (tabName === 'settings') {
-            setTimeout(() => renderCategoryManager(), 100);
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file || !file.type.startsWith('image/')) {
+            showError('Please select an image file');
+            return;
         }
-    };
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            iconInput.value = ev.target.result; // store data URL as icon value
+            iconInput.dataset.iconType = 'image';
+            showNotification('✅ Icon Uploaded', 'Custom image icon will be used');
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const parent = iconInput.parentElement;
+    parent.style.display = 'flex';
+    parent.style.alignItems = 'center';
+    parent.style.gap = '0.5rem';
+    parent.appendChild(uploadBtn);
+    parent.appendChild(fileInput);
 }
 
-// Export functions
-window.renderCategoryManager = renderCategoryManager;
-window.handleCategoryRename = handleCategoryRename;
-window.handleCategoryDelete = handleCategoryDelete;
+// ============================================
+// EXPORT
+// ============================================
 
+window.initializePhase5 = initializePhase5;
+
+console.log('Phase 5 module loaded — call initializePhase5() to activate');

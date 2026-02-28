@@ -1,7 +1,7 @@
 {
-    "name": "appviewr",
+    "name": "music-app-manager",
     "version": "1.0.0",
-    "description": "Music App & Plugin Manager - Visual dashboard for launching music production apps and cataloging audio plugins",
+    "description": "Music App Manager - Visual dashboard for launching music production apps and cataloging audio plugins",
     "main": "main.js",
     "scripts": {
         "start": "electron .",
@@ -27,8 +27,8 @@
         "electron-builder": "^24.9.1"
     },
     "build": {
-        "appId": "com.appviewr.app",
-        "productName": "AppViewr",
+        "appId": "com.musicappmanager.app",
+        "productName": "Music App Manager",
         "directories": {
             "output": "dist"
         },

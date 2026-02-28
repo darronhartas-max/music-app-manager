@@ -1,5 +1,5 @@
-// AppViewr - Music App & Plugin Manager
-// Phase 2: Electron Desktop Application
+// Music App Manager
+// Phase 5: Full Feature Set
 
 let appData = null;
 let currentTab = 'apps';
@@ -27,10 +27,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializePhase4();
   }
 
-  // Initialize Phase 5 features (temporarily disabled)
-  // if (typeof initializePhase5 === 'function') {
-  //   initializePhase5();
-  // }
+  // Initialize Phase 5 features
+  if (typeof initializePhase5 === 'function') {
+    initializePhase5();
+  }
 
   renderApps();
 });
@@ -401,12 +401,18 @@ function initializeSettings() {
   // Add category button
   const addCategoryBtn = document.getElementById('addCategoryBtn');
   if (addCategoryBtn) {
-    addCategoryBtn.addEventListener('click', () => {
-      const name = prompt('Enter category name:');
-      if (name && name.trim()) {
-        addCategory(name.trim());
-      }
-    });
+    // Guard against double-binding (called every time settings tab opens)
+    if (!addCategoryBtn.dataset.bound) {
+      addCategoryBtn.dataset.bound = 'true';
+      addCategoryBtn.addEventListener('click', () => {
+        const name = prompt('Enter category name:');
+        if (name && name.trim()) {
+          addCategory(name.trim()).then(() => {
+            if (typeof renderCategoryManager === 'function') renderCategoryManager();
+          });
+        }
+      });
+    }
   }
 
   // Scan apps button
