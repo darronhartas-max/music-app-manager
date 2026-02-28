@@ -518,7 +518,8 @@ ipcMain.handle('scan-apps', async (event) => {
         'analog lab', 'v collection', 'komplete kontrol', 'kontakt', 'maschine', 'traktor', 'rekordbox', 'serato',
         'amplitube', 'bias fx', 'neural dsp', 'archetype', 'guir rig', 'melodyne', 'autotune', 'izotope', 'ozone',
         'neutron', 'nectar', 'waves central', 'arturia software center', 'native access', 'avid link', 'splice',
-        'volca', 'korg', 'moog', 'roland cloud', 'vcv rack', 'cherry audio', 'voltage modular', 'synth', 'tone king'
+        'volca', 'korg', 'moog', 'roland cloud', 'vcv rack', 'cherry audio', 'voltage modular', 'synth', 'tone king',
+        'piano v', 'synthi v', 'jup-8', 'cs-80', 'mellotron', 'solina', 'mini v', 'modular v', 'prophet'
     ];
 
     const GENERIC_TERMS = [
@@ -531,7 +532,7 @@ ipcMain.handle('scan-apps', async (event) => {
     const suggestCategory = (fileName, bundleId) => {
         const haystack = (fileName + ' ' + (bundleId || '')).toLowerCase();
         if (/ableton|logic pro|pro tools|cubase|fl studio|studio one|reaper|bitwig|reason|garageband|mainstage|dorico|finale|sibelius|ardour/.test(haystack)) return 'DAWs';
-        if (/serum|massive|vital|omnisphere|pigments|analog lab|v collection|kontakt|maschine|komplete kontrol|instruments|syrene|synergy|diva|zebra|hive|nexus|avenger|phase plant|ca2600|voltage|mercury|synth|korg|moog|arp |obx|reaktor|battery|absynth|fm8|falcon|halion|sampletank|arcade|spire|sylenth|model 72|model 84|augmented|modular|solina|mellotron|synclavier|buchla|cs-80|jup-8|matrix-12|vocoder v|stage-73|b-3 v|farfisa/.test(haystack)) return 'Synths';
+        if (/serum|massive|vital|omnisphere|pigments|analog lab|v collection|kontakt|maschine|komplete kontrol|instruments|syrene|synergy|diva|zebra|hive|nexus|avenger|phase plant|ca2600|voltage|mercury|synth|korg|moog|arp |obx|reaktor|battery|absynth|fm8|falcon|halion|sampletank|arcade|spire|sylenth|model 72|model 84|augmented|modular|solina|mellotron|synclavier|buchla|cs-80|jup-8|matrix-12|vocoder v|stage-73|b-3 v|farfisa|piano v|synthi v|mini v|prophet|oberheim|dx7|cz v|sq80|emulator/.test(haystack)) return 'Synths';
         if (/guitar|amplitube|bias|neural|helix|kemper|amp sim|archetype|rig |tone king|cory wong|gojira|abasi|nolly/.test(haystack)) return 'Guitar & Bass';
         if (/izotope|fabfilter|waves|soundtoys|valhalla|melodyne|auto-tune|ozone|neutron|rx |nectar|slate|brainworx|softube|eventide|mercury recorder|ozone|imager|maximizer|denoiser/.test(haystack)) return 'Audio Tools';
         if (/traktor|rekordbox|serato|virtual dj|djay|waves central|native access|avid link|splice|software center/.test(haystack)) return 'Utilities';
@@ -605,7 +606,7 @@ ipcMain.handle('scan-apps', async (event) => {
             // Manufacturer identification lookup map
             if (manufacturer === 'Unknown') {
                 const MFR_LOOKUP = [
-                    { name: 'Arturia', re: /arturia|analog lab|pigments|v collection|mcl|augmented|vocoder v|stage-73|b-3 v|farfisa/i },
+                    { name: 'Arturia', re: /arturia|analog lab|pigments|v collection|mcl|augmented|vocoder v|stage-73|b-3 v|farfisa|piano v|synthi v|mini v|modular v|prophet|oberheim|matrix-12|dx7|cz v|sq80|emulator|buchla|jup-8|cs-80|mellotron|solina/i },
                     { name: 'Native Instruments', re: /native instruments| kontakt|massive|komplete|reaktor|maschine|traktor|guitar rig|battery|fm8|absynth/i },
                     { name: 'Output', re: /output |arcade|exhale|portal|thermal|movement|substance/i },
                     { name: 'Slate Digital', re: /slate digital|fresh air|virtual mix|meta/i },

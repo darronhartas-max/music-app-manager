@@ -1127,7 +1127,7 @@ function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 
     </div>
     
     <div class="scan-results-actions">
-      <button class="action-btn primary" onclick="addSelectedApps(${JSON.stringify(apps).replace(/"/g, '&quot;')})">
+      <button id="addSelectedAppsBtn" class="action-btn primary">
         <span class="btn-icon">📥</span>
         Add Selected Apps
       </button>
@@ -1138,6 +1138,12 @@ function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 
   `;
 
   appScanResults.style.display = 'block';
+
+  // Attach event listener dynamically to avoid large base64 inline strings
+  window.scannedMusicApps = apps;
+  document.getElementById('addSelectedAppsBtn').addEventListener('click', () => {
+    addSelectedApps(window.scannedMusicApps);
+  });
 }
 
 // Toggle all app selections

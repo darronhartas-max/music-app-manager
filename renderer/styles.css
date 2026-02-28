@@ -93,11 +93,15 @@ body::before {
 /* Compact Header - Desktop Optimized */
 header {
   background: var(--bg-glass);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--border-color);
-  padding: var(--spacing-sm) var(--spacing-lg);
+  /* Top padding is larger to accommodate macOS traffic lights (approx 34px-38px area) */
+  padding: 2rem var(--spacing-lg) 1rem var(--spacing-lg);
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
+  /* Allow dragging the window from the header background */
+  -webkit-app-region: drag;
+  z-index: 100;
 }
 
 .header-content {
@@ -105,6 +109,15 @@ header {
   justify-content: space-between;
   align-items: center;
   gap: var(--spacing-lg);
+}
+
+/* Ensure interactive elements are NOT draggable so they remain clickable */
+.logo,
+.nav-tabs,
+.search-container,
+.toolbar-btn,
+.action-btn {
+  -webkit-app-region: no-drag;
 }
 
 .logo {
@@ -676,6 +689,7 @@ h1 {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-primary);
 }
+
 /* ============================================
    PHASE 4: Advanced Features Styles
    ============================================ */
@@ -828,6 +842,7 @@ h1 {
     transform: translateY(50px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -1681,7 +1696,7 @@ h1 {
 .welcome-logo {
   font-size: 3.5rem;
   margin-bottom: 0.75rem;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
 .welcome-title {
@@ -1694,7 +1709,7 @@ h1 {
 }
 
 .welcome-subtitle {
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.9375rem;
 }
 
