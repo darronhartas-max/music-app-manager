@@ -515,6 +515,17 @@ function initializeSettings() {
     }
   }
 
+  // Open User Guide button
+  const openUserGuideBtn = document.getElementById('openUserGuideBtn');
+  if (openUserGuideBtn && !openUserGuideBtn.dataset.bound) {
+    openUserGuideBtn.dataset.bound = 'true';
+    openUserGuideBtn.addEventListener('click', () => {
+      if (window.electronAPI && window.electronAPI.openUserGuide) {
+        window.electronAPI.openUserGuide();
+      }
+    });
+  }
+
   // Update statistics
   updateStatistics();
 
@@ -1026,7 +1037,7 @@ function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 
         </thead>
         <tbody id="appScanTableBody">
           ${apps.map((app, index) => `
-            <tr data-index="${index}">
+            <tr data-index="${index}" data-icon="${app.icon && app.icon.startsWith('data:') ? '' : app.icon || '🎵'}">
               <td>
                 <input type="checkbox" class="app-select-checkbox" checked data-index="${index}">
               </td>
@@ -1043,8 +1054,11 @@ function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 
                   `).join('')}
                 </select>
               </td>
-              <td>
-                <input type="text" class="app-icon-input" value="${app.icon}" data-index="${index}" maxlength="2" style="width: 50px; text-align: center;">
+              <td style="text-align:center;">
+                ${app.icon && app.icon.startsWith('data:')
+      ? `<img src="${app.icon}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" title="Real app icon">`
+      : `<span style="font-size:1.5rem" title="Default icon">${app.icon || '🎵'}</span>`
+    }
               </td>
             </tr>
           `).join('')}
@@ -1084,7 +1098,9 @@ async function addSelectedApps(scannedApps) {
     const name = row.querySelector('.app-name-input').value.trim();
     const manufacturer = row.querySelector('.app-manufacturer-input').value.trim();
     const category = row.querySelector('.app-category-select').value;
-    const icon = row.querySelector('.app-icon-input').value.trim();
+
+    // Icon: use the full data URL stored on the scanned app (not the text field)
+    const icon = scannedApps[index].icon || '🎵';
 
     if (name) {
       selectedApps.push({
@@ -1092,7 +1108,7 @@ async function addSelectedApps(scannedApps) {
         manufacturer: manufacturer || 'Unknown',
         path: scannedApps[index].path,
         category,
-        icon: icon || '🎵',
+        icon,
         favorite: false
       });
     }

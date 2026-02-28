@@ -63,7 +63,25 @@ app.on('window-all-closed', () => {
 
 // IPC Handlers
 
-// Launch application
+// Open User Guide in its own window
+ipcMain.handle('open-user-guide', async () => {
+    const guideWin = new BrowserWindow({
+        width: 1060,
+        height: 780,
+        minWidth: 800,
+        minHeight: 600,
+        backgroundColor: '#0a0a0f',
+        title: 'Music App Manager — User Guide',
+        webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+        },
+        titleBarStyle: 'hiddenInset',
+    });
+    guideWin.loadFile(path.join(__dirname, 'docs', 'user-guide.html'));
+    guideWin.once('ready-to-show', () => guideWin.show());
+});
+
 ipcMain.handle('launch-app', async (event, appPath, appName) => {
     return new Promise((resolve, reject) => {
         const platform = process.platform;

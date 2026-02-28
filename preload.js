@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Extract real icon for an app at a given path
     extractAppIcon: (appPath) => ipcRenderer.invoke('extract-app-icon', appPath),
 
+    // Open the User Guide window
+    openUserGuide: () => ipcRenderer.invoke('open-user-guide'),
+
     // Listen for scan progress
     onScanProgress: (callback) => {
         ipcRenderer.on('scan-progress', (event, data) => callback(data));
