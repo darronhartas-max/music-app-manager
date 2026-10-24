@@ -16,6 +16,7 @@ const DEFAULT_CONFIG = {
     plugins: [],
     recentApps: [],
     sessions: [],
+    sampleLibraries: [],
     settings: {
         defaultView: 'category', // 'category' | 'manufacturer'
         pluginViewMode: 'grouped', // 'grouped' | 'flat'
@@ -94,6 +95,7 @@ class ConfigStore {
             if (!Array.isArray(data.plugins)) data.plugins = [];
             if (!Array.isArray(data.recentApps)) data.recentApps = [];
             if (!Array.isArray(data.sessions)) data.sessions = [];
+            if (!Array.isArray(data.sampleLibraries)) data.sampleLibraries = [];
             data.settings = Object.assign({}, DEFAULT_CONFIG.settings, data.settings || {});
 
             if (!Array.isArray(data.settings.customPluginPaths)) data.settings.customPluginPaths = [];

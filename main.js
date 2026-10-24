@@ -444,6 +444,25 @@ ipcMain.handle('scan-plugin-diagnostics', async (event, installedPlugins) => {
     }
 });
 
+// 10c. Sample Library & Content Drive Tracker
+ipcMain.handle('scan-sample-libraries', async (event, existingLibraries) => {
+    try {
+        return await pluginScanner.scanSampleLibraries(existingLibraries || []);
+    } catch (err) {
+        console.error('[Main] Error scanning sample libraries:', err);
+        return [];
+    }
+});
+
+ipcMain.handle('inspect-sample-folder', async (event, folderPath, customName, customManufacturer) => {
+    try {
+        return await pluginScanner.inspectSampleFolder(folderPath, customName, customManufacturer);
+    } catch (err) {
+        console.error('[Main] Error inspecting sample folder:', err);
+        return null;
+    }
+});
+
 // 11. Plugin Freezer / Vault (Disable & Restore Plugins without deleting)
 function copyOrMoveEntryRecursiveSync(src, dest) {
     fs.cpSync(src, dest, { recursive: true, preserveTimestamps: true });

@@ -164,6 +164,7 @@ async function loadConfig() {
   if (!Array.isArray(state.appData.plugins)) state.appData.plugins = [];
   if (!Array.isArray(state.appData.recentApps)) state.appData.recentApps = [];
   if (!Array.isArray(state.appData.sessions)) state.appData.sessions = [];
+  if (!Array.isArray(state.appData.sampleLibraries)) state.appData.sampleLibraries = [];
   if (!state.appData.settings) state.appData.settings = {};
   if (!Array.isArray(state.appData.settings.customPluginPaths)) state.appData.settings.customPluginPaths = [];
   if (!Array.isArray(state.appData.settings.customAppPaths)) state.appData.settings.customAppPaths = [];
@@ -187,6 +188,7 @@ function renderAll() {
   renderUpdateCentersBars();
   renderCategoryManager();
   renderCustomPaths();
+  renderSampleLibraries();
   updatePlatformDisplay();
 }
 
@@ -1707,11 +1709,13 @@ function updateStatistics() {
   const elCats = document.getElementById('statCategories');
   const elPluginDisk = document.getElementById('statPluginsDiskSize');
   const elAppDisk = document.getElementById('statAppsDiskSize');
+  const elSampleDisk = document.getElementById('statSampleLibsDiskSize');
 
   const totalPluginBytes = (state.appData.plugins || []).reduce((sum, p) => sum + (p.sizeBytes || 0), 0);
   const totalAppBytes = (state.appData.categories || []).reduce((sum, c) => {
     return sum + (c.apps || []).reduce((s, a) => s + (a.sizeBytes || 0), 0);
   }, 0);
+  const totalSampleBytes = (state.appData.sampleLibraries || []).reduce((sum, s) => sum + (s.sizeBytes || 0), 0);
 
   if (elApps) elApps.textContent = totalApps;
   if (elUniquePlugins) elUniquePlugins.textContent = uniqueKeys.size;
@@ -1719,6 +1723,7 @@ function updateStatistics() {
   if (elCats) elCats.textContent = totalCategories;
   if (elPluginDisk) elPluginDisk.textContent = formatBytes(totalPluginBytes) === '-' ? '0 MB' : formatBytes(totalPluginBytes);
   if (elAppDisk) elAppDisk.textContent = formatBytes(totalAppBytes) === '-' ? '0 MB' : formatBytes(totalAppBytes);
+  if (elSampleDisk) elSampleDisk.textContent = formatBytes(totalSampleBytes) === '-' ? '0 GB' : formatBytes(totalSampleBytes);
 }
 
 function updatePlatformDisplay() {
@@ -1825,6 +1830,100 @@ function renderCustomPaths() {
       <button type="button" class="delete-btn" data-action="remove-custom-path" title="Remove Folder">🗑️</button>
     </div>
   `).join('');
+}
+
+// --- Sample Library & Content Drive Tracker ---
+function renderSampleLibraries() {
+  const listEl = document.getElementById('sampleLibrariesList');
+  if (!listEl || !state.appData) return;
+
+  const libs = state.appData.sampleLibraries || [];
+  if (libs.length === 0) {
+    listEl.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem;">No sample libraries tracked yet. Click <strong>📦 Scan &amp; Refresh Sample Libraries</strong> to auto-discover soundbanks on your system and external drives, or click <strong>➕ Add Sample / Content Folder</strong>.</div>`;
+    return;
+  }
+
+  const offlineCount = libs.filter(l => l.online === false).length;
+  const offlineAlertHtml = offlineCount > 0
+    ? `<div class="sample-drive-offline-banner">⚠️ <strong>${offlineCount} sample library folder(s) are currently OFFLINE!</strong> If they are stored on an external SSD, connect the drive and click <strong>📦 Scan &amp; Refresh Sample Libraries</strong> before opening your DAW.</div>`
+    : '';
+
+  listEl.innerHTML = `
+    ${offlineAlertHtml}
+    ${libs.map(lib => {
+      const online = lib.online !== false;
+      const driveLabel = lib.isExternalDrive ? `💽 External: ${lib.driveName || 'Volume'}` : `💻 ${lib.driveName || 'System Drive'}`;
+      const statusBadge = online
+        ? `<span class="sample-status-badge online">🟢 Online</span>`
+        : `<span class="sample-status-badge offline">🔴 Drive Offline</span>`;
+      const sizeStr = formatBytes(lib.sizeBytes) === '-' ? '0 MB' : formatBytes(lib.sizeBytes);
+      return `
+        <div class="sample-library-item ${online ? '' : 'offline'}" data-sample-path="${escapeHtml(lib.path)}">
+          <div class="sample-lib-main">
+            <div class="sample-lib-title-row">
+              <strong>📦 ${escapeHtml(lib.name)}</strong>
+              <span class="plugin-diag-badge license">${escapeHtml(lib.manufacturer || 'Content')}</span>
+              <span class="sample-drive-badge ${lib.isExternalDrive ? 'external' : ''}">${escapeHtml(driveLabel)}</span>
+              ${statusBadge}
+            </div>
+            <div class="sample-lib-path">${escapeHtml(lib.path)}</div>
+          </div>
+          <div class="sample-lib-actions">
+            <span class="sample-lib-size">${escapeHtml(sizeStr)}</span>
+            <button type="button" class="reorder-btn" data-action="reveal-sample-lib" data-path="${escapeHtml(lib.path)}" ${online ? '' : 'disabled'} title="Reveal Folder in Finder / Explorer">📂</button>
+            <button type="button" class="delete-btn" data-action="remove-sample-lib" data-path="${escapeHtml(lib.path)}" title="Remove from Tracker">🗑️</button>
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+async function handleScanSampleLibraries() {
+  if (!state.isElectron || !window.electronAPI.scanSampleLibraries) return;
+  const btn = document.getElementById('scanSampleLibsBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Scanning Sample Libraries...';
+  }
+  try {
+    const updatedList = await window.electronAPI.scanSampleLibraries(state.appData.sampleLibraries || []);
+    state.appData.sampleLibraries = updatedList;
+    await saveConfig();
+    renderSampleLibraries();
+    updateStatistics();
+    const totalBytes = updatedList.reduce((s, x) => s + (x.sizeBytes || 0), 0);
+    showNotification('📦 Sample Libraries Updated', `Tracking ${updatedList.length} sound libraries (${formatBytes(totalBytes)})`);
+  } catch (err) {
+    showError('Failed to scan sample libraries: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="btn-icon">📦</span> Scan &amp; Refresh Sample Libraries';
+    }
+  }
+}
+
+async function handleAddSampleLibraryFolder() {
+  if (!state.isElectron || !window.electronAPI.selectDirectory) return;
+  const dir = await window.electronAPI.selectDirectory();
+  if (!dir) return;
+
+  if (!Array.isArray(state.appData.sampleLibraries)) state.appData.sampleLibraries = [];
+  if (state.appData.sampleLibraries.some(s => s.path === dir)) {
+    showError('That folder is already in your Sample Library Tracker.');
+    return;
+  }
+
+  const info = await window.electronAPI.inspectSampleFolder(dir);
+  if (info) {
+    state.appData.sampleLibraries.push(info);
+    state.appData.sampleLibraries.sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+    await saveConfig();
+    renderSampleLibraries();
+    updateStatistics();
+    showNotification('📦 Sample Folder Added', `Added "${info.name}" (${formatBytes(info.sizeBytes)})`);
+  }
 }
 
 // --- App Scanner ---
@@ -2341,6 +2440,19 @@ function normalizeConfig(raw) {
       }))
     : [];
 
+  const sampleLibraries = Array.isArray(data.sampleLibraries)
+    ? data.sampleLibraries.filter(l => l && typeof l === 'object' && typeof l.path === 'string').map(l => ({
+        id: String(l.id || ('sample_' + Date.now())),
+        name: String(l.name || 'Sample Library').slice(0, 160),
+        manufacturer: String(l.manufacturer || 'Content').slice(0, 120),
+        path: String(l.path),
+        sizeBytes: typeof l.sizeBytes === 'number' ? l.sizeBytes : 0,
+        isExternalDrive: Boolean(l.isExternalDrive),
+        driveName: String(l.driveName || 'System Drive').slice(0, 80),
+        online: l.online !== false
+      }))
+    : [];
+
   const rawSettings = (data.settings && typeof data.settings === 'object') ? data.settings : {};
   const settings = {
     defaultView: rawSettings.defaultView === 'manufacturer' ? 'manufacturer' : 'category',
@@ -2351,7 +2463,7 @@ function normalizeConfig(raw) {
     customAppPaths: Array.isArray(rawSettings.customAppPaths) ? rawSettings.customAppPaths.filter(p => typeof p === 'string') : []
   };
 
-  return { categories, plugins, recentApps, sessions, settings };
+  return { categories, plugins, recentApps, sessions, sampleLibraries, settings };
 }
 
 async function handleImportConfigFile(file) {
@@ -3209,6 +3321,8 @@ function bindAllEvents() {
   // 8. Tools / Settings Tab Actions
   document.getElementById('scanAppsBtn')?.addEventListener('click', handleAppScan);
   document.getElementById('scanPluginsBtn')?.addEventListener('click', handlePluginScan);
+  document.getElementById('scanSampleLibsBtn')?.addEventListener('click', handleScanSampleLibraries);
+  document.getElementById('addSampleLibFolderBtn')?.addEventListener('click', handleAddSampleLibraryFolder);
   document.getElementById('refreshIconsBtn')?.addEventListener('click', handleRefreshIcons);
   document.getElementById('cleanupAppsBtn')?.addEventListener('click', handleCleanupApps);
   document.getElementById('cleanupPluginsBtn')?.addEventListener('click', handleCleanupPlugins);
@@ -3332,6 +3446,22 @@ function bindAllEvents() {
         }
         await saveConfig();
         renderCustomPaths();
+      }
+
+      // Sample Library actions (Reveal / Remove)
+      const revealSampleBtn = e.target.closest('[data-action="reveal-sample-lib"]');
+      if (revealSampleBtn && state.isElectron && revealSampleBtn.dataset.path) {
+        await window.electronAPI.showItemInFolder(revealSampleBtn.dataset.path);
+        return;
+      }
+      const removeSampleBtn = e.target.closest('[data-action="remove-sample-lib"]');
+      if (removeSampleBtn && removeSampleBtn.dataset.path) {
+        const targetP = removeSampleBtn.dataset.path;
+        state.appData.sampleLibraries = (state.appData.sampleLibraries || []).filter(s => s.path !== targetP);
+        await saveConfig();
+        renderSampleLibraries();
+        updateStatistics();
+        showNotification('🗑️ Removed', 'Removed sample library from tracker');
       }
     });
 

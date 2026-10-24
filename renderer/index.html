@@ -184,6 +184,10 @@
               <div class="stat-number" id="statAppsDiskSize">0 GB</div>
               <div class="stat-label">Apps Disk Space</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statSampleLibsDiskSize">0 GB</div>
+              <div class="stat-label">Sample Libraries</div>
+            </div>
           </div>
         </div>
 
@@ -271,6 +275,27 @@
           </div>
         </div>
 
+        <!-- 5b. Sample Library & Content Drive Tracker -->
+        <div class="settings-section">
+          <h2 class="settings-title">📦 Sample Library &amp; Content Drive Tracker</h2>
+          <p class="settings-description">Track your large sound libraries and sample folders (Kontakt, Arturia, Omnisphere STEAM, Spitfire, Logic Sound Library, Ableton User Library, Splice, or external SSDs). Alerts you if an external sample drive is unplugged.</p>
+
+          <div class="settings-actions">
+            <button id="scanSampleLibsBtn" class="action-btn primary">
+              <span class="btn-icon">📦</span>
+              Scan &amp; Refresh Sample Libraries
+            </button>
+            <button id="addSampleLibFolderBtn" class="action-btn">
+              <span class="btn-icon">➕</span>
+              Add Sample / Content Folder
+            </button>
+          </div>
+
+          <div id="sampleLibrariesList" class="sample-libraries-list" style="margin-top: 1rem;">
+            <!-- Sample libraries rendered here -->
+          </div>
+        </div>
+
         <!-- 6. Library Maintenance & Storage -->
         <div class="settings-section">
           <h2 class="settings-title">💾 Library Maintenance</h2>
@@ -335,7 +360,7 @@
       <div class="footer-left">
         <strong>Music App Manager</strong> — App &amp; Plugin Command Center
         <span class="footer-sep">•</span>
-        <span id="appVersionInfo">Version: <strong>2.1.6</strong></span>
+        <span id="appVersionInfo">Version: <strong>2.1.7</strong></span>
         <span class="footer-sep">•</span>
         <span id="platformInfo">Platform: Loading...</span>
       </div>

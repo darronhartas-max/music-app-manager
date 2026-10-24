@@ -42,6 +42,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Scan OS crash logs & DAW blacklists for plugin issues
     scanPluginDiagnostics: (installedPlugins) => ipcRenderer.invoke('scan-plugin-diagnostics', installedPlugins),
 
+    // Sample Library & Content Drive Tracker
+    scanSampleLibraries: (existingLibraries) => ipcRenderer.invoke('scan-sample-libraries', existingLibraries),
+    inspectSampleFolder: (folderPath, name, manufacturer) => ipcRenderer.invoke('inspect-sample-folder', folderPath, name, manufacturer),
+
     // Freeze / Unfreeze a plugin file into or out of the Plugin Vault
     setPluginFrozen: (payload) => ipcRenderer.invoke('set-plugin-frozen', payload),
 

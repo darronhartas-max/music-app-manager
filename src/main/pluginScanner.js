@@ -270,8 +270,8 @@ class PluginScanner {
         };
     }
 
-    async calculatePathSize(targetPath, depth = 0) {
-        if (!targetPath || depth > 6) return 0;
+    async calculatePathSize(targetPath, depth = 0, maxDepth = 6) {
+        if (!targetPath || depth > maxDepth) return 0;
         try {
             const st = await fs.promises.lstat(targetPath);
             if (st.isSymbolicLink()) return 0;
@@ -288,13 +288,142 @@ class PluginScanner {
                             total += cst.size || 0;
                         } catch (e) { }
                     } else if (entry.isDirectory()) {
-                        total += await this.calculatePathSize(childPath, depth + 1);
+                        total += await this.calculatePathSize(childPath, depth + 1, maxDepth);
                     }
                 }
                 return total;
             }
         } catch (e) { }
         return 0;
+    }
+
+    getDriveMetadata(folderPath) {
+        if (process.platform === 'darwin') {
+            if (folderPath.startsWith('/Volumes/')) {
+                const parts = folderPath.split('/');
+                const volName = parts[2] || 'External Drive';
+                return { isExternalDrive: true, driveName: volName };
+            }
+            return { isExternalDrive: false, driveName: 'System Drive' };
+        }
+        const root = (path.parse(folderPath).root || 'C:\\').toUpperCase();
+        return {
+            isExternalDrive: !root.startsWith('C:'),
+            driveName: root.replace(/\\$/, '')
+        };
+    }
+
+    async inspectSampleFolder(folderPath, customName = '', customManufacturer = '') {
+        if (!folderPath || typeof folderPath !== 'string') return null;
+        const resolved = path.resolve(folderPath);
+        const online = fs.existsSync(resolved);
+        const { isExternalDrive, driveName } = this.getDriveMetadata(resolved);
+        const baseName = customName || path.basename(resolved);
+        const manufacturer = customManufacturer || detectManufacturer(resolved + ' ' + baseName) || 'Sample Content';
+        const sizeBytes = online ? await this.calculatePathSize(resolved, 0, 4) : 0;
+
+        return {
+            id: 'sample_' + Buffer.from(resolved).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 24),
+            name: baseName,
+            manufacturer,
+            path: resolved,
+            sizeBytes,
+            isExternalDrive,
+            driveName,
+            online,
+            lastChecked: new Date().toISOString()
+        };
+    }
+
+    async scanSampleLibraries(existingLibraries = []) {
+        const byPath = new Map();
+
+        // 1. Refresh all existing user/saved sample libraries first (preserving offline external drive entries!)
+        for (const item of (existingLibraries || [])) {
+            if (!item || !item.path) continue;
+            const resolved = path.resolve(item.path);
+            const online = fs.existsSync(resolved);
+            const { isExternalDrive, driveName } = this.getDriveMetadata(resolved);
+            const sizeBytes = online
+                ? await this.calculatePathSize(resolved, 0, 4)
+                : (item.sizeBytes || 0);
+            byPath.set(resolved, {
+                ...item,
+                path: resolved,
+                online,
+                isExternalDrive,
+                driveName,
+                sizeBytes,
+                lastChecked: new Date().toISOString()
+            });
+        }
+
+        // 2. Auto-discover known sample library & soundbank locations on disk
+        const candidates = [];
+        if (process.platform === 'darwin') {
+            candidates.push(
+                { path: '/Users/Shared/Arturia', name: 'Arturia Soundbanks & Presets', manufacturer: 'Arturia' },
+                { path: '/Users/Shared/Native Instruments', name: 'Native Instruments Content', manufacturer: 'Native Instruments' },
+                { path: '/Users/Shared/IK Multimedia', name: 'IK Multimedia Sound Content', manufacturer: 'IK Multimedia' },
+                { path: '/Users/Shared/KORG', name: 'KORG Sound Libraries', manufacturer: 'KORG' },
+                { path: '/Users/Shared/GForce', name: 'GForce Instrument Content', manufacturer: 'GForce Software' },
+                { path: '/Users/Shared/Cherry Audio', name: 'Cherry Audio Content', manufacturer: 'Cherry Audio' },
+                { path: '/Users/Shared/Toontrack', name: 'Toontrack Drum Libraries', manufacturer: 'Toontrack' },
+                { path: '/Users/Shared/Spitfire Audio', name: 'Spitfire Audio Libraries', manufacturer: 'Spitfire Audio' },
+                { path: '/Library/Application Support/Logic', name: 'Logic Pro Sound Library', manufacturer: 'Apple' },
+                { path: '/Library/Application Support/GarageBand', name: 'GarageBand Sound Library', manufacturer: 'Apple' },
+                { path: '/Library/Audio/Apple Loops', name: 'Apple Loops Library', manufacturer: 'Apple' },
+                { path: '/Library/Application Support/Spectrasonics/STEAM', name: 'Spectrasonics STEAM Content', manufacturer: 'Spectrasonics' },
+                { path: path.join(os.homedir(), 'Music', 'Audio Music Apps'), name: 'Logic User Patches & Sampler Instruments', manufacturer: 'Apple' },
+                { path: path.join(os.homedir(), 'Music', 'Ableton', 'User Library'), name: 'Ableton Live User Library', manufacturer: 'Ableton' },
+                { path: path.join(os.homedir(), 'Music', 'Reason Studios'), name: 'Reason Soundbanks & ReFills', manufacturer: 'Reason Studios' },
+                { path: path.join(os.homedir(), 'Music', 'Splice'), name: 'Splice Sounds Local Folder', manufacturer: 'Splice' }
+            );
+
+            // Check mounted external volumes in /Volumes for top-level sample folders
+            if (fs.existsSync('/Volumes')) {
+                try {
+                    const vols = await fs.promises.readdir('/Volumes', { withFileTypes: true });
+                    for (const v of vols) {
+                        if (!v.isDirectory() || v.name === 'Macintosh HD') continue;
+                        const volRoot = path.join('/Volumes', v.name);
+                        try {
+                            const subDirs = await fs.promises.readdir(volRoot, { withFileTypes: true });
+                            for (const sd of subDirs) {
+                                if (!sd.isDirectory() || sd.name.startsWith('.')) continue;
+                                if (/sample|kontakt|spitfire|omnisphere|steam|toontrack|arturia|soundbank|audio librar|splice|loops/i.test(sd.name)) {
+                                    candidates.push({
+                                        path: path.join(volRoot, sd.name),
+                                        name: `${sd.name} (${v.name})`,
+                                        manufacturer: detectManufacturer(sd.name) || 'External Library'
+                                    });
+                                }
+                            }
+                        } catch (e) { }
+                    }
+                } catch (e) { }
+            }
+        } else if (process.platform === 'win32') {
+            const pubDocs = 'C:\\Users\\Public\\Documents';
+            candidates.push(
+                { path: path.join(pubDocs, 'Native Instruments'), name: 'Native Instruments Content', manufacturer: 'Native Instruments' },
+                { path: 'C:\\ProgramData\\Arturia', name: 'Arturia Soundbanks & Presets', manufacturer: 'Arturia' },
+                { path: 'C:\\ProgramData\\Spectrasonics\\STEAM', name: 'Spectrasonics STEAM Content', manufacturer: 'Spectrasonics' },
+                { path: path.join(os.homedir(), 'Documents', 'Ableton', 'User Library'), name: 'Ableton Live User Library', manufacturer: 'Ableton' },
+                { path: path.join(os.homedir(), 'Documents', 'Splice'), name: 'Splice Sounds Local Folder', manufacturer: 'Splice' }
+            );
+        }
+
+        for (const cand of candidates) {
+            const resolved = path.resolve(cand.path);
+            if (byPath.has(resolved) || !fs.existsSync(resolved)) continue;
+            const info = await this.inspectSampleFolder(resolved, cand.name, cand.manufacturer);
+            if (info && info.sizeBytes >= 1024 * 1024) { // Only auto-include folders >= 1 MB
+                byPath.set(resolved, info);
+            }
+        }
+
+        return Array.from(byPath.values()).sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
     }
 
     async scanCrashAndValidationLogs(installedPlugins = []) {
