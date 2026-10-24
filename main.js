@@ -11,6 +11,58 @@ const pluginScanner = require('./src/main/pluginScanner');
 
 let mainWindow = null;
 
+const ALLOWED_PLUGIN_EXTENSIONS = ['.vst3', '.component', '.clap', '.aaxplugin', '.vst', '.dll'];
+const ALLOWED_PLUGIN_FORMATS = new Set(['VST3', 'AU', 'CLAP', 'AAX', 'VST', 'OTHER']);
+
+function isAllowedPluginPath(targetPath) {
+    if (!targetPath || typeof targetPath !== 'string' || !path.isAbsolute(targetPath)) return false;
+    const resolved = path.resolve(targetPath);
+    const lower = resolved.toLowerCase();
+    return ALLOWED_PLUGIN_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
+function isAllowedAppExecutablePath(targetPath) {
+    if (!targetPath || typeof targetPath !== 'string' || !path.isAbsolute(targetPath)) return false;
+    const resolved = path.resolve(targetPath);
+    const lower = resolved.toLowerCase();
+    if (process.platform === 'darwin') {
+        return lower.endsWith('.app');
+    }
+    if (process.platform === 'win32') {
+        return lower.endsWith('.exe');
+    }
+    return true;
+}
+
+function hardenWindowWebContents(win) {
+    if (!win || !win.webContents) return;
+
+    // Prevent arbitrary new windows; route safe external HTTP(S) links to default OS browser
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+            shell.openExternal(url);
+        }
+        return { action: 'deny' };
+    });
+
+    // Prevent untrusted navigation away from the app's local HTML files
+    win.webContents.on('will-navigate', (event, navigationUrl) => {
+        try {
+            const parsed = new URL(navigationUrl);
+            if (parsed.protocol === 'file:') {
+                const targetFile = decodeURIComponent(parsed.pathname);
+                const docsDir = path.resolve(__dirname, 'docs') + path.sep;
+                const rendererDir = path.resolve(__dirname, 'renderer') + path.sep;
+                const resolvedTarget = path.resolve(targetFile);
+                if (resolvedTarget.startsWith(docsDir) || resolvedTarget.startsWith(rendererDir)) {
+                    return; // Allow internal doc/renderer navigation
+                }
+            }
+        } catch (e) { }
+        event.preventDefault();
+    });
+}
+
 function createWindow() {
     const isMac = process.platform === 'darwin';
     const savedState = configStore.loadWindowState();
@@ -25,6 +77,7 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
+            sandbox: true,
             enableRemoteModule: false
         },
         show: false
@@ -66,6 +119,7 @@ function createWindow() {
     }
 
     mainWindow = new BrowserWindow(windowOptions);
+    hardenWindowWebContents(mainWindow);
 
     if (savedState.isMaximized) {
         mainWindow.maximize();
@@ -147,20 +201,24 @@ app.on('window-all-closed', () => {
 
 // IPC Handlers
 
-// 1. App Launching (safe, non-shell-injection)
+// 1. App Launching (safe, non-shell-injection, executable target validated)
 ipcMain.handle('launch-app', async (event, appPath, appName) => {
     try {
-        if (!fs.existsSync(appPath)) {
+        if (!appPath || typeof appPath !== 'string' || !fs.existsSync(appPath)) {
             throw new Error(`Application file not found at: ${appPath}`);
+        }
+        const resolvedAppPath = path.resolve(appPath);
+        if (!isAllowedAppExecutablePath(resolvedAppPath)) {
+            throw new Error(`Blocked launching unsupported file type: ${path.basename(resolvedAppPath)}`);
         }
 
         if (process.platform === 'darwin') {
             // For macOS .app bundles, use `open` via execFile safely
             return new Promise((resolve, reject) => {
-                execFile('open', ['-a', appPath], (err) => {
+                execFile('open', ['-a', resolvedAppPath], (err) => {
                     if (err) {
                         // Fallback to direct shell open
-                        shell.openPath(appPath).then((openErr) => {
+                        shell.openPath(resolvedAppPath).then((openErr) => {
                             if (openErr) reject({ success: false, error: openErr, appName });
                             else resolve({ success: true, appName });
                         });
@@ -171,7 +229,7 @@ ipcMain.handle('launch-app', async (event, appPath, appName) => {
             });
         } else {
             // Windows & Linux: open via shell.openPath safely
-            const err = await shell.openPath(appPath);
+            const err = await shell.openPath(resolvedAppPath);
             if (err) throw new Error(err);
             return { success: true, appName };
         }
@@ -310,12 +368,14 @@ async function openDocWindow(docFileName, titleSuffix) {
                 title: `Music App Manager v${app.getVersion()} — ${titleSuffix}`,
                 webPreferences: {
                     contextIsolation: true,
-                    nodeIntegration: false
+                    nodeIntegration: false,
+                    sandbox: true
                 },
                 titleBarStyle: 'default',
                 autoHideMenuBar: true,
                 show: false
             });
+            hardenWindowWebContents(guideWindow);
 
             guideWindow.on('closed', () => {
                 guideWindow = null;
@@ -380,6 +440,10 @@ function copyOrMoveEntryRecursiveSync(src, dest) {
     fs.rmSync(src, { recursive: true, force: true });
 }
 
+function posixSingleQuote(str) {
+    return `'${String(str).replace(/'/g, `'\\''`)}'`;
+}
+
 function moveFileOrBundleWithPrivilegeFallback(srcPath, destPath) {
     const destDir = path.dirname(destPath);
     if (!fs.existsSync(destDir)) {
@@ -402,11 +466,9 @@ function moveFileOrBundleWithPrivilegeFallback(srcPath, destPath) {
         }
         // On macOS, /Library/Audio/Plug-Ins may require administrator privileges
         if (process.platform === 'darwin' && (err.code === 'EACCES' || err.code === 'EPERM')) {
-            const escSrc = srcPath.replace(/(["\\$`])/g, '\\$1');
-            const escDest = destPath.replace(/(["\\$`])/g, '\\$1');
-            const escDestDir = destDir.replace(/(["\\$`])/g, '\\$1');
-            const shellCmd = `mkdir -p "${escDestDir}" && mv -f "${escSrc}" "${escDest}"`;
-            const osaScript = `do shell script "${shellCmd.replace(/"/g, '\\"')}" with administrator privileges`;
+            const shellCmd = `/bin/mkdir -p -- ${posixSingleQuote(destDir)} && /bin/mv -f -- ${posixSingleQuote(srcPath)} ${posixSingleQuote(destPath)}`;
+            const appleScriptEscaped = shellCmd.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const osaScript = `do shell script "${appleScriptEscaped}" with administrator privileges`;
             return new Promise((resolve) => {
                 execFile('/usr/bin/osascript', ['-e', osaScript], (osaErr) => {
                     if (osaErr) {
@@ -424,31 +486,39 @@ function moveFileOrBundleWithPrivilegeFallback(srcPath, destPath) {
 ipcMain.handle('set-plugin-frozen', async (event, payload) => {
     try {
         const { currentPath, originalPath, format, freeze } = payload || {};
-        const vaultRoot = path.join(app.getPath('userData'), 'PluginVault');
+        const vaultRoot = path.resolve(app.getPath('userData'), 'PluginVault');
 
         if (freeze) {
-            const srcPath = currentPath || originalPath;
-            if (!srcPath || !fs.existsSync(srcPath)) {
-                return { success: false, error: 'Plugin file not found on disk: ' + (srcPath || '') };
+            const rawSrc = currentPath || originalPath;
+            if (!rawSrc || !isAllowedPluginPath(rawSrc) || !fs.existsSync(rawSrc)) {
+                return { success: false, error: 'Valid plugin file not found on disk: ' + (rawSrc || '') };
             }
-            const fmtFolder = (format || 'Other').toUpperCase();
-            const destPath = path.join(vaultRoot, fmtFolder, path.basename(srcPath));
+            const srcPath = path.resolve(rawSrc);
+            const rawFmt = String(format || 'OTHER').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const fmtFolder = ALLOWED_PLUGIN_FORMATS.has(rawFmt) ? rawFmt : 'OTHER';
+            const destPath = path.resolve(vaultRoot, fmtFolder, path.basename(srcPath));
+            if (!destPath.startsWith(vaultRoot + path.sep)) {
+                return { success: false, error: 'Invalid destination vault path.' };
+            }
             const res = await moveFileOrBundleWithPrivilegeFallback(srcPath, destPath);
             if (!res.success) return res;
             return {
                 success: true,
                 frozen: true,
                 path: destPath,
-                originalPath: originalPath || srcPath
+                originalPath: originalPath ? path.resolve(originalPath) : srcPath
             };
         } else {
-            const srcVaultPath = currentPath;
-            const restoreTargetPath = originalPath;
-            if (!srcVaultPath || !fs.existsSync(srcVaultPath)) {
-                return { success: false, error: 'Frozen plugin file not found in Vault: ' + (srcVaultPath || '') };
+            if (!currentPath || !originalPath) {
+                return { success: false, error: 'Vault or original plugin path is missing.' };
             }
-            if (!restoreTargetPath) {
-                return { success: false, error: 'Original plugin destination path is missing.' };
+            const srcVaultPath = path.resolve(currentPath);
+            const restoreTargetPath = path.resolve(originalPath);
+            if (!srcVaultPath.startsWith(vaultRoot + path.sep) || !fs.existsSync(srcVaultPath)) {
+                return { success: false, error: 'Frozen plugin file not found in Vault: ' + srcVaultPath };
+            }
+            if (!isAllowedPluginPath(restoreTargetPath)) {
+                return { success: false, error: 'Invalid restore destination plugin path.' };
             }
             const res = await moveFileOrBundleWithPrivilegeFallback(srcVaultPath, restoreTargetPath);
             if (!res.success) return res;

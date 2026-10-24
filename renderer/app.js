@@ -547,9 +547,8 @@ function renderApps() {
 
 function isValidImageIcon(iconVal) {
   if (!iconVal || typeof iconVal !== 'string') return false;
-  if (iconVal.startsWith('http://') || iconVal.startsWith('https://')) return true;
-  // A valid base64 image data URL must be longer than the 22-char "data:image/png;base64," prefix
-  return iconVal.startsWith('data:image/') && iconVal.length > 100;
+  // Allow only safe local base64 image data URLs (prevents external tracking URLs or arbitrary data: URIs)
+  return /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,/i.test(iconVal) && iconVal.length > 100;
 }
 
 function createAppCardHtml(app) {
@@ -691,10 +690,10 @@ function updateIconPreview(iconVal) {
   const preview = document.getElementById('appIconPreview');
   if (!preview) return;
   const val = (iconVal || '🎵').trim();
-  if (val.startsWith('data:') || val.startsWith('http')) {
+  if (isValidImageIcon(val)) {
     preview.innerHTML = `<img src="${escapeHtml(val)}" alt="App Icon">`;
   } else {
-    preview.textContent = val || '🎵';
+    preview.textContent = val.startsWith('data:') ? '🎵' : (val || '🎵');
   }
 }
 
@@ -1441,7 +1440,14 @@ function exportPluginsCsv() {
   const headers = ['Name', 'Manufacturer', 'Type', 'Formats', 'Version', 'Architecture', 'Rating', 'Favorite', 'Notes', 'Primary Path'];
   const csvRows = [headers.join(',')];
 
-  const csvEscape = (val) => `"${String(val || '').replace(/"/g, '""')}"`;
+  // Mitigate CSV Formula Injection (Excel / Numbers / Sheets formula execution on =, +, -, @, tab, CR)
+  const csvEscape = (val) => {
+    let str = String(val || '');
+    if (/^[=+\-@\t\r]/.test(str)) {
+      str = `'${str}`;
+    }
+    return `"${str.replace(/"/g, '""')}"`;
+  };
 
   items.forEach(item => {
     csvRows.push([
@@ -2029,6 +2035,77 @@ async function handleExportConfig() {
   a.click();
   URL.revokeObjectURL(url);
   showNotification('📤 Config Exported', 'Configuration JSON downloaded');
+}
+
+function normalizeConfig(raw) {
+  const data = (raw && typeof raw === 'object') ? raw : {};
+  const categories = Array.isArray(data.categories)
+    ? data.categories.map(c => ({
+        name: String((c && c.name) || 'Uncategorized').slice(0, 120),
+        apps: Array.isArray(c && c.apps)
+          ? c.apps.filter(a => a && typeof a === 'object' && typeof a.path === 'string').map(a => ({
+              name: String(a.name || 'Unknown').slice(0, 200),
+              path: String(a.path),
+              manufacturer: String(a.manufacturer || 'Unknown').slice(0, 150),
+              icon: isValidImageIcon(a.icon) ? a.icon : String(a.icon || '🎵').slice(0, 16),
+              version: String(a.version || '').slice(0, 64),
+              arch: String(a.arch || 'Universal').slice(0, 64),
+              sizeBytes: typeof a.sizeBytes === 'number' ? a.sizeBytes : 0,
+              favorite: Boolean(a.favorite),
+              licenseType: String(a.licenseType || '').slice(0, 80),
+              licenseAccount: String(a.licenseAccount || '').slice(0, 200),
+              serialKey: String(a.serialKey || '').slice(0, 500)
+            }))
+          : []
+      }))
+    : [];
+
+  const plugins = Array.isArray(data.plugins)
+    ? data.plugins.filter(p => p && typeof p === 'object' && typeof p.path === 'string').map(p => ({
+        name: String(p.name || 'Unknown').slice(0, 200),
+        path: String(p.path),
+        originalPath: p.originalPath ? String(p.originalPath) : undefined,
+        format: String(p.format || 'VST3').slice(0, 20),
+        type: String(p.type || 'unknown').slice(0, 40),
+        manufacturer: String(p.manufacturer || 'Unknown').slice(0, 150),
+        version: String(p.version || '').slice(0, 64),
+        arch: String(p.arch || 'Universal').slice(0, 64),
+        sizeBytes: typeof p.sizeBytes === 'number' ? p.sizeBytes : 0,
+        rating: Math.min(5, Math.max(0, Number(p.rating) || 0)),
+        favorite: Boolean(p.favorite),
+        frozen: Boolean(p.frozen),
+        notes: String(p.notes || '').slice(0, 2000),
+        licenseType: String(p.licenseType || '').slice(0, 80),
+        licenseAccount: String(p.licenseAccount || '').slice(0, 200),
+        serialKey: String(p.serialKey || '').slice(0, 500),
+        dateScanned: String(p.dateScanned || new Date().toISOString())
+      }))
+    : [];
+
+  const recentApps = Array.isArray(data.recentApps)
+    ? data.recentApps.filter(p => typeof p === 'string').slice(0, 50)
+    : [];
+
+  const sessions = Array.isArray(data.sessions)
+    ? data.sessions.filter(s => s && typeof s === 'object').map(s => ({
+        id: String(s.id || ('session_' + Date.now())),
+        name: String(s.name || 'Session').slice(0, 120),
+        icon: String(s.icon || '🚀').slice(0, 16),
+        appPaths: Array.isArray(s.appPaths) ? s.appPaths.filter(p => typeof p === 'string') : []
+      }))
+    : [];
+
+  const rawSettings = (data.settings && typeof data.settings === 'object') ? data.settings : {};
+  const settings = {
+    defaultView: rawSettings.defaultView === 'manufacturer' ? 'manufacturer' : 'category',
+    pluginViewMode: rawSettings.pluginViewMode === 'flat' ? 'flat' : 'grouped',
+    showRecentApps: rawSettings.showRecentApps !== false,
+    maxRecentApps: Number(rawSettings.maxRecentApps) || 10,
+    customPluginPaths: Array.isArray(rawSettings.customPluginPaths) ? rawSettings.customPluginPaths.filter(p => typeof p === 'string') : [],
+    customAppPaths: Array.isArray(rawSettings.customAppPaths) ? rawSettings.customAppPaths.filter(p => typeof p === 'string') : []
+  };
+
+  return { categories, plugins, recentApps, sessions, settings };
 }
 
 async function handleImportConfigFile(file) {
