@@ -2811,3 +2811,121 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   accent-color: var(--accent-primary);
   cursor: pointer;
 }
+
+/* ============================================
+   v2.1.5: Custom Tags & Plugin Collections / Chains
+   ============================================ */
+
+.plugin-collections-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: var(--spacing-md);
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-md);
+}
+
+.plugin-collections-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #a5b4fc;
+  white-space: nowrap;
+}
+
+.plugin-collections-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.collection-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.collection-tag-pill:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.collection-tag-pill.active {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.collection-tag-count {
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.05rem 0.38rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+}
+
+.plugin-row-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  margin-top: 0.25rem;
+}
+
+.plugin-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.plugin-tag-badge:hover {
+  background: rgba(139, 92, 246, 0.3);
+  color: #ffffff;
+}
+
+.plugin-quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.quick-tag-chip {
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-tag-chip:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.quick-tag-chip.active {
+  background: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+  border-color: var(--accent-primary);
+}

@@ -8,6 +8,7 @@ const state = {
   currentAppFilter: 'all',    // 'all' | 'favorites' | 'recent'
   editMode: false,
   currentPluginFilter: 'all',
+  currentPluginTag: '',
   pluginViewMode: 'grouped',  // 'grouped' | 'flat'
   pluginSortField: 'name',
   pluginSortAsc: true,
@@ -850,6 +851,64 @@ function getPluginGroupKey(p) {
   return `${(p.name || '').toLowerCase().trim()}::${(p.manufacturer || 'unknown').toLowerCase().trim()}`;
 }
 
+function parseTagsList(raw) {
+  const arr = Array.isArray(raw) ? raw : String(raw || '').split(',');
+  const seen = new Set();
+  const out = [];
+  for (const item of arr) {
+    const cleaned = String(item || '').replace(/^#+/, '').trim().slice(0, 40);
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(cleaned);
+    }
+  }
+  return out;
+}
+
+function renderPluginCollectionsBar() {
+  const bar = document.getElementById('pluginCollectionsBar');
+  if (!bar || !state.appData) return;
+
+  // Count unique plugin groups per tag
+  const tagGroupsMap = new Map(); // lowerTag -> { label, groupKeys: Set }
+  (state.appData.plugins || []).forEach(p => {
+    const tags = parseTagsList(p.tags);
+    if (tags.length === 0) return;
+    const gKey = getPluginGroupKey(p);
+    tags.forEach(t => {
+      const k = t.toLowerCase();
+      if (!tagGroupsMap.has(k)) {
+        tagGroupsMap.set(k, { label: t, groupKeys: new Set() });
+      }
+      tagGroupsMap.get(k).groupKeys.add(gKey);
+    });
+  });
+
+  if (tagGroupsMap.size === 0) {
+    if (state.currentPluginTag) state.currentPluginTag = '';
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  const sortedTags = Array.from(tagGroupsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  const activeKey = (state.currentPluginTag || '').toLowerCase();
+
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <span class="plugin-collections-label">🏷️ Collections &amp; Chains:</span>
+    <div class="plugin-collections-pills">
+      <button type="button" class="collection-tag-pill ${!activeKey ? 'active' : ''}" data-action="filter-plugin-tag" data-tag="">All Tags</button>
+      ${sortedTags.map(t => {
+        const isAct = t.label.toLowerCase() === activeKey;
+        return `<button type="button" class="collection-tag-pill ${isAct ? 'active' : ''}" data-action="filter-plugin-tag" data-tag="${escapeHtml(t.label)}">🏷️ ${escapeHtml(t.label)} <span class="collection-tag-count">${t.groupKeys.size}</span></button>`;
+      }).join('')}
+    </div>
+  `;
+}
+
 function buildPluginDiagnosticsMap(rawPlugins) {
   const byKey = new Map();
   rawPlugins.forEach(p => {
@@ -907,16 +966,25 @@ function buildDisplayPlugins() {
   }
 
   // Filter raw plugins first
+  const activeTagKey = (state.currentPluginTag || '').trim().toLowerCase();
+  const cleanSearchQuery = query.replace(/^#+/, '');
+
   const filteredRaw = rawPlugins.filter(p => {
     const name = (p.name || '').toLowerCase();
     const mfr = (p.manufacturer || '').toLowerCase();
     const notes = (p.notes || '').toLowerCase();
+    const tags = parseTagsList(p.tags);
+    const tagsLower = tags.map(t => t.toLowerCase());
     const type = (p.type || 'unknown').toLowerCase();
     const format = (p.format || '').toUpperCase();
     const arch = (p.arch || '').toLowerCase();
     const diag = diagMap.get(getPluginGroupKey(p)) || { hasVersionMismatch: false, hasRedundantVst2: false };
 
-    if (query && !name.includes(query) && !mfr.includes(query) && !notes.includes(query)) {
+    if (activeTagKey && !tagsLower.includes(activeTagKey)) {
+      return false;
+    }
+
+    if (query && !name.includes(query) && !mfr.includes(query) && !notes.includes(query) && !tagsLower.some(t => t.includes(cleanSearchQuery))) {
       return false;
     }
 
@@ -952,6 +1020,7 @@ function buildDisplayPlugins() {
         frozen: Boolean(p.frozen),
         frozenCount: p.frozen ? 1 : 0,
         notes: p.notes || '',
+        tags: parseTagsList(p.tags),
         licenseType: p.licenseType || '',
         licenseAccount: p.licenseAccount || '',
         serialKey: p.serialKey || '',
@@ -984,6 +1053,7 @@ function buildDisplayPlugins() {
         frozen: true,
         frozenCount: 0,
         notes: p.notes || '',
+        tags: [],
         licenseType: p.licenseType || '',
         licenseAccount: p.licenseAccount || '',
         serialKey: p.serialKey || '',
@@ -1008,6 +1078,11 @@ function buildDisplayPlugins() {
     if (p.favorite) g.favorite = true;
     if ((p.rating || 0) > g.rating) g.rating = p.rating;
     if (p.notes && !g.notes) g.notes = p.notes;
+    parseTagsList(p.tags).forEach(t => {
+      if (!g.tags.some(existing => existing.toLowerCase() === t.toLowerCase())) {
+        g.tags.push(t);
+      }
+    });
     if (p.licenseType && !g.licenseType) g.licenseType = p.licenseType;
     if (p.licenseAccount && !g.licenseAccount) g.licenseAccount = p.licenseAccount;
     if (p.serialKey && !g.serialKey) g.serialKey = p.serialKey;
@@ -1172,6 +1247,7 @@ function renderPlugins() {
   });
 
   const items = buildDisplayPlugins();
+  renderPluginCollectionsBar();
   renderPluginDiagnosticsBanner(items);
 
   // Sort items across ANY column header (default: Name A–Z)
@@ -1242,6 +1318,9 @@ function renderPlugins() {
     const frozenBadge = item.frozenCount > 0
       ? `<span class="plugin-diag-badge frozen" title="Moved to Disabled Plugin Vault (${item.frozenCount}/${item.paths.length} format files frozen)">🧊 ${item.frozen ? 'Frozen' : `${item.frozenCount} Frozen`}</span>`
       : '';
+    const tagsHtml = (item.tags && item.tags.length > 0)
+      ? `<div class="plugin-row-tags">${item.tags.map(t => `<button type="button" class="plugin-tag-badge" data-action="row-filter-tag" data-tag="${escapeHtml(t)}" title="Filter by collection/tag: ${escapeHtml(t)}">🏷️ ${escapeHtml(t)}</button>`).join('')}</div>`
+      : '';
     const sizeText = formatBytes(item.sizeBytes);
 
     return `
@@ -1249,7 +1328,7 @@ function renderPlugins() {
         <td class="favorite-cell ${item.favorite ? 'active' : ''}" data-action="toggle-plugin-fav" style="text-align: center; cursor: pointer;">
           ${item.favorite ? '⭐' : '☆'}
         </td>
-        <td><strong>${escapeHtml(item.name)}</strong> ${licenseBadge} ${frozenBadge}</td>
+        <td><strong>${escapeHtml(item.name)}</strong> ${licenseBadge} ${frozenBadge}${tagsHtml}</td>
         <td><span class="plugin-type ${escapeHtml(item.type)}">${escapeHtml(item.type)}</span></td>
         <td>${formatsHtml}</td>
         <td>${escapeHtml(item.manufacturer)}</td>
@@ -1330,6 +1409,11 @@ function openPluginModal(item) {
   }
 
   document.getElementById('pluginNotes').value = item.notes || '';
+  const tagsInputEl = document.getElementById('pluginTagsInput');
+  if (tagsInputEl) {
+    tagsInputEl.value = (item.tags || []).join(', ');
+  }
+  syncQuickTagChipsUI();
   document.getElementById('pluginFavorite').checked = Boolean(item.favorite);
   document.getElementById('pluginRating').value = item.rating || 0;
   const pLicType = document.getElementById('pluginLicenseType');
@@ -1340,6 +1424,18 @@ function openPluginModal(item) {
   if (pSerial) pSerial.value = item.serialKey || '';
   updateRatingStars(item.rating || 0);
   document.getElementById('pluginModal').classList.add('active');
+}
+
+function syncQuickTagChipsUI() {
+  const tagsInputEl = document.getElementById('pluginTagsInput');
+  if (!tagsInputEl) return;
+  const currentLower = new Set(parseTagsList(tagsInputEl.value).map(t => t.toLowerCase()));
+  document.querySelectorAll('#pluginQuickTags .quick-tag-chip').forEach(btn => {
+    const tag = (btn.dataset.tag || '').trim();
+    const isAct = currentLower.has(tag.toLowerCase());
+    btn.classList.toggle('active', isAct);
+    btn.textContent = `${isAct ? '✓' : '+'} ${tag}`;
+  });
 }
 
 function updateRatingStars(rating) {
@@ -1355,6 +1451,7 @@ async function savePluginFromModal() {
   if (!group) return;
 
   const notes = document.getElementById('pluginNotes').value.trim();
+  const tags = parseTagsList(document.getElementById('pluginTagsInput')?.value || '');
   const favorite = document.getElementById('pluginFavorite').checked;
   const rating = parseInt(document.getElementById('pluginRating').value, 10) || 0;
   const licenseType = (document.getElementById('pluginLicenseType')?.value || '').trim();
@@ -1365,6 +1462,7 @@ async function savePluginFromModal() {
   state.appData.plugins.forEach(p => {
     if (pathSet.has(p.path)) {
       p.notes = notes;
+      p.tags = tags;
       p.favorite = favorite;
       p.rating = rating;
       p.licenseType = licenseType;
@@ -2109,6 +2207,7 @@ function normalizeConfig(raw) {
         favorite: Boolean(p.favorite),
         frozen: Boolean(p.frozen),
         notes: String(p.notes || '').slice(0, 2000),
+        tags: parseTagsList(p.tags),
         licenseType: String(p.licenseType || '').slice(0, 80),
         licenseAccount: String(p.licenseAccount || '').slice(0, 200),
         serialKey: String(p.serialKey || '').slice(0, 500),
@@ -2704,6 +2803,37 @@ function bindAllEvents() {
   document.getElementById('quickRescanPluginsBtn')?.addEventListener('click', handleQuickRescanPlugins);
   document.getElementById('exportCsvBtn')?.addEventListener('click', exportPluginsCsv);
 
+  document.getElementById('pluginCollectionsBar')?.addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-action="filter-plugin-tag"]');
+    if (!pill) return;
+    const clickedTag = pill.dataset.tag || '';
+    if (state.currentPluginTag.toLowerCase() === clickedTag.toLowerCase()) {
+      state.currentPluginTag = '';
+    } else {
+      state.currentPluginTag = clickedTag;
+    }
+    renderPlugins();
+  });
+
+  document.getElementById('pluginTagsInput')?.addEventListener('input', syncQuickTagChipsUI);
+  document.getElementById('pluginQuickTags')?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.quick-tag-chip');
+    if (!chip) return;
+    const tag = (chip.dataset.tag || '').trim();
+    if (!tag) return;
+    const input = document.getElementById('pluginTagsInput');
+    if (!input) return;
+    const current = parseTagsList(input.value);
+    const idx = current.findIndex(t => t.toLowerCase() === tag.toLowerCase());
+    if (idx !== -1) {
+      current.splice(idx, 1);
+    } else {
+      current.push(tag);
+    }
+    input.value = current.join(', ');
+    syncQuickTagChipsUI();
+  });
+
   document.getElementById('pluginDiagnosticsBanner')?.addEventListener('click', (e) => {
     const closeGuideBtn = e.target.closest('[data-action="close-diag-banner"]');
     if (closeGuideBtn) {
@@ -2731,6 +2861,15 @@ function bindAllEvents() {
       const idx = parseInt(row.dataset.idx, 10);
       const item = (state.currentDisplayedPlugins || [])[idx];
       if (!item) return;
+
+      const tagBadge = e.target.closest('[data-action="row-filter-tag"]');
+      if (tagBadge) {
+        e.stopPropagation();
+        const tag = tagBadge.dataset.tag || '';
+        state.currentPluginTag = state.currentPluginTag.toLowerCase() === tag.toLowerCase() ? '' : tag;
+        renderPlugins();
+        return;
+      }
 
       if (e.target.closest('[data-action="toggle-freeze-group"]')) {
         e.stopPropagation();

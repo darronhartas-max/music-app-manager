@@ -121,6 +121,9 @@
         </div>
       </div>
 
+      <!-- Custom Tags & Plugin Collections / Chains Filter Bar -->
+      <div id="pluginCollectionsBar" class="plugin-collections-bar" style="display: none;"></div>
+
       <!-- Contextual Help & Resolution Guide Banner (shown for Version Mismatch, Redundant VST2, or Intel Only filters) -->
       <div id="pluginDiagnosticsBanner" class="plugin-diagnostics-banner" style="display: none;"></div>
 
@@ -331,7 +334,7 @@
       <div class="footer-left">
         <strong>Music App Manager</strong> — App &amp; Plugin Command Center
         <span class="footer-sep">•</span>
-        <span id="appVersionInfo">Version: <strong>2.1.4</strong></span>
+        <span id="appVersionInfo">Version: <strong>2.1.5</strong></span>
         <span class="footer-sep">•</span>
         <span id="platformInfo">Platform: Loading...</span>
       </div>
@@ -533,8 +536,28 @@
           <input type="hidden" id="pluginRating" value="0">
         </div>
         <div class="form-group">
+          <label>🏷️ Custom Tags &amp; Collections (Chains)</label>
+          <input type="text" id="pluginTagsInput" placeholder="e.g., Vocal Chain, Mix Bus, Mastering, Compressor (comma-separated)">
+          <div id="pluginQuickTags" class="plugin-quick-tags">
+            <button type="button" class="quick-tag-chip" data-tag="Vocal Chain">+ Vocal Chain</button>
+            <button type="button" class="quick-tag-chip" data-tag="Mix Bus">+ Mix Bus</button>
+            <button type="button" class="quick-tag-chip" data-tag="Mastering">+ Mastering</button>
+            <button type="button" class="quick-tag-chip" data-tag="Drum Bus">+ Drum Bus</button>
+            <button type="button" class="quick-tag-chip" data-tag="Guitar Rig">+ Guitar Rig</button>
+            <button type="button" class="quick-tag-chip" data-tag="Compressor">+ Compressor</button>
+            <button type="button" class="quick-tag-chip" data-tag="EQ">+ EQ</button>
+            <button type="button" class="quick-tag-chip" data-tag="Reverb">+ Reverb</button>
+            <button type="button" class="quick-tag-chip" data-tag="Delay">+ Delay</button>
+            <button type="button" class="quick-tag-chip" data-tag="Saturation">+ Saturation</button>
+            <button type="button" class="quick-tag-chip" data-tag="Synth Lead">+ Synth Lead</button>
+            <button type="button" class="quick-tag-chip" data-tag="Bass">+ Bass</button>
+            <button type="button" class="quick-tag-chip" data-tag="CPU-Heavy">+ CPU-Heavy</button>
+            <button type="button" class="quick-tag-chip" data-tag="Go-To">+ Go-To</button>
+          </div>
+        </div>
+        <div class="form-group">
           <label>Notes</label>
-          <textarea id="pluginNotes" rows="4" placeholder="Personal notes, favorite presets, mix notes..."></textarea>
+          <textarea id="pluginNotes" rows="3" placeholder="Personal notes, favorite presets, mix notes..."></textarea>
         </div>
         <div class="form-group">
           <label>
