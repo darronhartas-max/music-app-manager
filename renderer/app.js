@@ -757,6 +757,111 @@ function buildDisplayPlugins() {
   return Array.from(groups.values());
 }
 
+function findVendorUpdaterForManufacturer(manufacturer) {
+  if (!manufacturer || manufacturer === 'Unknown') return null;
+  const mfrLow = manufacturer.toLowerCase();
+  const centers = getDetectedUpdateCenters();
+
+  for (const c of centers) {
+    const cName = (c.name || '').toLowerCase();
+    const cMfr = (c.manufacturer || '').toLowerCase();
+    if (cMfr && cMfr !== 'unknown' && (cMfr.includes(mfrLow) || mfrLow.includes(cMfr))) {
+      return c;
+    }
+    if ((mfrLow.includes('arturia') && cName.includes('arturia')) ||
+        (mfrLow.includes('cherry') && cName.includes('cherry')) ||
+        (mfrLow.includes('universal audio') && cName.includes('ua connect')) ||
+        (mfrLow.includes('ik multimedia') && cName.includes('product manager')) ||
+        (mfrLow.includes('korg') && cName.includes('korg')) ||
+        (mfrLow.includes('gforce') && cName.includes('gforce')) ||
+        (mfrLow.includes('reason') && cName.includes('reason')) ||
+        (mfrLow.includes('native instruments') && cName.includes('native access')) ||
+        (mfrLow.includes('waves') && cName.includes('waves')) ||
+        (mfrLow.includes('softube') && cName.includes('softube')) ||
+        (mfrLow.includes('spitfire') && cName.includes('spitfire')) ||
+        (mfrLow.includes('roland') && cName.includes('roland')) ||
+        (mfrLow.includes('steinberg') && cName.includes('steinberg')) ||
+        (mfrLow.includes('avid') && cName.includes('avid')) ||
+        (mfrLow.includes('slate') && cName.includes('slate')) ||
+        (mfrLow.includes('xln') && cName.includes('xln')) ||
+        (mfrLow.includes('output') && cName.includes('output'))) {
+      return c;
+    }
+  }
+  return null;
+}
+
+function renderPluginDiagnosticsBanner(items) {
+  const banner = document.getElementById('pluginDiagnosticsBanner');
+  if (!banner) return;
+
+  const f = state.currentPluginFilter;
+  const mismatchItems = items.filter(i => i.hasVersionMismatch);
+  const redundantItems = items.filter(i => i.hasRedundantVst2);
+
+  if (f === 'mismatch') {
+    const centers = getDetectedUpdateCenters();
+    const pillsHtml = centers.length > 0
+      ? `<div class="diag-banner-pills">
+           <span class="diag-banner-pills-label">Quick-Launch Vendor Updaters:</span>
+           ${centers.map(createUpdateCenterPillHtml).join('')}
+         </div>`
+      : '';
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="diag-banner-title">🔀 What does "Version Mismatch" mean &amp; how do I resolve it?</div>
+      <div class="diag-banner-body">
+        <p><strong>Don't panic — nothing is broken!</strong> A Version Mismatch simply means two formats of the same plugin on your computer (for example, the <strong>AU</strong> version used by Logic Pro and the <strong>VST3</strong> version used by Ableton/Cubase) have slightly different version numbers on disk.</p>
+        <ul>
+          <li><strong>Why it happens:</strong> Sometimes an installer updates only the VST3 or AU component, or two formats report slightly different internal build numbers in their metadata.</li>
+          <li><strong>How to resolve it:</strong> Click any plugin row below to see which format is on an older version. If you use both formats across different DAWs, launch that manufacturer's <strong>Update Center</strong> below and run the latest update—or click <strong>📂 Reveal</strong> inside the plugin details to remove a leftover older file. After updating, click <strong>🔄 Rescan Plugins</strong>.</li>
+        </ul>
+        ${pillsHtml}
+      </div>`;
+    return;
+  }
+
+  if (f === 'redundant-vst2') {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="diag-banner-title">📦 What does "Redundant VST2" mean &amp; should I remove them?</div>
+      <div class="diag-banner-body">
+        <p>These plugins have <strong>both</strong> the legacy <strong>VST (VST2)</strong> format and the modern <strong>VST3</strong> format installed on your hard drive.</p>
+        <ul>
+          <li><strong>How to resolve it:</strong> If all of your current DAWs use <strong>VST3</strong> or <strong>AU</strong> (and you don't need the old VST2 version for opening vintage projects), you can click any plugin below, click <strong>📂 Reveal</strong> next to its <strong>VST</strong> row, and move the old <code>.vst</code> file to the Trash to speed up DAW startup and save disk space.</li>
+        </ul>
+      </div>`;
+    return;
+  }
+
+  if (f === 'rosetta') {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="diag-banner-title">⚠️ What does "Intel Only (Rosetta)" mean on Apple Silicon?</div>
+      <div class="diag-banner-body">
+        <p>These plugins contain <strong>Intel (x86_64)</strong> code only and require macOS Rosetta translation on Apple Silicon (M1–M5) Macs.</p>
+        <ul>
+          <li><strong>How to resolve it:</strong> Check the manufacturer's <strong>Update Center</strong> or website to see if a modern <strong>Apple Silicon / Universal</strong> update is available, then click <strong>🔄 Rescan Plugins</strong>.</li>
+        </ul>
+      </div>`;
+    return;
+  }
+
+  // In "All" or other views, show a subtle one-line summary helper if any mismatches exist and the user hasn't dismissed it
+  if (mismatchItems.length > 0 && localStorage.getItem('mam-hide-mismatch-hint') !== '1') {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="diag-banner-compact">
+        <span>💡 <strong>Tip:</strong> Seeing a <span class="plugin-diag-badge mismatch">🔀 Mismatch</span> badge? It just means two formats (e.g. AU vs VST3) of that plugin report different version numbers. Click the <strong>🔀 Version Mismatch</strong> filter button above or click any flagged plugin row for easy step-by-step resolution advice.</span>
+        <button type="button" class="category-save-btn" data-action="dismiss-mismatch-hint">Got it</button>
+      </div>`;
+    return;
+  }
+
+  banner.style.display = 'none';
+  banner.innerHTML = '';
+}
+
 function renderPlugins() {
   const tbody = document.getElementById('pluginTableBody');
   if (!tbody) return;
@@ -767,6 +872,7 @@ function renderPlugins() {
   });
 
   const items = buildDisplayPlugins();
+  renderPluginDiagnosticsBanner(items);
 
   // Sort items across ANY column header (default: Name A–Z)
   const field = state.pluginSortField || 'name';
@@ -857,17 +963,35 @@ function openPluginModal(item) {
   if (!item) return;
   state.editingPluginGroup = item;
   document.getElementById('pluginName').value = item.name;
-  const diagNotes = [];
+  const baseMeta = `${item.manufacturer} • Formats: ${item.formats.join(', ')} • ${item.paths.length} file(s)`;
+
+  let diagHtml = '';
+  const matchedUpdater = findVendorUpdaterForManufacturer(item.manufacturer);
+  const updaterBtnHtml = matchedUpdater
+    ? `<button type="button" class="category-save-btn" data-action="modal-launch-updater" data-path="${escapeHtml(matchedUpdater.path)}" data-name="${escapeHtml(matchedUpdater.name)}" style="margin-top: 0.45rem;">🔄 Open ${escapeHtml(matchedUpdater.name)} to Update</button>`
+    : '';
+
   if (item.hasVersionMismatch) {
-    diagNotes.push(`🔀 Version Mismatch (${item.versionBreakdown})`);
+    diagHtml += `
+      <div class="plugin-modal-diag-alert">
+        <div><strong>🔀 Format Version Mismatch (${escapeHtml(item.versionBreakdown)})</strong></div>
+        <div style="margin-top: 0.25rem; color: var(--text-secondary); font-weight: 400;">
+          Your installed formats for this plugin have different version numbers. To bring them in sync, run the latest installer in the manufacturer's update app (or click <strong>📂 Reveal</strong> below to remove an outdated copy), then click <strong>🔄 Rescan Plugins</strong>.
+        </div>
+        ${updaterBtnHtml}
+      </div>`;
   }
   if (item.hasRedundantVst2) {
-    diagNotes.push('📦 Both legacy VST2 and VST3 are installed');
+    diagHtml += `
+      <div class="plugin-modal-diag-alert redundant">
+        <div><strong>📦 Legacy VST2 + Modern VST3 Both Installed</strong></div>
+        <div style="margin-top: 0.25rem; color: var(--text-secondary); font-weight: 400;">
+          You already have the modern <strong>VST3</strong> format installed. If your DAWs don't require the legacy <strong>VST</strong> format for older projects, click <strong>📂 Reveal</strong> next to the <strong>VST</strong> entry below to remove it.
+        </div>
+      </div>`;
   }
-  const baseMeta = `${item.manufacturer} • Formats: ${item.formats.join(', ')} • ${item.paths.length} file(s)`;
-  document.getElementById('pluginMetaInfo').innerHTML = diagNotes.length > 0
-    ? `${escapeHtml(baseMeta)}<div class="plugin-modal-diag-alert">${diagNotes.map(escapeHtml).join(' &nbsp;•&nbsp; ')}</div>`
-    : escapeHtml(baseMeta);
+
+  document.getElementById('pluginMetaInfo').innerHTML = `${escapeHtml(baseMeta)}${diagHtml}`;
 
   const pathsListEl = document.getElementById('pluginFormatPathsList');
   if (pathsListEl) {
@@ -1889,6 +2013,19 @@ function bindAllEvents() {
   document.getElementById('quickRescanPluginsBtn')?.addEventListener('click', handleQuickRescanPlugins);
   document.getElementById('exportCsvBtn')?.addEventListener('click', exportPluginsCsv);
 
+  document.getElementById('pluginDiagnosticsBanner')?.addEventListener('click', (e) => {
+    const dismissBtn = e.target.closest('[data-action="dismiss-mismatch-hint"]');
+    if (dismissBtn) {
+      localStorage.setItem('mam-hide-mismatch-hint', '1');
+      renderPlugins();
+      return;
+    }
+    const pill = e.target.closest('[data-action="launch-updater"]');
+    if (pill) {
+      launchApp(pill.dataset.path, pill.dataset.name);
+    }
+  });
+
   const pluginTbody = document.getElementById('pluginTableBody');
   if (pluginTbody) {
     pluginTbody.addEventListener('click', async (e) => {
@@ -1971,6 +2108,12 @@ function bindAllEvents() {
   document.getElementById('pluginModalCloseBtn')?.addEventListener('click', () => closeModal('pluginModal'));
   document.getElementById('pluginModalCancelBtn')?.addEventListener('click', () => closeModal('pluginModal'));
   document.getElementById('savePluginBtn')?.addEventListener('click', savePluginFromModal);
+  document.getElementById('pluginMetaInfo')?.addEventListener('click', (e) => {
+    const updaterBtn = e.target.closest('[data-action="modal-launch-updater"]');
+    if (updaterBtn && updaterBtn.dataset.path) {
+      launchApp(updaterBtn.dataset.path, updaterBtn.dataset.name);
+    }
+  });
   document.getElementById('pluginFormatPathsList')?.addEventListener('click', async (e) => {
     const revealBtn = e.target.closest('[data-action="modal-reveal-plugin-path"]');
     if (revealBtn && state.isElectron && revealBtn.dataset.path) {

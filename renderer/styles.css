@@ -2367,12 +2367,80 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
 }
 
 .plugin-modal-diag-alert {
-  margin-top: 0.45rem;
-  padding: 0.4rem 0.65rem;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.75rem;
   border-radius: var(--radius-sm);
   background: rgba(245, 158, 11, 0.14);
   border: 1px solid rgba(245, 158, 11, 0.35);
   color: #fde68a;
   font-size: 0.78rem;
   font-weight: 500;
+  line-height: 1.45;
+}
+
+.plugin-modal-diag-alert.redundant {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #bae6fd;
+}
+
+.plugin-diagnostics-banner {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-left: 4px solid var(--accent-primary);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem;
+  margin-bottom: var(--spacing-md);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.diag-banner-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  margin-bottom: 0.35rem;
+}
+
+.diag-banner-body p {
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.diag-banner-body ul {
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.45rem;
+}
+
+.diag-banner-body li {
+  margin-bottom: 0.25rem;
+}
+
+.diag-banner-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.diag-banner-pills-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+}
+
+.diag-banner-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
 }
