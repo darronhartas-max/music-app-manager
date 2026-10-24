@@ -137,34 +137,7 @@ function createUpdateCenterPillHtml(app) {
 function renderUpdateCentersBars() {
   const centers = getDetectedUpdateCenters();
 
-  // 1. Apps Dashboard Quick-Launch Bar
-  const quickBar = document.getElementById('updateCentersQuickBar');
-  if (quickBar) {
-    if (centers.length === 0) {
-      quickBar.style.display = 'none';
-    } else {
-      const collapsed = localStorage.getItem('mam-updaters-collapsed') === '1';
-      quickBar.style.display = 'block';
-      quickBar.innerHTML = `
-        <div class="update-centers-header" style="${collapsed ? 'margin-bottom: 0;' : ''}">
-          <div class="update-centers-title">
-            <span>🔄 Update &amp; License Centers (${centers.length})</span>
-          </div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <button type="button" class="category-save-btn" data-action="toggle-updaters-collapse" title="Show or hide quick-launch pills">
-              ${collapsed ? '▼ Show Bar' : '▲ Hide'}
-            </button>
-          </div>
-        </div>
-        ${collapsed ? '' : `
-          <div class="update-centers-pills">
-            ${centers.map(createUpdateCenterPillHtml).join('')}
-          </div>
-        `}`;
-    }
-  }
-
-  // 2. Settings Tab Quick-Launch Hub
+  // Settings Tab Quick-Launch Hub
   const settingsBar = document.getElementById('settingsUpdateCentersBar');
   if (settingsBar) {
     if (centers.length === 0) {
@@ -373,12 +346,18 @@ function createAppCardHtml(app) {
     ? app.manufacturer
     : app.path;
 
+  const hasLicenseVault = Boolean(app.serialKey || app.licenseType || app.licenseAccount);
+  const licenseBadgeHtml = hasLicenseVault
+    ? `<span class="app-card-key-badge" title="License / Serial saved in Vault (${escapeHtml(app.licenseType || 'Saved')})">🔑</span>`
+    : '';
+
   return `
     <div class="app-card ${isRecent ? 'recent' : ''}"
          data-path="${escapeHtml(app.path)}"
          data-name="${escapeHtml(app.name)}"
          draggable="${state.editMode ? 'true' : 'false'}">
       ${editBadge}
+      ${licenseBadgeHtml}
       <button type="button" class="favorite-btn ${isFav ? 'active' : ''}" data-action="favorite-app" title="Toggle Favorite">
         ${isFav ? '⭐' : '☆'}
       </button>
@@ -506,6 +485,12 @@ function openAddAppModal() {
   document.getElementById('appPath').value = '';
   document.getElementById('appIcon').value = '🎹';
   updateIconPreview('🎹');
+  const licTypeEl = document.getElementById('appLicenseType');
+  const licAcctEl = document.getElementById('appLicenseAccount');
+  const serialEl = document.getElementById('appSerialKey');
+  if (licTypeEl) licTypeEl.value = '';
+  if (licAcctEl) licAcctEl.value = '';
+  if (serialEl) serialEl.value = '';
   document.getElementById('deleteAppModalBtn').style.display = 'none';
   document.getElementById('appModal').classList.add('active');
 }
@@ -523,6 +508,12 @@ function openEditAppModal(appPath) {
   document.getElementById('appPath').value = app.path || '';
   document.getElementById('appIcon').value = app.icon || '🎵';
   updateIconPreview(app.icon || '🎵');
+  const licTypeEl = document.getElementById('appLicenseType');
+  const licAcctEl = document.getElementById('appLicenseAccount');
+  const serialEl = document.getElementById('appSerialKey');
+  if (licTypeEl) licTypeEl.value = app.licenseType || '';
+  if (licAcctEl) licAcctEl.value = app.licenseAccount || '';
+  if (serialEl) serialEl.value = app.serialKey || '';
   document.getElementById('deleteAppModalBtn').style.display = 'inline-block';
   document.getElementById('appModal').classList.add('active');
 }
@@ -534,6 +525,9 @@ async function saveAppFromModal() {
   const appPath = document.getElementById('appPath').value.trim();
   const categoryName = document.getElementById('appCategory').value || 'Utilities';
   const icon = document.getElementById('appIcon').value.trim() || '🎹';
+  const licenseType = (document.getElementById('appLicenseType')?.value || '').trim();
+  const licenseAccount = (document.getElementById('appLicenseAccount')?.value || '').trim();
+  const serialKey = (document.getElementById('appSerialKey')?.value || '').trim();
 
   if (!name || !appPath) {
     showError('Please fill in both App Name and App Path.');
@@ -541,10 +535,14 @@ async function saveAppFromModal() {
   }
 
   let favorite = false;
+  let version = '';
+  let arch = 'Universal';
   if (origPath) {
     const existing = findAppByPath(origPath);
     if (existing) {
       favorite = Boolean(existing.app.favorite);
+      version = existing.app.version || '';
+      arch = existing.app.arch || 'Universal';
       existing.category.apps.splice(existing.index, 1);
     }
   }
@@ -560,7 +558,12 @@ async function saveAppFromModal() {
     manufacturer,
     path: appPath,
     icon,
-    favorite
+    version,
+    arch,
+    favorite,
+    licenseType,
+    licenseAccount,
+    serialKey
   });
 
   await saveConfig();
@@ -709,6 +712,9 @@ function buildDisplayPlugins() {
         rating: p.rating || 0,
         favorite: Boolean(p.favorite),
         notes: p.notes || '',
+        licenseType: p.licenseType || '',
+        licenseAccount: p.licenseAccount || '',
+        serialKey: p.serialKey || '',
         paths: [p.path],
         primaryPath: p.path,
         hasVersionMismatch: Boolean(diag.hasVersionMismatch),
@@ -735,6 +741,9 @@ function buildDisplayPlugins() {
         rating: p.rating || 0,
         favorite: Boolean(p.favorite),
         notes: p.notes || '',
+        licenseType: p.licenseType || '',
+        licenseAccount: p.licenseAccount || '',
+        serialKey: p.serialKey || '',
         paths: [],
         primaryPath: p.path,
         hasVersionMismatch: Boolean(diag.hasVersionMismatch),
@@ -751,6 +760,9 @@ function buildDisplayPlugins() {
     if (p.favorite) g.favorite = true;
     if ((p.rating || 0) > g.rating) g.rating = p.rating;
     if (p.notes && !g.notes) g.notes = p.notes;
+    if (p.licenseType && !g.licenseType) g.licenseType = p.licenseType;
+    if (p.licenseAccount && !g.licenseAccount) g.licenseAccount = p.licenseAccount;
+    if (p.serialKey && !g.serialKey) g.serialKey = p.serialKey;
     if ((p.arch || '').toLowerCase().includes('intel')) g.arch = p.arch;
   });
 
@@ -797,9 +809,12 @@ function renderPluginDiagnosticsBanner(items) {
 
   const f = state.currentPluginFilter;
   const mismatchItems = items.filter(i => i.hasVersionMismatch);
-  const redundantItems = items.filter(i => i.hasRedundantVst2);
 
   if (f === 'mismatch') {
+    if (state.hidePluginDiagBannerForFilter === 'mismatch') {
+      banner.style.display = 'none';
+      return;
+    }
     const centers = getDetectedUpdateCenters();
     const pillsHtml = centers.length > 0
       ? `<div class="diag-banner-pills">
@@ -809,7 +824,10 @@ function renderPluginDiagnosticsBanner(items) {
       : '';
     banner.style.display = 'block';
     banner.innerHTML = `
-      <div class="diag-banner-title">🔀 What does "Version Mismatch" mean &amp; how do I resolve it?</div>
+      <div class="diag-banner-header">
+        <div class="diag-banner-title">🔀 What does "Version Mismatch" mean &amp; how do I resolve it?</div>
+        <button type="button" class="diag-banner-close-btn" data-action="close-diag-banner" title="Dismiss Guide">✕</button>
+      </div>
       <div class="diag-banner-body">
         <p><strong>Don't panic — nothing is broken!</strong> A Version Mismatch simply means two formats of the same plugin on your computer (for example, the <strong>AU</strong> version used by Logic Pro and the <strong>VST3</strong> version used by Ableton/Cubase) have slightly different version numbers on disk.</p>
         <ul>
@@ -822,9 +840,16 @@ function renderPluginDiagnosticsBanner(items) {
   }
 
   if (f === 'redundant-vst2') {
+    if (state.hidePluginDiagBannerForFilter === 'redundant-vst2') {
+      banner.style.display = 'none';
+      return;
+    }
     banner.style.display = 'block';
     banner.innerHTML = `
-      <div class="diag-banner-title">📦 What does "Redundant VST2" mean &amp; should I remove them?</div>
+      <div class="diag-banner-header">
+        <div class="diag-banner-title">📦 What does "Redundant VST2" mean &amp; should I remove them?</div>
+        <button type="button" class="diag-banner-close-btn" data-action="close-diag-banner" title="Dismiss Guide">✕</button>
+      </div>
       <div class="diag-banner-body">
         <p>These plugins have <strong>both</strong> the legacy <strong>VST (VST2)</strong> format and the modern <strong>VST3</strong> format installed on your hard drive.</p>
         <ul>
@@ -835,9 +860,16 @@ function renderPluginDiagnosticsBanner(items) {
   }
 
   if (f === 'rosetta') {
+    if (state.hidePluginDiagBannerForFilter === 'rosetta') {
+      banner.style.display = 'none';
+      return;
+    }
     banner.style.display = 'block';
     banner.innerHTML = `
-      <div class="diag-banner-title">⚠️ What does "Intel Only (Rosetta)" mean on Apple Silicon?</div>
+      <div class="diag-banner-header">
+        <div class="diag-banner-title">⚠️ What does "Intel Only (Rosetta)" mean on Apple Silicon?</div>
+        <button type="button" class="diag-banner-close-btn" data-action="close-diag-banner" title="Dismiss Guide">✕</button>
+      </div>
       <div class="diag-banner-body">
         <p>These plugins contain <strong>Intel (x86_64)</strong> code only and require macOS Rosetta translation on Apple Silicon (M1–M5) Macs.</p>
         <ul>
@@ -933,13 +965,17 @@ function renderPlugins() {
     const mismatchBadge = item.hasVersionMismatch
       ? `<span class="plugin-diag-badge mismatch" title="Version mismatch across formats: ${escapeHtml(item.versionBreakdown)}">🔀 Mismatch</span>`
       : '';
+    const hasLicense = Boolean(item.serialKey || item.licenseType || item.licenseAccount);
+    const licenseBadge = hasLicense
+      ? `<span class="plugin-diag-badge license" title="License: ${escapeHtml(item.licenseType || 'Saved')}${item.licenseAccount ? ' (' + escapeHtml(item.licenseAccount) + ')' : ''}">🔑 ${escapeHtml(item.licenseType || 'Key')}</span>`
+      : '';
 
     return `
       <tr class="plugin-row ${item.favorite ? 'favorite' : ''}" data-idx="${idx}">
         <td class="favorite-cell ${item.favorite ? 'active' : ''}" data-action="toggle-plugin-fav" style="text-align: center; cursor: pointer;">
           ${item.favorite ? '⭐' : '☆'}
         </td>
-        <td><strong>${escapeHtml(item.name)}</strong></td>
+        <td><strong>${escapeHtml(item.name)}</strong> ${licenseBadge}</td>
         <td><span class="plugin-type ${escapeHtml(item.type)}">${escapeHtml(item.type)}</span></td>
         <td>${formatsHtml}</td>
         <td>${escapeHtml(item.manufacturer)}</td>
@@ -1014,6 +1050,12 @@ function openPluginModal(item) {
   document.getElementById('pluginNotes').value = item.notes || '';
   document.getElementById('pluginFavorite').checked = Boolean(item.favorite);
   document.getElementById('pluginRating').value = item.rating || 0;
+  const pLicType = document.getElementById('pluginLicenseType');
+  const pLicAcct = document.getElementById('pluginLicenseAccount');
+  const pSerial = document.getElementById('pluginSerialKey');
+  if (pLicType) pLicType.value = item.licenseType || '';
+  if (pLicAcct) pLicAcct.value = item.licenseAccount || '';
+  if (pSerial) pSerial.value = item.serialKey || '';
   updateRatingStars(item.rating || 0);
   document.getElementById('pluginModal').classList.add('active');
 }
@@ -1033,6 +1075,9 @@ async function savePluginFromModal() {
   const notes = document.getElementById('pluginNotes').value.trim();
   const favorite = document.getElementById('pluginFavorite').checked;
   const rating = parseInt(document.getElementById('pluginRating').value, 10) || 0;
+  const licenseType = (document.getElementById('pluginLicenseType')?.value || '').trim();
+  const licenseAccount = (document.getElementById('pluginLicenseAccount')?.value || '').trim();
+  const serialKey = (document.getElementById('pluginSerialKey')?.value || '').trim();
   const pathSet = new Set(group.paths);
 
   state.appData.plugins.forEach(p => {
@@ -1040,6 +1085,9 @@ async function savePluginFromModal() {
       p.notes = notes;
       p.favorite = favorite;
       p.rating = rating;
+      p.licenseType = licenseType;
+      p.licenseAccount = licenseAccount;
+      p.serialKey = serialKey;
     }
   });
 
@@ -1763,21 +1811,6 @@ function bindAllEvents() {
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
 
-  // Update & License Centers Quick-Launch Bar delegation on Apps tab
-  document.getElementById('updateCentersQuickBar')?.addEventListener('click', (e) => {
-    const toggleBtn = e.target.closest('[data-action="toggle-updaters-collapse"]');
-    if (toggleBtn) {
-      const curr = localStorage.getItem('mam-updaters-collapsed') === '1';
-      localStorage.setItem('mam-updaters-collapsed', curr ? '0' : '1');
-      renderUpdateCentersBars();
-      return;
-    }
-    const pill = e.target.closest('[data-action="launch-updater"]');
-    if (pill) {
-      launchApp(pill.dataset.path, pill.dataset.name);
-    }
-  });
-
   // Update & License Centers Quick-Launch Hub delegation on Settings tab
   document.getElementById('settingsUpdateCentersBar')?.addEventListener('click', (e) => {
     const pill = e.target.closest('[data-action="launch-updater"]');
@@ -1983,6 +2016,7 @@ function bindAllEvents() {
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       state.currentPluginFilter = btn.dataset.filter;
+      state.hidePluginDiagBannerForFilter = null;
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
       renderPlugins();
     });
@@ -2014,6 +2048,12 @@ function bindAllEvents() {
   document.getElementById('exportCsvBtn')?.addEventListener('click', exportPluginsCsv);
 
   document.getElementById('pluginDiagnosticsBanner')?.addEventListener('click', (e) => {
+    const closeGuideBtn = e.target.closest('[data-action="close-diag-banner"]');
+    if (closeGuideBtn) {
+      state.hidePluginDiagBannerForFilter = state.currentPluginFilter;
+      renderPlugins();
+      return;
+    }
     const dismissBtn = e.target.closest('[data-action="dismiss-mismatch-hint"]');
     if (dismissBtn) {
       localStorage.setItem('mam-hide-mismatch-hint', '1');
@@ -2060,12 +2100,32 @@ function bindAllEvents() {
   }
 
   // 7. Modals (Add/Edit App, Edit Plugin, Welcome)
-  document.getElementById('appModalCloseBtn')?.addEventListener('click', () => closeModal('appModal'));
-  document.getElementById('appModalCancelBtn')?.addEventListener('click', () => closeModal('appModal'));
+  document.getElementById('appModalCloseBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeModal('appModal');
+  });
+  document.getElementById('appModalCancelBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeModal('appModal');
+  });
+  document.getElementById('appModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'appModal') closeModal('appModal');
+  });
   document.getElementById('saveAppBtn')?.addEventListener('click', saveAppFromModal);
   document.getElementById('deleteAppModalBtn')?.addEventListener('click', () => {
     const orig = document.getElementById('appOriginalPath').value;
     if (orig) deleteAppByPath(orig);
+  });
+  document.getElementById('copyAppSerialBtn')?.addEventListener('click', async () => {
+    const val = (document.getElementById('appSerialKey')?.value || '').trim();
+    if (!val) {
+      showError('No serial number entered to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(val);
+      showNotification('📋 Copied', 'Serial key copied to clipboard');
+    } catch (e) { }
   });
 
   document.getElementById('browseAppBtn')?.addEventListener('click', async () => {
@@ -2105,9 +2165,29 @@ function bindAllEvents() {
   });
 
   // Plugin Modal
-  document.getElementById('pluginModalCloseBtn')?.addEventListener('click', () => closeModal('pluginModal'));
-  document.getElementById('pluginModalCancelBtn')?.addEventListener('click', () => closeModal('pluginModal'));
+  document.getElementById('pluginModalCloseBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeModal('pluginModal');
+  });
+  document.getElementById('pluginModalCancelBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeModal('pluginModal');
+  });
+  document.getElementById('pluginModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'pluginModal') closeModal('pluginModal');
+  });
   document.getElementById('savePluginBtn')?.addEventListener('click', savePluginFromModal);
+  document.getElementById('copyPluginSerialBtn')?.addEventListener('click', async () => {
+    const val = (document.getElementById('pluginSerialKey')?.value || '').trim();
+    if (!val) {
+      showError('No serial number entered to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(val);
+      showNotification('📋 Copied', 'Serial key copied to clipboard');
+    } catch (e) { }
+  });
   document.getElementById('pluginMetaInfo')?.addEventListener('click', (e) => {
     const updaterBtn = e.target.closest('[data-action="modal-launch-updater"]');
     if (updaterBtn && updaterBtn.dataset.path) {
