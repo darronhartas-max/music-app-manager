@@ -251,8 +251,6 @@ function renderApps() {
     allApps = allApps
       .filter(a => recentPaths.includes(a.path))
       .sort((a, b) => recentPaths.indexOf(a.path) - recentPaths.indexOf(b.path));
-  } else if (state.currentAppFilter === 'updaters') {
-    allApps = allApps.filter(a => isUpdateOrLicenseCenter(a));
   }
 
   renderUpdateCentersBars();
@@ -610,9 +608,64 @@ function getArchBadgeHtml(arch) {
   return `<span class="badge-arch badge-arch-universal">Universal</span>`;
 }
 
+function normalizeVersionString(v) {
+  return String(v || '').trim().replace(/^v/i, '');
+}
+
+function getPluginGroupKey(p) {
+  return `${(p.name || '').toLowerCase().trim()}::${(p.manufacturer || 'unknown').toLowerCase().trim()}`;
+}
+
+function buildPluginDiagnosticsMap(rawPlugins) {
+  const byKey = new Map();
+  rawPlugins.forEach(p => {
+    const key = getPluginGroupKey(p);
+    if (!byKey.has(key)) {
+      byKey.set(key, { formats: new Set(), versionsByFormat: [], distinctVersions: new Set() });
+    }
+    const entry = byKey.get(key);
+    const fmt = (p.format || 'VST').toUpperCase();
+    entry.formats.add(fmt);
+    const ver = normalizeVersionString(p.version);
+    if (ver && ver !== '-') {
+      entry.distinctVersions.add(ver);
+      entry.versionsByFormat.push(`${fmt}: v${ver}`);
+    }
+  });
+
+  const diagMap = new Map();
+  byKey.forEach((entry, key) => {
+    const hasMismatch = entry.distinctVersions.size > 1;
+    const hasRedundantVst2 = entry.formats.has('VST') && entry.formats.has('VST3');
+    diagMap.set(key, {
+      hasVersionMismatch: hasMismatch,
+      hasRedundantVst2,
+      versionBreakdown: entry.versionsByFormat.join(' • ')
+    });
+  });
+  return diagMap;
+}
+
 function buildDisplayPlugins() {
   const rawPlugins = state.appData.plugins || [];
   const query = state.searchQuery.trim().toLowerCase();
+  const diagMap = buildPluginDiagnosticsMap(rawPlugins);
+
+  // Update counts on diagnostic filter pills if present
+  let mismatchGroupCount = 0;
+  let redundantVst2GroupCount = 0;
+  diagMap.forEach(d => {
+    if (d.hasVersionMismatch) mismatchGroupCount++;
+    if (d.hasRedundantVst2) redundantVst2GroupCount++;
+  });
+  const mismatchBtn = document.querySelector('.filter-btn[data-filter="mismatch"]');
+  if (mismatchBtn) {
+    mismatchBtn.textContent = mismatchGroupCount > 0 ? `🔀 Version Mismatch (${mismatchGroupCount})` : '🔀 Version Mismatch';
+  }
+  const redundantBtn = document.querySelector('.filter-btn[data-filter="redundant-vst2"]');
+  if (redundantBtn) {
+    redundantBtn.textContent = redundantVst2GroupCount > 0 ? `📦 Redundant VST2 (${redundantVst2GroupCount})` : '📦 Redundant VST2';
+  }
 
   // Filter raw plugins first
   const filteredRaw = rawPlugins.filter(p => {
@@ -622,6 +675,7 @@ function buildDisplayPlugins() {
     const type = (p.type || 'unknown').toLowerCase();
     const format = (p.format || '').toUpperCase();
     const arch = (p.arch || '').toLowerCase();
+    const diag = diagMap.get(getPluginGroupKey(p)) || { hasVersionMismatch: false, hasRedundantVst2: false };
 
     if (query && !name.includes(query) && !mfr.includes(query) && !notes.includes(query)) {
       return false;
@@ -631,31 +685,44 @@ function buildDisplayPlugins() {
     if (f === 'favorites') return Boolean(p.favorite);
     if (f === 'instrument' || f === 'effect') return type === f;
     if (f === 'rosetta') return arch.includes('intel') || arch.includes('rosetta');
+    if (f === 'mismatch') return diag.hasVersionMismatch;
+    if (f === 'redundant-vst2') {
+      return state.pluginViewMode === 'flat'
+        ? (diag.hasRedundantVst2 && format === 'VST')
+        : diag.hasRedundantVst2;
+    }
     if (f !== 'all') return format === f.toUpperCase();
     return true;
   });
 
   if (state.pluginViewMode === 'flat') {
-    return filteredRaw.map(p => ({
-      key: p.path,
-      name: p.name || 'Unknown',
-      type: p.type || 'unknown',
-      formats: [p.format || 'VST'],
-      manufacturer: p.manufacturer || 'Unknown',
-      version: p.version || '-',
-      arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
-      rating: p.rating || 0,
-      favorite: Boolean(p.favorite),
-      notes: p.notes || '',
-      paths: [p.path],
-      primaryPath: p.path
-    }));
+    return filteredRaw.map(p => {
+      const diag = diagMap.get(getPluginGroupKey(p)) || {};
+      return {
+        key: p.path,
+        name: p.name || 'Unknown',
+        type: p.type || 'unknown',
+        formats: [p.format || 'VST'],
+        manufacturer: p.manufacturer || 'Unknown',
+        version: p.version || '-',
+        arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
+        rating: p.rating || 0,
+        favorite: Boolean(p.favorite),
+        notes: p.notes || '',
+        paths: [p.path],
+        primaryPath: p.path,
+        hasVersionMismatch: Boolean(diag.hasVersionMismatch),
+        hasRedundantVst2: Boolean(diag.hasRedundantVst2 && (p.format || '').toUpperCase() === 'VST'),
+        versionBreakdown: diag.versionBreakdown || ''
+      };
+    });
   }
 
   // Grouped mode: merge identical plugin name + manufacturer across formats
   const groups = new Map();
   filteredRaw.forEach(p => {
-    const groupKey = `${(p.name || '').toLowerCase().trim()}::${(p.manufacturer || 'unknown').toLowerCase().trim()}`;
+    const groupKey = getPluginGroupKey(p);
+    const diag = diagMap.get(groupKey) || {};
     if (!groups.has(groupKey)) {
       groups.set(groupKey, {
         key: groupKey,
@@ -669,7 +736,10 @@ function buildDisplayPlugins() {
         favorite: Boolean(p.favorite),
         notes: p.notes || '',
         paths: [],
-        primaryPath: p.path
+        primaryPath: p.path,
+        hasVersionMismatch: Boolean(diag.hasVersionMismatch),
+        hasRedundantVst2: Boolean(diag.hasRedundantVst2),
+        versionBreakdown: diag.versionBreakdown || ''
       });
     }
     const g = groups.get(groupKey);
@@ -749,8 +819,14 @@ function renderPlugins() {
 
   tbody.innerHTML = items.map((item, idx) => {
     const stars = item.rating ? '★'.repeat(item.rating) : '-';
-    const formatsHtml = `<div class="format-badges-container">${item.formats.map(getFormatBadgeHtml).join('')}</div>`;
+    const redundantBadge = item.hasRedundantVst2
+      ? `<span class="plugin-diag-badge redundant" title="Legacy VST2 is installed alongside modern VST3">📦 VST2+VST3</span>`
+      : '';
+    const formatsHtml = `<div class="format-badges-container">${item.formats.map(getFormatBadgeHtml).join('')}${redundantBadge}</div>`;
     const archHtml = getArchBadgeHtml(item.arch);
+    const mismatchBadge = item.hasVersionMismatch
+      ? `<span class="plugin-diag-badge mismatch" title="Version mismatch across formats: ${escapeHtml(item.versionBreakdown)}">🔀 Mismatch</span>`
+      : '';
 
     return `
       <tr class="plugin-row ${item.favorite ? 'favorite' : ''}" data-idx="${idx}">
@@ -761,7 +837,12 @@ function renderPlugins() {
         <td><span class="plugin-type ${escapeHtml(item.type)}">${escapeHtml(item.type)}</span></td>
         <td>${formatsHtml}</td>
         <td>${escapeHtml(item.manufacturer)}</td>
-        <td style="font-size: 0.8125rem; color: var(--text-secondary);">${escapeHtml(item.version || '-')}</td>
+        <td style="font-size: 0.8125rem; color: var(--text-secondary);">
+          <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+            <span>${escapeHtml(item.version || '-')}</span>
+            ${mismatchBadge}
+          </div>
+        </td>
         <td>${archHtml}</td>
         <td class="rating-cell" style="text-align: center;">${stars}</td>
         <td class="plugin-notes">${escapeHtml(item.notes || '-')}</td>
@@ -776,8 +857,17 @@ function openPluginModal(item) {
   if (!item) return;
   state.editingPluginGroup = item;
   document.getElementById('pluginName').value = item.name;
-  document.getElementById('pluginMetaInfo').textContent =
-    `${item.manufacturer} • Formats: ${item.formats.join(', ')} • ${item.paths.length} file(s)`;
+  const diagNotes = [];
+  if (item.hasVersionMismatch) {
+    diagNotes.push(`🔀 Version Mismatch (${item.versionBreakdown})`);
+  }
+  if (item.hasRedundantVst2) {
+    diagNotes.push('📦 Both legacy VST2 and VST3 are installed');
+  }
+  const baseMeta = `${item.manufacturer} • Formats: ${item.formats.join(', ')} • ${item.paths.length} file(s)`;
+  document.getElementById('pluginMetaInfo').innerHTML = diagNotes.length > 0
+    ? `${escapeHtml(baseMeta)}<div class="plugin-modal-diag-alert">${diagNotes.map(escapeHtml).join(' &nbsp;•&nbsp; ')}</div>`
+    : escapeHtml(baseMeta);
 
   const pathsListEl = document.getElementById('pluginFormatPathsList');
   if (pathsListEl) {

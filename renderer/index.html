@@ -46,7 +46,6 @@
           <button class="quick-filter-btn active" data-filter="all">All Apps</button>
           <button class="quick-filter-btn" data-filter="favorites">⭐ Favorites</button>
           <button class="quick-filter-btn" data-filter="recent">🕐 Recent</button>
-          <button class="quick-filter-btn" data-filter="updaters" title="Filter to Vendor Update &amp; License Managers">🔄 Update Centers</button>
         </div>
         <div class="view-toggle">
           <button class="view-btn active" data-view="category">📂 By Category</button>
@@ -96,6 +95,8 @@
           <button class="filter-btn" data-filter="AAX">AAX</button>
           <button class="filter-btn" data-filter="VST">VST</button>
           <button class="filter-btn" data-filter="rosetta" title="Intel-only plugins running under Rosetta on Apple Silicon">⚠️ Intel Only</button>
+          <button class="filter-btn" data-filter="mismatch" title="Plugins where installed formats (e.g. AU vs VST3) have different version numbers on disk">🔀 Version Mismatch</button>
+          <button class="filter-btn" data-filter="redundant-vst2" title="Legacy VST2 plugins where the modern VST3 version is also installed">📦 Redundant VST2</button>
         </div>
 
         <div class="plugin-view-actions">
@@ -285,7 +286,7 @@
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.5</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.0.6</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">
