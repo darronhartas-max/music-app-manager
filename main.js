@@ -186,17 +186,13 @@ ipcMain.handle('scan-plugins', async () => {
     }
 });
 
-// 6. Real Icon Extraction
+// 6. Real Icon Extraction (uses sips on macOS .app bundles and getFileIcon on Windows)
 ipcMain.handle('extract-app-icon', async (event, appPath) => {
     try {
-        if (app && typeof app.getFileIcon === 'function') {
-            const icon = await app.getFileIcon(appPath, { size: 'large' });
-            if (icon && !icon.isEmpty()) {
-                return icon.toDataURL();
-            }
-        }
-    } catch (e) { }
-    return null;
+        return await appScanner.extractIcon(appPath);
+    } catch (e) {
+        return null;
+    }
 });
 
 // 7. File & Directory Dialogs

@@ -269,13 +269,20 @@ function renderApps() {
   container.innerHTML = html;
 }
 
+function isValidImageIcon(iconVal) {
+  if (!iconVal || typeof iconVal !== 'string') return false;
+  if (iconVal.startsWith('http://') || iconVal.startsWith('https://')) return true;
+  // A valid base64 image data URL must be longer than the 22-char "data:image/png;base64," prefix
+  return iconVal.startsWith('data:image/') && iconVal.length > 100;
+}
+
 function createAppCardHtml(app) {
   const isRecent = (state.appData.recentApps || []).includes(app.path);
   const isFav = Boolean(app.favorite);
   const iconVal = app.icon || '🎵';
-  const iconHtml = iconVal.startsWith('data:') || iconVal.startsWith('http')
+  const iconHtml = isValidImageIcon(iconVal)
     ? `<img src="${escapeHtml(iconVal)}" class="app-icon-img" alt="${escapeHtml(app.name)}">`
-    : `<div class="app-icon">${escapeHtml(iconVal)}</div>`;
+    : `<div class="app-icon">${escapeHtml(iconVal.startsWith('data:') ? '🎵' : iconVal)}</div>`;
 
   const editBadge = state.editMode
     ? `<button type="button" class="app-card-edit-action-btn" data-action="edit-app" title="Edit App">✏️ Edit</button>`

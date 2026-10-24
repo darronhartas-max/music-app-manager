@@ -87,14 +87,24 @@ const BUNDLE_MANUFACTURERS = {
     'com.sonnox': 'Sonnox',
     'com.voxengo': 'Voxengo',
     'com.cableguys': 'Cableguys',
-    'com.audiomodern': 'Audiomodern'
+    'com.audiomodern': 'Audiomodern',
+    'com.gforce': 'GForce Software',
+    'com.focusrite': 'Focusrite',
+    'org.surge-synth-team': 'Surge Synth Team',
+    'org.audacityteam': 'Audacity',
+    'com.fatar': 'Studiologic',
+    'com.paceap': 'iLok / PACE',
+    'com.muse': 'Muse',
+    'se.propellerheads': 'Reason Studios',
+    'audio.vital': 'Vital Audio',
+    'jp.co.korg': 'Korg'
 };
 
 const KNOWN_PUBLISHERS = {
     'Arturia': /arturia|analog lab|pigments|v collection|mcl|augmented|vocoder v|stage-73|b-3 v|farfisa|piano v|synthi v|mini v|modular v|prophet|oberheim|matrix-12|dx7|cz v|sq80|emulator|buchla|jup-8|cs-80|mellotron|solina|ms-20|jun-6|op-xa|cmi v|clavi v|wurlitzer|vox continental|sem v/i,
     'Native Instruments': /native instruments|ni |kontakt|massive|reaktor|komplete|maschine|traktor|guitar rig|battery|fm8|absynth/i,
     'Waves': /waves|waves central/i,
-    'FabFilter': /fabfilter|pro-q|pro-c|pro-r|pro-l|saturn|timeless|volcano|twin|simplon|micro/i,
+    'FabFilter': /fabfilter|pro-q|pro-c|pro-r|pro-l|saturn|timeless|volcano|twin|simplon/i,
     'iZotope': /izotope|ozone|neutron|rx |nectar|neoverb|vocal doubling|trash/i,
     'Soundtoys': /soundtoys|decapitator|echoboy|crystallizer|panman|microshift|primaltap|sie-q|radiator|devil-loc|little alterboy/i,
     'Valhalla DSP': /valhalla|vintageverb|room|shimmer|delay|supermassive|spacemodulator|uberMod|freqecho/i,
@@ -185,36 +195,48 @@ const EFFECT_KEYWORDS = [
     'echoboy', 'little alterboy', 'infinifilter', 'smooth operator'
 ];
 
-function manufacturerFromBundleId(bundleId) {
+function isKnownMusicBundleId(bundleId) {
+    if (!bundleId) return false;
+    const lower = bundleId.toLowerCase();
+    return Object.keys(BUNDLE_MANUFACTURERS).some(domain => lower.startsWith(domain));
+}
+
+function manufacturerFromBundleId(bundleId, allowGenericFallback = false) {
     if (!bundleId) return null;
     const lower = bundleId.toLowerCase();
     for (const [domain, name] of Object.entries(BUNDLE_MANUFACTURERS)) {
         if (lower.startsWith(domain)) return name;
     }
-    const parts = lower.split('.');
-    if (parts.length >= 2) {
-        const seg = parts[1];
-        const skip = new Set(['apple', 'google', 'microsoft', 'adobe', 'electron', 'app', 'com', 'net', 'org', 'io', 'co', 'uk']);
-        if (!skip.has(seg)) {
-            return seg
-                .replace(/-/g, ' ')
-                .split(' ')
-                .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-                .join(' ');
+    if (allowGenericFallback) {
+        const parts = lower.split('.');
+        if (parts.length >= 2) {
+            const seg = parts[1];
+            const skip = new Set(['apple', 'google', 'microsoft', 'adobe', 'electron', 'app', 'com', 'net', 'org', 'io', 'co', 'uk']);
+            if (!skip.has(seg)) {
+                return seg
+                    .replace(/-/g, ' ')
+                    .split(' ')
+                    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(' ');
+            }
         }
     }
     return null;
 }
 
-function detectManufacturer(nameOrPath, bundleId = '') {
+function detectManufacturer(nameOrPath, bundleId = '', allowGenericFallback = false) {
     if (bundleId) {
-        const fromId = manufacturerFromBundleId(bundleId);
+        const fromId = manufacturerFromBundleId(bundleId, false);
         if (fromId) return fromId;
     }
     for (const [name, regex] of Object.entries(KNOWN_PUBLISHERS)) {
         if (regex.test(nameOrPath) || (bundleId && regex.test(bundleId))) {
             return name;
         }
+    }
+    if (bundleId && allowGenericFallback) {
+        const fallback = manufacturerFromBundleId(bundleId, true);
+        if (fallback) return fallback;
     }
     return 'Unknown';
 }
@@ -228,13 +250,18 @@ function suggestCategory(fileName, bundleId = '', manufacturer = '') {
     }
 
     // License / Utilities
-    if (UPDATE_MANAGERS.some(m => haystack.includes(m)) || /traktor|rekordbox|serato|virtual dj|djay|waves central|native access|avid link|splice|software center|download|install|manager|product manager|access/i.test(haystack)) {
+    if (UPDATE_MANAGERS.some(m => haystack.includes(m)) || /traktor|rekordbox|serato|virtual dj|djay|waves central|native access|avid link|splice|software center|software pass|cherry audio sync|reason companion|midi control center|download|install|manager|product manager|access|control 2/i.test(haystack)) {
         return 'Utilities';
     }
 
     // Guitar & Bass
     if (/guitar|amplitube|bias|neural|helix|kemper|amp sim|archetype|rig |tone king|cory wong|gojira|abasi|nolly|tonex|ampeg/i.test(haystack)) {
         return 'Guitar & Bass';
+    }
+
+    // Audio Tools / Effects (check before Synths so Surge XT Effects and Audacity land in Audio Tools)
+    if (/audacity|surge xt effects|uvr|ultimate vocal remover/i.test(haystack)) {
+        return 'Audio Tools';
     }
 
     // Synths & Virtual Instruments
@@ -249,7 +276,7 @@ function suggestCategory(fileName, bundleId = '', manufacturer = '') {
 
     // Manufacturer Fallback
     const mfr = (manufacturer || '').toLowerCase();
-    if (['arturia', 'spectrasonics', 'u-he', 'vital audio', 'xfer records', 'cherry audio', 'moog', 'korg', 'roland', 'spitfire audio'].includes(mfr)) {
+    if (['arturia', 'spectrasonics', 'u-he', 'vital audio', 'xfer records', 'cherry audio', 'moog', 'korg', 'roland', 'spitfire audio', 'gforce software', 'studiologic', 'surge synth team'].includes(mfr)) {
         return 'Synths';
     }
     if (['fabfilter', 'soundtoys', 'valhalla dsp', 'izotope', 'slate digital', 'oeksound', 'pulsar audio', 'baby audio'].includes(mfr)) {
@@ -282,6 +309,7 @@ module.exports = {
     GENERIC_TERMS,
     INSTRUMENT_KEYWORDS,
     EFFECT_KEYWORDS,
+    isKnownMusicBundleId,
     manufacturerFromBundleId,
     detectManufacturer,
     suggestCategory,

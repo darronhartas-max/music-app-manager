@@ -10,6 +10,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 const {
+    isKnownMusicBundleId,
     detectManufacturer,
     suggestCategory,
     KNOWN_KEYWORDS,
@@ -57,36 +58,69 @@ async function detectMacArchitecture(appPath, plist) {
     return 'Universal';
 }
 
-// Extract app icon using native Electron API with sips fallback
+// Extract app icon: on macOS uses sips on .icns bundle resources; on Windows uses app.getFileIcon
 async function extractAppIcon(targetPath, plist = null) {
-    try {
-        if (app && typeof app.getFileIcon === 'function') {
-            const nativeImg = await app.getFileIcon(targetPath, { size: 'large' });
-            if (nativeImg && !nativeImg.isEmpty()) {
-                return nativeImg.toDataURL();
-            }
-        }
-    } catch (e) { }
+    if (!targetPath || !fs.existsSync(targetPath)) return null;
 
-    // Fallback on macOS via .icns & sips
-    if (process.platform === 'darwin' && plist) {
+    // 1. macOS .app bundle icon extraction via sips (100% reliable on macOS)
+    if (process.platform === 'darwin' && targetPath.endsWith('.app')) {
         try {
-            let iconFile = plist.CFBundleIconFile || plist.CFBundleIconName || '';
-            if (iconFile && !iconFile.endsWith('.icns')) iconFile += '.icns';
-            if (iconFile) {
-                const icnsPath = path.join(targetPath, 'Contents', 'Resources', iconFile);
-                if (fs.existsSync(icnsPath)) {
-                    const tmpPng = path.join(os.tmpdir(), `icon_${Date.now()}_${Math.random().toString(36).slice(2)}.png`);
-                    await execFileSafe('sips', ['-s', 'format', 'png', '-z', '64', '64', icnsPath, '--out', tmpPng]);
-                    if (fs.existsSync(tmpPng)) {
-                        const data = 'data:image/png;base64,' + (await fs.promises.readFile(tmpPng)).toString('base64');
-                        await fs.promises.unlink(tmpPng).catch(() => {});
-                        return data;
+            if (!plist) {
+                plist = await readPlistAsync(path.join(targetPath, 'Contents', 'Info.plist'));
+            }
+            const resDir = path.join(targetPath, 'Contents', 'Resources');
+            let icnsPath = null;
+
+            if (plist) {
+                const candidates = [plist.CFBundleIconFile, plist.CFBundleIconName].filter(Boolean);
+                for (let iconName of candidates) {
+                    const withExt = iconName.endsWith('.icns') ? iconName : `${iconName}.icns`;
+                    const p1 = path.join(resDir, withExt);
+                    const p2 = path.join(resDir, iconName);
+                    if (fs.existsSync(p1)) { icnsPath = p1; break; }
+                    if (fs.existsSync(p2) && p2.endsWith('.icns')) { icnsPath = p2; break; }
+                }
+            }
+
+            // Fallback: find preferred .icns file inside Contents/Resources
+            if (!icnsPath && fs.existsSync(resDir)) {
+                const files = await fs.promises.readdir(resDir);
+                const icnsFiles = files.filter(f => f.toLowerCase().endsWith('.icns'));
+                const preferred = ['appicon.icns', 'icon.icns', 'app.icns'];
+                const matchPref = icnsFiles.find(f => preferred.includes(f.toLowerCase()));
+                if (matchPref) {
+                    icnsPath = path.join(resDir, matchPref);
+                } else if (icnsFiles.length > 0) {
+                    icnsPath = path.join(resDir, icnsFiles[0]);
+                }
+            }
+
+            if (icnsPath && fs.existsSync(icnsPath)) {
+                const tmpPng = path.join(os.tmpdir(), `mam_icon_${Date.now()}_${Math.random().toString(36).slice(2)}.png`);
+                await execFileSafe('sips', ['-s', 'format', 'png', '-z', '128', '128', icnsPath, '--out', tmpPng], 4000);
+                if (fs.existsSync(tmpPng)) {
+                    const buf = await fs.promises.readFile(tmpPng);
+                    await fs.promises.unlink(tmpPng).catch(() => {});
+                    if (buf && buf.length > 64) {
+                        return 'data:image/png;base64,' + buf.toString('base64');
                     }
                 }
             }
         } catch (e) { }
     }
+
+    // 2. Windows (.exe) or fallback via Electron app.getFileIcon
+    try {
+        if (app && typeof app.getFileIcon === 'function') {
+            const nativeImg = await app.getFileIcon(targetPath, { size: 'large' });
+            if (nativeImg && !nativeImg.isEmpty()) {
+                const dataUrl = nativeImg.toDataURL();
+                if (dataUrl && dataUrl.length > 100) {
+                    return dataUrl;
+                }
+            }
+        }
+    } catch (e) { }
 
     return null;
 }
@@ -189,13 +223,22 @@ class AppScanner {
         }
     }
 
+    async extractIcon(appPath) {
+        return await extractAppIcon(appPath);
+    }
+
     async _processMacApp(appPath, appFileName) {
         const appName = appFileName.replace(/\.app$/i, '');
         const lowerName = appName.toLowerCase();
+
+        // Never scan Music App Manager itself
+        if (lowerName === 'music app manager' || lowerName === 'appviewr') return null;
+
         const plistPath = path.join(appPath, 'Contents', 'Info.plist');
         const plist = await readPlistAsync(plistPath);
 
         let bundleId = '';
+        let appCat = '';
         let isMusicApp = false;
         let detectionMethod = '';
         let confidence = 'Low';
@@ -204,30 +247,41 @@ class AppScanner {
 
         if (plist) {
             bundleId = (plist.CFBundleIdentifier || '').toLowerCase();
-            version = plist.CFBundleShortVersionString || plist.CFBundleVersion || '';
-            const appCat = (plist.LSApplicationCategoryType || '').toLowerCase();
+            if (bundleId === 'com.musicappmanager.app') return null;
 
+            version = plist.CFBundleShortVersionString || plist.CFBundleVersion || '';
+            appCat = (plist.LSApplicationCategoryType || '').toLowerCase();
+
+            // 1. Explicit Apple Music/Audio category in Info.plist
             if (appCat.includes('music') || appCat.includes('audio')) {
                 isMusicApp = true;
                 detectionMethod = 'plist-category';
                 confidence = 'High';
             }
 
-            manufacturer = detectManufacturer(appPath + ' ' + appName, bundleId);
-            if (manufacturer !== 'Unknown') {
+            // 2. Known Music Publisher Bundle ID (Ableton, Arturia, Cherry Audio, GForce, NI, UA, etc.)
+            if (!isMusicApp && isKnownMusicBundleId(bundleId)) {
                 isMusicApp = true;
-                detectionMethod = detectionMethod || 'manufacturer-match';
+                detectionMethod = 'plist-bundleid';
                 confidence = 'High';
             }
         }
 
-        if (!isMusicApp && KNOWN_KEYWORDS.some(k => lowerName.includes(k))) {
+        // If the app explicitly declares a non-music category (finance, productivity, social, etc.)
+        // and isn't from a known music publisher, skip it so non-music apps aren't picked up.
+        const NON_MUSIC_CATEGORIES = [
+            'finance', 'business', 'social-networking', 'productivity', 'games',
+            'photography', 'graphics-design', 'news', 'weather', 'medical', 'travel'
+        ];
+        const isExplicitNonMusic = NON_MUSIC_CATEGORIES.some(c => appCat.includes(c));
+
+        if (!isMusicApp && !isExplicitNonMusic && KNOWN_KEYWORDS.some(k => lowerName.includes(k))) {
             isMusicApp = true;
             detectionMethod = 'keyword-known';
             confidence = 'High';
         }
 
-        if (!isMusicApp && GENERIC_TERMS.some(t => lowerName.includes(t))) {
+        if (!isMusicApp && !isExplicitNonMusic && GENERIC_TERMS.some(t => lowerName.includes(t))) {
             isMusicApp = true;
             detectionMethod = 'keyword-generic';
             confidence = 'Medium';
@@ -235,9 +289,7 @@ class AppScanner {
 
         if (!isMusicApp) return null;
 
-        if (manufacturer === 'Unknown') {
-            manufacturer = detectManufacturer(appPath + ' ' + appName, bundleId);
-        }
+        manufacturer = detectManufacturer(appPath + ' ' + appName, bundleId, true);
 
         // Architecture check (Apple Silicon native vs Intel Rosetta)
         const arch = await detectMacArchitecture(appPath, plist);
