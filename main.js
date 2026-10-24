@@ -1,5 +1,5 @@
 // Music App Manager v2.0 - Electron Main Process
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -13,10 +13,11 @@ let mainWindow = null;
 
 function createWindow() {
     const isMac = process.platform === 'darwin';
+    const savedState = configStore.loadWindowState();
 
     const windowOptions = {
-        width: 1440,
-        height: 920,
+        width: savedState.width || 1440,
+        height: savedState.height || 920,
         minWidth: 1040,
         minHeight: 640,
         backgroundColor: '#0a0a0f',
@@ -28,6 +29,28 @@ function createWindow() {
         },
         show: false
     };
+
+    // Restore position only if it falls within an active connected display
+    if (Number.isFinite(savedState.x) && Number.isFinite(savedState.y)) {
+        try {
+            const displays = screen.getAllDisplays();
+            const isVisibleOnAnyDisplay = displays.some(d => {
+                const b = d.bounds;
+                return (
+                    savedState.x >= b.x - 100 &&
+                    savedState.x < b.x + b.width - 100 &&
+                    savedState.y >= b.y - 50 &&
+                    savedState.y < b.y + b.height - 100
+                );
+            });
+            if (isVisibleOnAnyDisplay) {
+                windowOptions.x = savedState.x;
+                windowOptions.y = savedState.y;
+            }
+        } catch (e) {
+            // Ignore screen bounds check errors and fall back to centered
+        }
+    }
 
     if (isMac) {
         windowOptions.titleBarStyle = 'hiddenInset';
@@ -43,6 +66,52 @@ function createWindow() {
     }
 
     mainWindow = new BrowserWindow(windowOptions);
+
+    if (savedState.isMaximized) {
+        mainWindow.maximize();
+    }
+    if (savedState.isFullScreen) {
+        mainWindow.setFullScreen(true);
+    }
+
+    // Track and persist window size & position changes
+    let lastNormalBounds = {
+        width: windowOptions.width,
+        height: windowOptions.height,
+        x: windowOptions.x,
+        y: windowOptions.y
+    };
+    let saveBoundsTimer = null;
+
+    const persistWindowBounds = (immediate = false) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        const isMaximized = mainWindow.isMaximized();
+        const isFullScreen = mainWindow.isFullScreen();
+        if (!isMaximized && !isFullScreen && !mainWindow.isMinimized()) {
+            const b = mainWindow.getBounds();
+            if (b.width >= 1040 && b.height >= 640) {
+                lastNormalBounds = { width: b.width, height: b.height, x: b.x, y: b.y };
+            }
+        }
+        const writeState = () => {
+            configStore.saveWindowState({
+                ...lastNormalBounds,
+                isMaximized,
+                isFullScreen
+            });
+        };
+        if (immediate) {
+            if (saveBoundsTimer) clearTimeout(saveBoundsTimer);
+            writeState();
+        } else {
+            if (saveBoundsTimer) clearTimeout(saveBoundsTimer);
+            saveBoundsTimer = setTimeout(writeState, 250);
+        }
+    };
+
+    mainWindow.on('resize', () => persistWindowBounds(false));
+    mainWindow.on('move', () => persistWindowBounds(false));
+    mainWindow.on('close', () => persistWindowBounds(true));
 
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 

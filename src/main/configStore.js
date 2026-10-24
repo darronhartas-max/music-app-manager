@@ -31,6 +31,7 @@ class ConfigStore {
         this.userDataPath = app.getPath('userData');
         this.configDir = path.join(this.userDataPath, 'config');
         this.configFile = path.join(this.configDir, 'apps-config.json');
+        this.windowStateFile = path.join(this.configDir, 'window-state.json');
         this.iconsDir = path.join(this.userDataPath, 'icons');
 
         this._ensureDirectories();
@@ -115,6 +116,40 @@ class ConfigStore {
         } catch (err) {
             console.error('[ConfigStore] Error saving configuration atomically:', err);
             throw err;
+        }
+    }
+
+    loadWindowState() {
+        const defaultState = { width: 1440, height: 920 };
+        try {
+            if (!fs.existsSync(this.windowStateFile)) {
+                return defaultState;
+            }
+            const raw = fs.readFileSync(this.windowStateFile, 'utf8');
+            if (!raw.trim()) return defaultState;
+            const parsed = JSON.parse(raw);
+            return {
+                width: Number.isFinite(parsed.width) && parsed.width >= 1040 ? parsed.width : 1440,
+                height: Number.isFinite(parsed.height) && parsed.height >= 640 ? parsed.height : 920,
+                x: Number.isFinite(parsed.x) ? parsed.x : undefined,
+                y: Number.isFinite(parsed.y) ? parsed.y : undefined,
+                isMaximized: Boolean(parsed.isMaximized),
+                isFullScreen: Boolean(parsed.isFullScreen)
+            };
+        } catch (err) {
+            console.warn('[ConfigStore] Error loading window state, using default:', err);
+            return defaultState;
+        }
+    }
+
+    saveWindowState(state) {
+        try {
+            this._ensureDirectories();
+            const tempFile = this.windowStateFile + '.tmp';
+            fs.writeFileSync(tempFile, JSON.stringify(state, null, 2), 'utf8');
+            fs.renameSync(tempFile, this.windowStateFile);
+        } catch (err) {
+            console.warn('[ConfigStore] Error saving window state:', err);
         }
     }
 }
