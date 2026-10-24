@@ -2,966 +2,285 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music App Manager — User Guide</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #13131a;
-            --bg-tertiary: #1a1a24;
-            --bg-glass: rgba(26, 26, 36, 0.85);
-            --accent-primary: #6366f1;
-            --accent-secondary: #8b5cf6;
-            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            --text-primary: #ffffff;
-            --text-secondary: #a0a0b8;
-            --text-muted: #6b6b7f;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --radius-sm: 0.375rem;
-            --radius-md: 0.625rem;
-            --radius-lg: 0.875rem;
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-            --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music App Manager — User Guide</title>
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #13131a;
+      --bg-tertiary: #1a1a24;
+      --accent-primary: #6366f1;
+      --accent-secondary: #8b5cf6;
+      --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0b8;
+      --text-muted: #6b6b7f;
+      --border-color: rgba(255, 255, 255, 0.1);
+      --radius-md: 0.625rem;
+      --radius-lg: 0.875rem;
+    }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.7;
-            -webkit-app-region: no-drag;
-        }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.65;
+    }
 
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
-                radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
-        }
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
 
-        /* ── Sidebar layout ── */
-        .layout {
-            display: flex;
-            height: 100vh;
-            position: relative;
-            z-index: 1;
-        }
+    nav {
+      width: 250px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      padding: 1.5rem 1.25rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
 
-        nav {
-            width: 240px;
-            flex-shrink: 0;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            position: sticky;
-            top: 0;
-            height: 100vh;
-        }
+    .nav-brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.25rem;
+    }
 
-        .nav-header {
-            padding: 1.5rem 1.25rem 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
+    .nav-version {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
 
-        .nav-logo {
-            font-size: 1.75rem;
-            margin-bottom: 0.5rem;
-        }
+    .nav-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
 
-        .nav-title {
-            font-size: 0.9375rem;
-            font-weight: 700;
-            background: var(--accent-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1.3;
-        }
+    .nav-links a {
+      display: block;
+      padding: 0.5rem 0.75rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      transition: all 0.15s ease;
+    }
 
-        .nav-subtitle {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.25rem;
-        }
+    .nav-links a:hover {
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--text-primary);
+    }
 
-        .nav-list {
-            list-style: none;
-            padding: 0.75rem 0;
-            flex: 1;
-        }
+    main {
+      flex: 1;
+      padding: 2.5rem 3rem;
+      max-width: 900px;
+    }
 
-        .nav-list li a {
-            display: flex;
-            align-items: center;
-            gap: 0.625rem;
-            padding: 0.5rem 1.25rem;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.8125rem;
-            font-weight: 500;
-            border-left: 2px solid transparent;
-            transition: all 0.2s ease;
-        }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-        .nav-list li a:hover,
-        .nav-list li a.active {
-            color: var(--text-primary);
-            background: rgba(99, 102, 241, 0.1);
-            border-left-color: var(--accent-primary);
-        }
+    .lead {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      margin-bottom: 2.5rem;
+    }
 
-        .nav-list li a .nav-icon {
-            font-size: 1rem;
-            flex-shrink: 0;
-        }
+    section {
+      margin-bottom: 2.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+    }
 
-        .nav-section-label {
-            padding: 0.875rem 1.25rem 0.25rem;
-            font-size: 0.6875rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
+    h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
 
-        /* ── Main content ── */
-        main {
-            flex: 1;
-            overflow-y: auto;
-            padding: 2.5rem 3rem;
-            max-width: 860px;
-        }
+    h3 {
+      font-size: 1rem;
+      margin: 1.25rem 0 0.5rem;
+      color: #c7d2fe;
+    }
 
-        /* ── Sections ── */
-        .guide-section {
-            margin-bottom: 3.5rem;
-            scroll-margin-top: 1.5rem;
-        }
+    p, ul, ol {
+      color: var(--text-secondary);
+      font-size: 0.925rem;
+      margin-bottom: 0.75rem;
+    }
 
-        .section-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 2rem;
-            font-size: 0.6875rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            margin-bottom: 0.75rem;
-            background: rgba(99, 102, 241, 0.15);
-            color: var(--accent-primary);
-            border: 1px solid rgba(99, 102, 241, 0.3);
-        }
+    ul, ol {
+      padding-left: 1.5rem;
+    }
 
-        h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            background: var(--accent-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 0.75rem;
-        }
+    li {
+      margin-bottom: 0.4rem;
+    }
 
-        h2 {
-            font-size: 1.375rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
+    strong {
+      color: var(--text-primary);
+    }
 
-        h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin: 1.25rem 0 0.5rem;
-        }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
 
-        p {
-            color: var(--text-secondary);
-            margin-bottom: 0.875rem;
-            font-size: 0.9375rem;
-        }
+    .tip {
+      background: rgba(99, 102, 241, 0.1);
+      border-left: 3px solid var(--accent-primary);
+      padding: 0.85rem 1rem;
+      border-radius: 0 6px 6px 0;
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
 
-        .lead {
-            font-size: 1.0625rem;
-            color: var(--text-secondary);
-            margin-bottom: 1.5rem;
-            line-height: 1.8;
-        }
-
-        /* ── Cards ── */
-        .card {
-            background: var(--bg-glass);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1rem;
-            backdrop-filter: blur(20px);
-        }
-
-        .card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 0.875rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            padding: 1rem 1.125rem;
-            transition: border-color 0.2s;
-        }
-
-        .feature-card:hover {
-            border-color: var(--accent-primary);
-        }
-
-        .feature-icon {
-            font-size: 1.75rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-title {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-        }
-
-        .feature-desc {
-            font-size: 0.8125rem;
-            color: var(--text-secondary);
-            line-height: 1.5;
-        }
-
-        /* ── Steps ── */
-        .steps {
-            display: flex;
-            flex-direction: column;
-            gap: 0.875rem;
-        }
-
-        .step {
-            display: flex;
-            gap: 1rem;
-            align-items: flex-start;
-        }
-
-        .step-num {
-            flex-shrink: 0;
-            width: 1.875rem;
-            height: 1.875rem;
-            background: var(--accent-gradient);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.8125rem;
-            color: white;
-            box-shadow: var(--shadow-glow);
-            margin-top: 0.125rem;
-        }
-
-        .step-body {
-            flex: 1;
-        }
-
-        .step-body strong {
-            display: block;
-            color: var(--text-primary);
-            font-size: 0.9375rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .step-body p {
-            margin-bottom: 0;
-        }
-
-        /* ── Tips / Notes ── */
-        .tip,
-        .note,
-        .shortcut-block {
-            border-radius: var(--radius-md);
-            padding: 0.875rem 1.125rem;
-            margin: 1rem 0;
-            font-size: 0.875rem;
-        }
-
-        .tip {
-            background: rgba(99, 102, 241, 0.1);
-            border-left: 3px solid var(--accent-primary);
-            color: var(--text-secondary);
-        }
-
-        .note {
-            background: rgba(139, 92, 246, 0.08);
-            border-left: 3px solid var(--accent-secondary);
-            color: var(--text-secondary);
-        }
-
-        .tip strong,
-        .note strong {
-            color: var(--text-primary);
-        }
-
-        /* ── Keyboard shortcuts ── */
-        .shortcuts-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1rem;
-        }
-
-        .shortcuts-table th {
-            text-align: left;
-            padding: 0.5rem 0.75rem;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .shortcuts-table td {
-            padding: 0.625rem 0.75rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        }
-
-        .shortcuts-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        kbd {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.125rem 0.5rem;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 0.3125rem;
-            font-family: inherit;
-            font-size: 0.8125rem;
-            color: var(--text-primary);
-            font-weight: 500;
-        }
-
-        /* ── Inline code / tags ── */
-        code {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 0.25rem;
-            padding: 0.1rem 0.4rem;
-            font-family: 'SF Mono', 'Fira Code', monospace;
-            font-size: 0.8125rem;
-            color: #a78bfa;
-        }
-
-        /* ── Hero banner ── */
-        .hero {
-            background: var(--accent-gradient);
-            border-radius: var(--radius-lg);
-            padding: 2rem 2.5rem;
-            margin-bottom: 2.5rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hero::after {
-            content: '🎵';
-            position: absolute;
-            right: 2rem;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 5rem;
-            opacity: 0.2;
-        }
-
-        .hero h1 {
-            -webkit-text-fill-color: white;
-            color: white;
-            background: none;
-            font-size: 1.75rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .hero p {
-            color: rgba(255, 255, 255, 0.85);
-            margin: 0;
-            font-size: 1rem;
-        }
-
-        /* ── Divider ── */
-        hr {
-            border: none;
-            border-top: 1px solid var(--border-color);
-            margin: 2.5rem 0;
-        }
-
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--bg-tertiary);
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--accent-primary);
-        }
-    </style>
+    kbd {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.8rem;
+      color: var(--text-primary);
+    }
+  </style>
 </head>
 
 <body>
+  <div class="layout">
+    <nav>
+      <div class="nav-brand">🎵 Music App Manager</div>
+      <div class="nav-version">User Guide • v2.0.1</div>
+      <ul class="nav-links">
+        <li><a href="#getting-started">1. Getting Started</a></li>
+        <li><a href="#apps-dashboard">2. Apps Dashboard</a></li>
+        <li><a href="#edit-reorder-mode">3. Edit / Reorder Mode</a></li>
+        <li><a href="#plugins-catalog">4. Plugins Catalog &amp; Sorting</a></li>
+        <li><a href="#category-manager">5. Managing Categories</a></li>
+        <li><a href="#tools-maintenance">6. Scanners &amp; Maintenance</a></li>
+        <li><a href="#shortcuts">7. Keyboard Shortcuts</a></li>
+      </ul>
+    </nav>
 
-    <div class="layout">
+    <main>
+      <h1>Music App Manager — User Guide</h1>
+      <p class="lead">Everything you need to organize your music applications, reorder categories, and inspect your audio plugins on macOS and Windows PC.</p>
 
-        <!-- ── Sidebar Navigation ── -->
-        <nav>
-            <div class="nav-header">
-                <div class="nav-logo">🎵</div>
-                <div class="nav-title">Music App Manager</div>
-                <div class="nav-subtitle">User Guide</div>
-            </div>
+      <section id="getting-started">
+        <h2>🚀 1. Getting Started</h2>
+        <p>When you first open Music App Manager, populate your library in two quick steps from the <strong>⚙️ Tools</strong> tab:</p>
+        <ol>
+          <li><strong>Scan for Music Apps:</strong> Automatically discovers DAWs, standalone synths, guitar amp sims, and audio utilities in <code>/Applications</code> (macOS) or Start Menu / <code>Program Files</code> (Windows), complete with real app icons.</li>
+          <li><strong>Scan for Plugins:</strong> Scans standard and custom folders for <strong>VST3, AU, CLAP, AAX, and VST2</strong> plugins, identifying manufacturers, versions, and CPU architectures.</li>
+        </ol>
+      </section>
 
-            <ul class="nav-list">
-                <li class="nav-section-label">Getting Started</li>
-                <li><a href="#overview" class="nav-icon-link"><span class="nav-icon">🏠</span> Overview</a></li>
-                <li><a href="#first-run"><span class="nav-icon">🚀</span> First Run</a></li>
+      <section id="apps-dashboard">
+        <h2>🎹 2. Apps Dashboard &amp; Category Ordering</h2>
+        <ul>
+          <li><strong>Launch Any App:</strong> Click any app card in normal mode to launch it immediately.</li>
+          <li><strong>Group by Category or Manufacturer:</strong> Use the toolbar toggle to view apps grouped by workflow category (<em>DAWs, Synths, Guitar &amp; Bass, Audio Tools, Utilities</em>) or by manufacturer (<em>Arturia, Native Instruments, Ableton, etc.</em>).</li>
+          <li><strong>Drag &amp; Drop Categories:</strong> In <em>By Category</em> view, grab any category header by its drag handle (<span class="badge">⠿</span>) and drag it up or down onto another category section to reorder your categories directly on the Apps page.</li>
+          <li><strong>Right-Click Context Menu:</strong> Right-click any app card at any time to <em>Launch</em>, <em>Toggle Favorite</em>, <em>Edit Details</em>, <em>Show in Finder / Explorer</em>, or <em>Remove from Library</em>.</li>
+        </ul>
+      </section>
 
-                <li class="nav-section-label">Core Features</li>
-                <li><a href="#apps-tab"><span class="nav-icon">🎹</span> Apps Tab</a></li>
-                <li><a href="#plugins-tab"><span class="nav-icon">🔌</span> Plugins Tab</a></li>
-                <li><a href="#search"><span class="nav-icon">🔍</span> Search</a></li>
+      <section id="edit-reorder-mode">
+        <h2>✏️ 3. What Does "Edit / Reorder" Mode Do?</h2>
+        <p>Clicking the <strong>✏️ Edit / Reorder</strong> button on the Apps toolbar switches the dashboard from <em>Launch Mode</em> into <em>Customize Mode</em>:</p>
+        <ul>
+          <li><strong>Safe Clicking (No Accidental Launches):</strong> While Edit Mode is active, clicking an app card opens its <strong>Edit App</strong> window instead of launching the application.</li>
+          <li><strong>Drag &amp; Drop App Cards:</strong> Drag any app card left or right (or even into a different category) to arrange your cards in your preferred order.</li>
+          <li><strong>Drag &amp; Drop Categories:</strong> Drag category headers by their <span class="badge">⠿</span> handle or use the <span class="badge">⬆️</span> <span class="badge">⬇️</span> buttons on each category header.</li>
+          <li><strong>Quick Edit &amp; Delete Buttons:</strong> Every card displays <span class="badge">✏️ Edit</span> and <span class="badge">🗑️</span> buttons so you can quickly rename apps, move them to another category, change their icon, or remove them.</li>
+        </ul>
+        <div class="tip">💡 Click <strong>✅ Done Editing</strong> (or press <kbd>Cmd/Ctrl</kbd> + <kbd>E</kbd>) when finished to return to one-click app launching.</div>
+      </section>
 
-                <li class="nav-section-label">Tools & Settings</li>
-                <li><a href="#scanning"><span class="nav-icon">📡</span> Scanning</a></li>
-                <li><a href="#edit-mode"><span class="nav-icon">✏️</span> Edit Mode</a></li>
-                <li><a href="#categories"><span class="nav-icon">📁</span> Categories</a></li>
-                <li><a href="#icons"><span class="nav-icon">🖼️</span> Icons</a></li>
-
-                <li class="nav-section-label">Reference</li>
-                <li><a href="#shortcuts"><span class="nav-icon">⌨️</span> Shortcuts</a></li>
-                <li><a href="#tips"><span class="nav-icon">💡</span> Tips & Tricks</a></li>
-                <li><a href="#faq"><span class="nav-icon">❓</span> FAQ</a></li>
+      <section id="plugins-catalog">
+        <h2>🔌 4. Plugins Catalog &amp; Column Sorting</h2>
+        <ul>
+          <li><strong>Sort by Any Column Header:</strong> Click any column title (<strong>⭐, Name, Type, Format, Manufacturer, Version, Architecture, Rating, or Notes</strong>) to sort the table alphabetically or numerically. Clicking the same column header again toggles between ascending (<span class="badge">▲</span>) and descending (<span class="badge">▼</span>). By default, plugins are ordered alphabetically by <strong>Name (A–Z)</strong>.</li>
+          <li><strong>Grouped vs. Flat List View:</strong>
+            <ul>
+              <li><strong>Grouped (Default):</strong> Combines identical plugins installed in multiple formats (e.g., <em>VST3 + AU + AAX</em>) into a single clean row with format badges.</li>
+              <li><strong>Flat List:</strong> Shows every individual plugin file on disk as its own row.</li>
             </ul>
-        </nav>
-
-        <!-- ── Main Content ── -->
-        <main>
-
-            <!-- Hero -->
-            <div class="hero">
-                <h1>Music App Manager — User Guide</h1>
-                <p>Your personal launcher and catalogue for music production software and audio plugins.</p>
-            </div>
-
-            <!-- Overview -->
-            <section class="guide-section" id="overview">
-                <div class="section-badge">📖 Introduction</div>
-                <h2>🏠 Overview</h2>
-                <p class="lead">Music App Manager is a desktop application built for music producers. It gives you a
-                    single, beautiful dashboard to launch your music apps, browse your plugin library, and keep
-                    everything organised by category.</p>
-
-                <div class="card-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">🎹</div>
-                        <div class="feature-title">App Launcher</div>
-                        <div class="feature-desc">One-click launch for all your music apps, organised into categories
-                            you define.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🔌</div>
-                        <div class="feature-title">Plugin Library</div>
-                        <div class="feature-desc">Catalogue every VST, VST3, and AU plugin on your system with full
-                            details.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">📡</div>
-                        <div class="feature-title">Auto Scanner</div>
-                        <div class="feature-desc">Reads your app bundles directly to detect music software and identify
-                            manufacturers.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🔍</div>
-                        <div class="feature-title">Fuzzy Search</div>
-                        <div class="feature-desc">Instantly find any app or plugin with smart matching — even with
-                            partial or approximate names.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">✏️</div>
-                        <div class="feature-title">Drag & Drop</div>
-                        <div class="feature-desc">Reorder your app cards into exactly the layout you want using Edit
-                            Mode.</div>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">⭐</div>
-                        <div class="feature-title">Favourites</div>
-                        <div class="feature-desc">Star your most-used apps and filter to them instantly.</div>
-                    </div>
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- First Run -->
-            <section class="guide-section" id="first-run">
-                <div class="section-badge">🚀 Getting Started</div>
-                <h2>🚀 First Run</h2>
-                <p>When you launch Music App Manager for the first time with an empty library, a welcome screen will
-                    guide you through setup. Here's the recommended flow:</p>
-
-                <div class="steps">
-                    <div class="step">
-                        <div class="step-num">1</div>
-                        <div class="step-body">
-                            <strong>Go to the Tools tab</strong>
-                            <p>Click <strong>Tools</strong> in the navigation bar at the top of the app.</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">2</div>
-                        <div class="step-body">
-                            <strong>Scan for Music Apps</strong>
-                            <p>Under <em>🎵 App Scanner</em>, click <strong>Scan for Music Apps</strong>. The app scans
-                                your <code>/Applications</code> folder, reads each app's bundle to identify the software
-                                and manufacturer, and presents a list for you to review.</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">3</div>
-                        <div class="step-body">
-                            <strong>Select and add apps</strong>
-                            <p>Review the detected apps, assign categories, and click <strong>Add Selected
-                                    Apps</strong>. All chosen apps appear immediately on the Apps tab.</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">4</div>
-                        <div class="step-body">
-                            <strong>Scan for Plugins</strong>
-                            <p>Under <em>🔍 Plugin Scanner</em>, click <strong>Scan for Plugins</strong>. The scanner
-                                checks all standard plugin directories (VST, VST3, AU for both system-wide and
-                                user-level paths). Click <strong>Add X Plugins</strong> when done.</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">5</div>
-                        <div class="step-body">
-                            <strong>You're done!</strong>
-                            <p>Your library is populated. Click any app card to launch it, use the search bar to find
-                                plugins, and use Edit Mode to reorganise your layout.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tip" style="margin-top:1.25rem">
-                    <strong>💡 Tip:</strong> If the scanner misses an app (e.g. installed in a non-standard location),
-                    use the <strong>+ Add App</strong> button on the Apps tab to add it manually.
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- Apps Tab -->
-            <section class="guide-section" id="apps-tab">
-                <div class="section-badge">🎹 Apps</div>
-                <h2>🎹 Apps Tab</h2>
-                <p>The Apps tab is your main launcher. Apps are displayed as cards grouped by category.</p>
-
-                <h3>Launching an App</h3>
-                <p>Click any app card to launch the application immediately. Recently launched apps are highlighted with
-                    a subtle glow, and appear in the <strong>Recent</strong> filter.</p>
-
-                <h3>Quick Filters</h3>
-                <div class="card">
-                    <p style="margin:0">Use the filter buttons in the toolbar to view:</p>
-                    <ul style="margin-top:0.5rem;padding-left:1.25rem;color:var(--text-secondary);font-size:0.9rem">
-                        <li style="margin-bottom:0.25rem"><strong style="color:var(--text-primary)">All</strong> — every
-                            app in your library</li>
-                        <li style="margin-bottom:0.25rem"><strong style="color:var(--text-primary)">Favourites
-                                ⭐</strong> — apps you've starred</li>
-                        <li><strong style="color:var(--text-primary)">Recent 🕐</strong> — apps launched in this session
-                        </li>
-                    </ul>
-                </div>
-
-                <h3>Favouriting an App</h3>
-                <p>Hover over any app card — a <strong>☆</strong> star button appears in the top-left corner. Click it
-                    to toggle the app as a favourite. Stars persist between sessions.</p>
-
-                <h3>Adding an App Manually</h3>
-                <p>Click <strong>+ Add App</strong> in the toolbar. Fill in the name, path (use the Browse button to
-                    pick the <code>.app</code> file), manufacturer, category, and an emoji icon. You can also upload a
-                    custom image icon using the <strong>🖼️ Upload</strong> button.</p>
-
-                <h3>Editing an App</h3>
-                <p>Enable <strong>Edit Mode</strong> (see below), then click any app card to open the edit panel where
-                    you can change its name, category, manufacturer, or icon.</p>
-            </section>
-
-            <hr>
-
-            <!-- Plugins Tab -->
-            <section class="guide-section" id="plugins-tab">
-                <div class="section-badge">🔌 Plugins</div>
-                <h2>🔌 Plugins Tab</h2>
-                <p>The Plugins tab displays your full audio plugin library in a searchable, filterable table.</p>
-
-                <h3>Filtering Plugins</h3>
-                <p>Use the format filter buttons at the top to narrow the list:</p>
-                <div class="card">
-                    <ul style="padding-left:1.25rem;color:var(--text-secondary);font-size:0.9rem">
-                        <li style="margin-bottom:0.25rem"><strong style="color:var(--text-primary)">All</strong> — full
-                            library</li>
-                        <li style="margin-bottom:0.25rem"><strong style="color:var(--text-primary)">Instruments</strong>
-                            — synths, samplers, virtual instruments</li>
-                        <li style="margin-bottom:0.25rem"><strong style="color:var(--text-primary)">Effects</strong> —
-                            reverbs, compressors, EQs, delays</li>
-                        <li><strong style="color:var(--text-primary)">VST / VST3 / AU</strong> — filter by format</li>
-                    </ul>
-                </div>
-
-                <h3>Plugin Details</h3>
-                <p>Click any plugin row to open its detail panel. You can view and edit the plugin's type, format,
-                    manufacturer, notes, and path. Use the notes field to record licence information, serial numbers, or
-                    other reminders.</p>
-
-                <div class="note">
-                    <strong>Note:</strong> The plugin scanner reads metadata from the file path and name. For precise
-                    type identification (Instrument vs Effect), edit the plugin's details manually after scanning.
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- Search -->
-            <section class="guide-section" id="search">
-                <div class="section-badge">🔍 Search</div>
-                <h2>🔍 Search</h2>
-                <p>The search bar in the header works across both Apps and Plugins depending on which tab is active.</p>
-
-                <h3>Fuzzy Search (Apps)</h3>
-                <p>On the Apps tab, search uses a <strong>fuzzy matching algorithm</strong> that scores results by:</p>
-                <div class="card">
-                    <ul style="padding-left:1.25rem;color:var(--text-secondary);font-size:0.9rem">
-                        <li style="margin-bottom:0.25rem">App name — weighted highest</li>
-                        <li style="margin-bottom:0.25rem">Manufacturer name — weighted medium</li>
-                        <li>Category name — weighted lower</li>
-                    </ul>
-                </div>
-                <p>This means searching for "cher" will still find <em>Cherry Audio</em> synths even without typing the
-                    full name.</p>
-
-                <h3>Search History</h3>
-                <p>Click the search box when it's empty to see your recent searches. Click any item to repeat that
-                    search. Click <strong>Clear</strong> to wipe the history.</p>
-
-                <h3>Clear Search</h3>
-                <p>Click the <strong>✕</strong> button that appears at the right of the search box, or clear the field
-                    manually, to return to the full app/plugin list.</p>
-            </section>
-
-            <hr>
-
-            <!-- Scanning -->
-            <section class="guide-section" id="scanning">
-                <div class="section-badge">⚙️ Tools</div>
-                <h2>📡 Scanning</h2>
-
-                <h3>App Scanner</h3>
-                <p>Found in <strong>Tools → 🎵 App Scanner</strong>. Scans <code>/Applications</code> and detects music
-                    software using three strategies:</p>
-                <div class="steps">
-                    <div class="step">
-                        <div class="step-num">1</div>
-                        <div class="step-body">
-                            <strong>Apple Category Flag</strong>
-                            <p>Reads each app's <code>Info.plist</code> and checks
-                                <code>LSApplicationCategoryType</code>. Any app Apple has categorised as
-                                <code>public.app-category.music</code> or <code>audio</code> is detected regardless of
-                                its display name.</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">2</div>
-                        <div class="step-body">
-                            <strong>Bundle ID Matching</strong>
-                            <p>Checks the app's bundle identifier (e.g. <code>com.cherryaudio.*</code>) against a
-                                database of 80+ known music publisher domains. This catches every Cherry Audio synth,
-                                Arturia product, iZotope tool, etc.</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">3</div>
-                        <div class="step-body">
-                            <strong>Keyword Matching</strong>
-                            <p>If neither of the above match, the app name is checked against an extended list of music
-                                production keywords as a fallback.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <h3>Plugin Scanner</h3>
-                <p>Found in <strong>Tools → 🔍 Plugin Scanner</strong>. Scans these directories:</p>
-                <div class="card">
-                    <ul style="padding-left:1.25rem;color:var(--text-secondary);font-size:0.875rem;line-height:1.9">
-                        <li><code>/Library/Audio/Plug-Ins/VST3</code></li>
-                        <li><code>/Library/Audio/Plug-Ins/VST</code></li>
-                        <li><code>/Library/Audio/Plug-Ins/Components</code> (AU)</li>
-                        <li><code>~/Library/Audio/Plug-Ins/VST3</code></li>
-                        <li><code>~/Library/Audio/Plug-Ins/VST</code></li>
-                        <li><code>~/Library/Audio/Plug-Ins/Components</code></li>
-                    </ul>
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- Edit Mode -->
-            <section class="guide-section" id="edit-mode">
-                <div class="section-badge">✏️ Edit Mode</div>
-                <h2>✏️ Edit Mode & Drag-Drop</h2>
-                <p>Click the <strong>✏️ Edit Mode</strong> button in the Apps toolbar to enter Edit Mode.</p>
-
-                <h3>Reordering Apps</h3>
-                <p>In Edit Mode all app cards become draggable (the cursor changes to a grab hand). Drag any card left
-                    or right to reposition it within a category. A blue indicator line shows where the card will land.
-                    You can also drag cards across category boundaries to move an app to a different category.</p>
-
-                <h3>Editing App Details</h3>
-                <p>In Edit Mode, clicking a card opens the edit form instead of launching the app. From here you can
-                    change the name, category, manufacturer, or icon.</p>
-
-                <h3>Exiting Edit Mode</h3>
-                <p>Click <strong>✏️ Edit Mode</strong> again (it will appear highlighted/active) to return to normal
-                    launch mode. Your ordering is saved automatically.</p>
-
-                <div class="tip">
-                    <strong>💡 Tip:</strong> You can use the fuzzy search while in Edit Mode — search results are also
-                    draggable.
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- Categories -->
-            <section class="guide-section" id="categories">
-                <div class="section-badge">📁 Organisation</div>
-                <h2>📁 Categories</h2>
-                <p>Categories group your apps on the Apps tab. Manage them in <strong>Tools → 📁 Category
-                        Manager</strong>.</p>
-
-                <h3>Adding a Category</h3>
-                <p>Click <strong>+ Add Category</strong> and enter a name. The new category appears immediately and is
-                    available when adding or editing apps.</p>
-
-                <h3>Renaming a Category</h3>
-                <p>Click the <strong>✏️</strong> pencil icon next to a category name. Type the new name and press Enter
-                    or click the confirm button.</p>
-
-                <h3>Reordering Categories</h3>
-                <p>Use the <strong>↑</strong> and <strong>↓</strong> arrow buttons next to each category to move it up
-                    or down in the list. The order shown in the Category Manager is the order categories appear on the
-                    Apps tab.</p>
-
-                <h3>Deleting a Category</h3>
-                <p>Click the <strong>🗑️</strong> delete button. Apps in that category will need to be reassigned — the
-                    scanner will prompt you if any apps become uncategorised.</p>
-            </section>
-
-            <hr>
-
-            <!-- Icons -->
-            <section class="guide-section" id="icons">
-                <div class="section-badge">🖼️ Icons</div>
-                <h2>🖼️ App Icons</h2>
-                <p>Music App Manager extracts the real icon from each app's bundle automatically — no icon library
-                    needed.</p>
-
-                <h3>Automatic Extraction (during scan)</h3>
-                <p>When you run the App Scanner, each detected app's <code>.icns</code> icon file is read from inside
-                    the bundle and stored as a 64×64 image. You see the familiar, real app icon on every card.</p>
-
-                <h3>Refresh Icons</h3>
-                <p>If you've manually added apps (which default to the 🎵 emoji), or if icon data is missing, go to
-                    <strong>Tools → 💾 Configuration → 🖼️ Refresh App Icons</strong>. This re-extracts icons for every
-                    app in your library and saves the result.</p>
-
-                <h3>Custom Icons</h3>
-                <p>When adding or editing an app manually, click <strong>🖼️ Upload</strong> next to the icon field to
-                    choose any image file from your system. JPG, PNG, and WebP are all supported.</p>
-            </section>
-
-            <hr>
-
-            <!-- Shortcuts -->
-            <section class="guide-section" id="shortcuts">
-                <div class="section-badge">⌨️ Reference</div>
-                <h2>⌨️ Keyboard Shortcuts</h2>
-
-                <table class="shortcuts-table">
-                    <thead>
-                        <tr>
-                            <th>Shortcut</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>1</kbd></td>
-                            <td>Switch to Apps tab</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>2</kbd></td>
-                            <td>Switch to Plugins tab</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>3</kbd></td>
-                            <td>Switch to Tools tab</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>F</kbd></td>
-                            <td>Focus search bar</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>Esc</kbd></td>
-                            <td>Clear search / close modal</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>E</kbd></td>
-                            <td>Toggle Edit Mode</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>N</kbd></td>
-                            <td>Add new app</td>
-                        </tr>
-                        <tr>
-                            <td><kbd>⌘</kbd> <kbd>R</kbd></td>
-                            <td>Reload configuration</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </section>
-
-            <hr>
-
-            <!-- Tips -->
-            <section class="guide-section" id="tips">
-                <div class="section-badge">💡 Tips</div>
-                <h2>💡 Tips & Tricks</h2>
-
-                <div class="card" style="margin-bottom:0.875rem">
-                    <h3 style="margin-top:0">Use search history for quick access</h3>
-                    <p style="margin:0">Your last 10 searches are saved. Click the search bar when empty to see them —
-                        great for jumping back to a manufacturer search you use often.</p>
-                </div>
-
-                <div class="card" style="margin-bottom:0.875rem">
-                    <h3 style="margin-top:0">Rescan after installing new software</h3>
-                    <p style="margin:0">After installing a new DAW or plugin suite, run the App Scanner and Plugin
-                        Scanner again. Already-catalogued items are skipped automatically — only new software is added.
-                    </p>
-                </div>
-
-                <div class="card" style="margin-bottom:0.875rem">
-                    <h3 style="margin-top:0">Use Clean Up Missing Apps</h3>
-                    <p style="margin:0">If you uninstall software, go to <strong>Tools → Configuration → 🧹 Clean Up
-                            Missing Apps</strong> to remove any entries whose files no longer exist.</p>
-                </div>
-
-                <div class="card">
-                    <h3 style="margin-top:0">Export your config as a backup</h3>
-                    <p style="margin:0">Use <strong>Tools → Configuration → 📤 Export Config</strong> to save a copy of
-                        your entire library. Store it alongside your project files as a snapshot of your studio setup.
-                    </p>
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- FAQ -->
-            <section class="guide-section" id="faq">
-                <div class="section-badge">❓ FAQ</div>
-                <h2>❓ Frequently Asked Questions</h2>
-
-                <h3>The scanner only found a few apps — why?</h3>
-                <p>The scanner reads <code>/Applications</code> only. If your music software is installed elsewhere
-                    (e.g. in a subfolder or on an external drive), use <strong>+ Add App</strong> to add it manually.
-                </p>
-
-                <h3>My plugins all show as "Unknown" type</h3>
-                <p>Plugin type (Instrument vs Effect) is difficult to determine automatically from the file alone. Click
-                    any plugin row and set the type manually. This also lets you add notes like serial numbers or
-                    licence details.</p>
-
-                <h3>Icons aren't showing for manually-added apps</h3>
-                <p>Go to <strong>Tools → Configuration → 🖼️ Refresh App Icons</strong>. This will extract real icons
-                    from all app bundles in your library, including manually-added ones.</p>
-
-                <h3>I dismissed the welcome screen — how do I see it again?</h3>
-                <p>Open your browser's developer tools or Terminal and run:
-                    <code>localStorage.removeItem('mam-welcome-shown')</code>, then restart the app.</p>
-
-                <h3>Can I use Music App Manager on Windows?</h3>
-                <p>The core app is cross-platform but the scanner is currently optimised for macOS (reads
-                    <code>.app</code> bundles and <code>Info.plist</code>). Windows support is planned for a future
-                    phase.</p>
-
-                <h3>Where is my library data stored?</h3>
-                <p>All data is saved to <code>config/apps-config.json</code> inside the app's folder. Back it up using
-                    <strong>Export Config</strong> in the Tools tab.</p>
-            </section>
-
-        </main>
-    </div>
-
-    <script>
-        // Highlight active nav link on scroll
-        const sections = document.querySelectorAll('.guide-section');
-        const navLinks = document.querySelectorAll('nav a');
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    navLinks.forEach(a => a.classList.remove('active'));
-                    const active = document.querySelector(`nav a[href="#${entry.target.id}"]`);
-                    if (active) active.classList.add('active');
-                }
-            });
-        }, { rootMargin: '-20% 0px -70% 0px' });
-
-        sections.forEach(s => observer.observe(s));
-    </script>
+          </li>
+          <li><strong>Apple Silicon vs. Intel (Rosetta) Detection:</strong> On Apple Silicon Macs (M1–M5), the <strong>Architecture</strong> column shows whether each plugin binary is <em>Apple Silicon</em>, <em>Universal</em>, or <em>Intel (Rosetta)</em>. Click the <strong>⚠️ Intel Only</strong> filter button to immediately find legacy plugins.</li>
+          <li><strong>Rate, Note &amp; Export:</strong> Click any plugin row to give it a 1–5 star rating and save personal notes, or click <strong>📄 Export CSV</strong> to save a spreadsheet of your plugin catalog.</li>
+        </ul>
+      </section>
+
+      <section id="category-manager">
+        <h2>📂 5. Adding &amp; Amending Categories (Settings)</h2>
+        <p>Open the <strong>⚙️ Tools</strong> tab and scroll to <strong>📂 Category Manager</strong> to manage your categories:</p>
+        <ul>
+          <li><strong>Add a New Category:</strong> Type the new category name into the <em>"New category name..."</em> box and click <strong>➕ Add Category</strong> (or press <kbd>Enter</kbd>).</li>
+          <li><strong>Amend / Rename a Category:</strong> Edit the text inside any category's name box and click its <strong>💾 Save Name</strong> button (or press <kbd>Enter</kbd>). All apps inside that category are automatically kept in the renamed category.</li>
+          <li><strong>Reorder or Delete Categories:</strong> Use the <strong>⬆️</strong> / <strong>⬇️</strong> buttons to move categories up or down, or click <strong>🗑️</strong> to remove a category.</li>
+        </ul>
+      </section>
+
+      <section id="tools-maintenance">
+        <h2>🛠️ 6. Custom Folders &amp; Maintenance</h2>
+        <ul>
+          <li><strong>Custom Scan Folders:</strong> Add secondary hard drives or custom VST2/VST3 folders under <em>📁 Custom Scan Folders</em> so the scanner includes them.</li>
+          <li><strong>Clean Up Missing Apps / Plugins:</strong> Checks every item in your library against your hard drive and lets you remove uninstalled entries in one click.</li>
+          <li><strong>Version Tracking:</strong> The <em>ℹ️ About</em> section at the bottom of Tools displays the live application version and platform architecture.</li>
+        </ul>
+      </section>
+
+      <section id="shortcuts">
+        <h2>⌨️ 7. Keyboard Shortcuts</h2>
+        <ul>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>1</kbd> — Switch to Apps Tab</li>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>2</kbd> — Switch to Plugins Tab</li>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>3</kbd> — Switch to ⚙️ Tools Tab</li>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>F</kbd> — Focus Search Bar</li>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>N</kbd> — Add New App</li>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>E</kbd> — Toggle Edit / Reorder Mode</li>
+          <li><kbd>Cmd/Ctrl</kbd> + <kbd>?</kbd> — Show Keyboard Shortcuts Overlay</li>
+          <li><kbd>Esc</kbd> — Close Active Modal or Menu</li>
+        </ul>
+      </section>
+    </main>
+  </div>
 </body>
 
 </html>

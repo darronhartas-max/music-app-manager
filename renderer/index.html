@@ -56,12 +56,21 @@
             <span class="btn-icon">➕</span>
             Add App
           </button>
-          <button id="editModeBtn" class="toolbar-btn">
+          <button id="editModeBtn" class="toolbar-btn" title="Switch between Launch Mode and Edit/Reorder Mode">
             <span class="btn-icon">✏️</span>
-            Edit Mode
+            Edit / Reorder
           </button>
         </div>
       </div>
+
+      <!-- Explanatory banner shown when Edit / Reorder Mode is active -->
+      <div id="editModeBanner" class="edit-mode-banner" style="display: none;">
+        <div class="edit-mode-banner-text">
+          <strong>✏️ Edit &amp; Reorder Mode Active:</strong>
+          <span>Drag <strong>Category headers (⠿)</strong> to reorder categories • Drag <strong>App cards</strong> to reorder apps • Click any card to <strong>Edit</strong> its name, category, or icon • Click <strong>✅ Done Editing</strong> when finished to resume launching apps.</span>
+        </div>
+      </div>
+
       <div id="appsContainer">
         <!-- Apps loaded here -->
       </div>
@@ -99,15 +108,15 @@
         <table class="plugin-table">
           <thead>
             <tr>
-              <th style="width: 44px; text-align: center;">⭐</th>
-              <th data-sort="name" class="sortable">Name <span class="sort-arrow"></span></th>
-              <th data-sort="type" class="sortable">Type <span class="sort-arrow"></span></th>
-              <th>Format</th>
-              <th data-sort="manufacturer" class="sortable">Manufacturer <span class="sort-arrow"></span></th>
-              <th>Version</th>
-              <th>Architecture</th>
-              <th data-sort="rating" class="sortable" style="text-align: center;">Rating <span class="sort-arrow"></span></th>
-              <th>Notes</th>
+              <th data-sort="favorite" class="sortable" style="width: 52px; text-align: center;" title="Sort by Favorites">⭐ <span class="sort-arrow"></span></th>
+              <th data-sort="name" class="sortable asc" title="Sort by Plugin Name">Name <span class="sort-arrow">▲</span></th>
+              <th data-sort="type" class="sortable" title="Sort by Plugin Type">Type <span class="sort-arrow"></span></th>
+              <th data-sort="format" class="sortable" title="Sort by Plugin Format">Format <span class="sort-arrow"></span></th>
+              <th data-sort="manufacturer" class="sortable" title="Sort by Manufacturer">Manufacturer <span class="sort-arrow"></span></th>
+              <th data-sort="version" class="sortable" title="Sort by Version">Version <span class="sort-arrow"></span></th>
+              <th data-sort="arch" class="sortable" title="Sort by CPU Architecture">Architecture <span class="sort-arrow"></span></th>
+              <th data-sort="rating" class="sortable" style="text-align: center;" title="Sort by Rating">Rating <span class="sort-arrow"></span></th>
+              <th data-sort="notes" class="sortable" title="Sort by Notes">Notes <span class="sort-arrow"></span></th>
               <th style="width: 70px; text-align: center;">Actions</th>
             </tr>
           </thead>
@@ -184,17 +193,18 @@
         <!-- 4. Category Manager -->
         <div class="settings-section">
           <h2 class="settings-title">📂 Category Manager</h2>
-          <p class="settings-description">Add, rename, reorder, or remove dashboard categories.</p>
+          <p class="settings-description">Add new categories, amend/rename existing category names, reorder them, or delete categories.</p>
 
-          <div id="categoryList" class="category-list">
-            <!-- Categories rendered here -->
-          </div>
-
-          <div class="settings-actions" style="margin-top: 1rem;">
-            <button id="addCategoryBtn" class="action-btn">
+          <div class="category-add-bar">
+            <input type="text" id="newCategoryNameInput" placeholder="Enter new category name (e.g., Mastering, DJ Tools, Orchestral)..." autocomplete="off">
+            <button type="button" id="addCategoryBtn" class="action-btn primary">
               <span class="btn-icon">➕</span>
               Add Category
             </button>
+          </div>
+
+          <div id="categoryList" class="category-list">
+            <!-- Categories rendered here -->
           </div>
         </div>
 
@@ -258,8 +268,8 @@
         <div class="settings-section">
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
-            <p><strong>Music App Manager</strong> (AppViewr v2.0)</p>
-            <p>Modern cross-platform desktop launcher and plugin catalog for macOS &amp; Windows.</p>
+            <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
+            <p id="appVersionInfo">Version: <strong>2.0.1</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">

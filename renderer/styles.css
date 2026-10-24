@@ -2109,3 +2109,122 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
 .app-card-edit-action-btn:hover {
   background: var(--accent-primary);
 }
+
+
+/* ============================================
+   v2.0.1 Refinements: Edit Mode Banner, Category Drag & Drop, Category Add/Amend Bar
+   ============================================ */
+
+.edit-mode-banner {
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.15rem;
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.edit-mode-banner-text strong {
+  color: #a5b4fc;
+  margin-right: 0.35rem;
+}
+
+.edit-mode-banner-text span {
+  color: var(--text-secondary);
+}
+
+/* Category Drag & Drop on Apps Dashboard */
+.category[draggable="true"] .category-header {
+  cursor: grab;
+}
+
+.category[draggable="true"] .category-header:active {
+  cursor: grabbing;
+}
+
+.category-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-right: 0.35rem;
+  cursor: grab;
+  user-select: none;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.category-header:hover .category-drag-handle {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.category-header-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.category.category-dragging {
+  opacity: 0.45;
+  transform: scale(0.99);
+}
+
+.category.category-drag-over-top {
+  border-top: 3px solid var(--accent-primary);
+  padding-top: 0.5rem;
+}
+
+.category.category-drag-over-bottom {
+  border-bottom: 3px solid var(--accent-primary);
+  padding-bottom: 0.5rem;
+}
+
+/* Category Add & Amend Bar in Settings */
+.category-add-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.category-add-bar input[type="text"] {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.875rem;
+}
+
+.category-add-bar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.category-save-btn {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  color: #c7d2fe;
+  border-radius: 4px;
+  padding: 0.32rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-save-btn:hover {
+  background: var(--accent-primary);
+  color: #ffffff;
+}

@@ -248,29 +248,53 @@ ipcMain.handle('open-external', async (event, url) => {
     }
 });
 
+let guideWindow = null;
+
 ipcMain.handle('open-user-guide', async () => {
-    const guideWin = new BrowserWindow({
-        width: 1100,
-        height: 800,
-        minWidth: 800,
-        minHeight: 600,
-        backgroundColor: '#0a0a0f',
-        title: 'Music App Manager — User Guide',
-        webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: false
-        },
-        titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default'
-    });
-    guideWin.loadFile(path.join(__dirname, 'docs', 'user-guide.html'));
-    guideWin.once('ready-to-show', () => guideWin.show());
+    try {
+        if (guideWindow && !guideWindow.isDestroyed()) {
+            guideWindow.show();
+            guideWindow.focus();
+            return { success: true };
+        }
+
+        guideWindow = new BrowserWindow({
+            width: 1120,
+            height: 820,
+            minWidth: 800,
+            minHeight: 600,
+            backgroundColor: '#0a0a0f',
+            title: `Music App Manager v${app.getVersion()} — User Guide`,
+            webPreferences: {
+                contextIsolation: true,
+                nodeIntegration: false
+            },
+            titleBarStyle: 'default',
+            autoHideMenuBar: true,
+            show: false
+        });
+
+        guideWindow.on('closed', () => {
+            guideWindow = null;
+        });
+
+        const guidePath = path.join(__dirname, 'docs', 'user-guide.html');
+        await guideWindow.loadFile(guidePath);
+        guideWindow.show();
+        guideWindow.focus();
+        return { success: true };
+    } catch (err) {
+        console.error('[Main] Failed to open user guide:', err);
+        return { success: false, error: err.message };
+    }
 });
 
-// 9. Platform Info
+// 9. Platform & App Version Info
 ipcMain.handle('get-platform', async () => {
     return {
         platform: process.platform,
         arch: process.arch,
-        version: process.version
+        version: process.version,
+        appVersion: app.getVersion()
     };
 });

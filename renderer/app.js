@@ -241,17 +241,26 @@ function renderApps() {
         </div>`;
     });
   } else {
-    state.appData.categories.forEach(cat => {
+    state.appData.categories.forEach((cat, catIdx) => {
       const list = allApps.filter(a => a.categoryName === cat.name);
-      if (list.length === 0) return;
+      // Show empty categories when in Edit Mode so users can drag apps into them or reorder them
+      if (list.length === 0 && !state.editMode) return;
+      const totalCatCount = state.appData.categories.length;
       html += `
-        <div class="category" data-category="${escapeHtml(cat.name)}">
-          <div class="category-header">
+        <div class="category" data-category="${escapeHtml(cat.name)}" data-cat-index="${catIdx}" draggable="true">
+          <div class="category-header" title="Drag category header to reorder categories">
+            <span class="category-drag-handle" title="Drag to move category">⠿</span>
             <h2 class="category-title">${escapeHtml(cat.name)}</h2>
             <span class="category-count">${list.length}</span>
+            <div class="category-header-controls">
+              <button type="button" class="reorder-btn" data-action="dash-cat-up" data-cat-index="${catIdx}" ${catIdx === 0 ? 'disabled' : ''} title="Move Category Up">⬆️</button>
+              <button type="button" class="reorder-btn" data-action="dash-cat-down" data-cat-index="${catIdx}" ${catIdx === totalCatCount - 1 ? 'disabled' : ''} title="Move Category Down">⬇️</button>
+            </div>
           </div>
           <div class="app-grid">
-            ${list.map(app => createAppCardHtml(app)).join('')}
+            ${list.length > 0
+              ? list.map(app => createAppCardHtml(app)).join('')
+              : `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 0.75rem;">Empty category — drag apps here or add apps</div>`}
           </div>
         </div>`;
     });
@@ -327,10 +336,33 @@ function toggleEditMode() {
   if (btn) {
     btn.classList.toggle('active', state.editMode);
     btn.innerHTML = state.editMode
-      ? '<span class="btn-icon">✅</span> Done'
-      : '<span class="btn-icon">✏️</span> Edit Mode';
+      ? '<span class="btn-icon">✅</span> Done Editing'
+      : '<span class="btn-icon">✏️</span> Edit / Reorder';
+  }
+  const banner = document.getElementById('editModeBanner');
+  if (banner) {
+    banner.style.display = state.editMode ? 'flex' : 'none';
   }
   renderApps();
+}
+
+async function reorderCategory(draggedCategoryName, targetCategoryName, insertBefore) {
+  if (!draggedCategoryName || !targetCategoryName || draggedCategoryName === targetCategoryName) return;
+  const cats = state.appData.categories;
+  const fromIdx = cats.findIndex(c => c.name === draggedCategoryName);
+  const toIdx = cats.findIndex(c => c.name === targetCategoryName);
+  if (fromIdx === -1 || toIdx === -1) return;
+
+  const [movedCat] = cats.splice(fromIdx, 1);
+  let newTargetIdx = cats.findIndex(c => c.name === targetCategoryName);
+  if (newTargetIdx === -1) newTargetIdx = cats.length;
+
+  const insertIdx = insertBefore ? newTargetIdx : newTargetIdx + 1;
+  cats.splice(insertIdx, 0, movedCat);
+
+  await saveConfig();
+  renderAll();
+  showNotification('📂 Category Reordered', `Moved "${movedCat.name}"`);
 }
 
 async function reorderApp(draggedPath, targetPath, insertBefore) {
@@ -576,14 +608,31 @@ function renderPlugins() {
 
   const items = buildDisplayPlugins();
 
-  // Sort items
-  const field = state.pluginSortField;
+  // Sort items across ANY column header (default: Name A–Z)
+  const field = state.pluginSortField || 'name';
   const dir = state.pluginSortAsc ? 1 : -1;
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
   items.sort((a, b) => {
-    if (field === 'rating') return ((a.rating || 0) - (b.rating || 0)) * dir;
-    const valA = String(a[field] || '').toLowerCase();
-    const valB = String(b[field] || '').toLowerCase();
-    return valA.localeCompare(valB) * dir;
+    let cmp = 0;
+    if (field === 'rating') {
+      cmp = (a.rating || 0) - (b.rating || 0);
+    } else if (field === 'favorite') {
+      cmp = (a.favorite === b.favorite) ? 0 : (a.favorite ? -1 : 1);
+    } else if (field === 'format') {
+      const fmtA = (a.formats || []).slice().sort().join(', ');
+      const fmtB = (b.formats || []).slice().sort().join(', ');
+      cmp = collator.compare(fmtA, fmtB);
+    } else {
+      const valA = String(a[field] || '').trim();
+      const valB = String(b[field] || '').trim();
+      cmp = collator.compare(valA, valB);
+    }
+    // Secondary tie-breaker: alphabetical by name A–Z
+    if (cmp === 0 && field !== 'name') {
+      return collator.compare(String(a.name || ''), String(b.name || ''));
+    }
+    return cmp * dir;
   });
 
   // Update sort header indicators
@@ -743,11 +792,17 @@ function updateStatistics() {
 
 function updatePlatformDisplay() {
   const el = document.getElementById('platformInfo');
-  if (!el) return;
-  const p = state.platformInfo.platform === 'darwin' ? 'macOS'
-    : state.platformInfo.platform === 'win32' ? 'Windows PC'
-    : state.platformInfo.platform;
-  el.textContent = `Platform: ${p} (${state.platformInfo.arch})`;
+  if (el) {
+    const p = state.platformInfo.platform === 'darwin' ? 'macOS'
+      : state.platformInfo.platform === 'win32' ? 'Windows PC'
+      : state.platformInfo.platform;
+    el.textContent = `Platform: ${p} (${state.platformInfo.arch})`;
+  }
+  const verEl = document.getElementById('appVersionInfo');
+  if (verEl) {
+    const ver = state.platformInfo.appVersion || '2.0.1';
+    verEl.innerHTML = `Version: <strong>${escapeHtml(ver)}</strong>`;
+  }
 }
 
 // --- Category Manager ---
@@ -757,21 +812,65 @@ function renderCategoryManager() {
 
   const cats = state.appData.categories;
   if (cats.length === 0) {
-    listEl.innerHTML = `<div style="color: var(--text-muted); font-size: 0.875rem;">No categories configured.</div>`;
+    listEl.innerHTML = `<div style="color: var(--text-muted); font-size: 0.875rem;">No categories configured. Add one above!</div>`;
     return;
   }
 
   listEl.innerHTML = cats.map((cat, idx) => `
     <div class="category-item" data-cat-index="${idx}">
       <div class="category-reorder-btns">
-        <button type="button" class="reorder-btn" data-action="cat-up" ${idx === 0 ? 'disabled' : ''} title="Move Up">⬆️</button>
-        <button type="button" class="reorder-btn" data-action="cat-down" ${idx === cats.length - 1 ? 'disabled' : ''} title="Move Down">⬇️</button>
+        <button type="button" class="reorder-btn" data-action="cat-up" ${idx === 0 ? 'disabled' : ''} title="Move Category Up">⬆️</button>
+        <button type="button" class="reorder-btn" data-action="cat-down" ${idx === cats.length - 1 ? 'disabled' : ''} title="Move Category Down">⬇️</button>
       </div>
-      <input type="text" class="category-name-input" value="${escapeHtml(cat.name)}" data-orig="${escapeHtml(cat.name)}">
+      <input type="text" class="category-name-input" value="${escapeHtml(cat.name)}" data-orig="${escapeHtml(cat.name)}" title="Edit category name and click Save Name or press Enter">
+      <button type="button" class="category-save-btn" data-action="cat-save" title="Save amended category name">💾 Save Name</button>
       <span style="color: var(--text-muted); font-size: 0.75rem; min-width: 60px; text-align: right;">${(cat.apps || []).length} apps</span>
       <button type="button" class="delete-btn" data-action="cat-delete" title="Delete Category">🗑️</button>
     </div>
   `).join('');
+}
+
+async function addNewCategoryFromInput() {
+  const input = document.getElementById('newCategoryNameInput');
+  if (!input) return;
+  const trimmed = input.value.trim();
+  if (!trimmed) {
+    showError('Please enter a category name first.');
+    input.focus();
+    return;
+  }
+  if (state.appData.categories.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
+    showError(`Category "${trimmed}" already exists.`);
+    return;
+  }
+  state.appData.categories.push({ name: trimmed, apps: [] });
+  input.value = '';
+  await saveConfig();
+  renderAll();
+  showNotification('✅ Category Added', `Created category "${trimmed}"`);
+}
+
+async function amendCategoryName(idx, newNameRaw) {
+  const cats = state.appData.categories;
+  const cat = cats[idx];
+  if (!cat) return;
+  const next = (newNameRaw || '').trim();
+  const orig = cat.name;
+  if (!next) {
+    showError('Category name cannot be empty.');
+    renderCategoryManager();
+    return;
+  }
+  if (next === orig) return;
+  if (cats.some((c, i) => i !== idx && c.name.toLowerCase() === next.toLowerCase())) {
+    showError(`A category named "${next}" already exists.`);
+    renderCategoryManager();
+    return;
+  }
+  cat.name = next;
+  await saveConfig();
+  renderAll();
+  showNotification('✏️ Category Renamed', `Renamed "${orig}" → "${next}"`);
 }
 
 // --- Custom Scan Paths ---
@@ -1325,10 +1424,31 @@ function bindAllEvents() {
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
 
-  // 4. Apps Container Event Delegation (Click, Drag & Drop, Right-Click Context Menu)
+  // 4. Apps Container Event Delegation (Click, Category & Card Drag-and-Drop, Right-Click Context Menu)
   const appsContainer = document.getElementById('appsContainer');
   if (appsContainer) {
-    appsContainer.addEventListener('click', (e) => {
+    appsContainer.addEventListener('click', async (e) => {
+      // Category Up/Down buttons on the Apps dashboard
+      const catUpBtn = e.target.closest('[data-action="dash-cat-up"]');
+      const catDownBtn = e.target.closest('[data-action="dash-cat-down"]');
+      if (catUpBtn || catDownBtn) {
+        e.stopPropagation();
+        const idx = parseInt((catUpBtn || catDownBtn).dataset.catIndex, 10);
+        const cats = state.appData.categories;
+        if (catUpBtn && idx > 0) {
+          [cats[idx - 1], cats[idx]] = [cats[idx], cats[idx - 1]];
+          await saveConfig();
+          renderAll();
+          showNotification('📂 Category Moved', `Moved "${cats[idx - 1].name}" up`);
+        } else if (catDownBtn && idx < cats.length - 1) {
+          [cats[idx + 1], cats[idx]] = [cats[idx], cats[idx + 1]];
+          await saveConfig();
+          renderAll();
+          showNotification('📂 Category Moved', `Moved "${cats[idx + 1].name}" down`);
+        }
+        return;
+      }
+
       const card = e.target.closest('.app-card');
       if (!card) return;
       const appPath = card.dataset.path;
@@ -1363,41 +1483,113 @@ function bindAllEvents() {
       }
     });
 
-    // HTML5 Drag & Drop Reordering
+    // HTML5 Drag & Drop for BOTH App Cards and Category Sections
     appsContainer.addEventListener('dragstart', (e) => {
       const card = e.target.closest('.app-card');
-      if (!card || !state.editMode) return;
-      state.draggedAppPath = card.dataset.path;
-      card.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
+      if (card) {
+        if (!state.editMode) {
+          e.preventDefault();
+          return;
+        }
+        e.stopPropagation();
+        state.draggedAppPath = card.dataset.path;
+        state.draggedCategoryName = null;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        return;
+      }
+
+      const catSection = e.target.closest('.category[data-category]');
+      if (catSection && state.currentAppView === 'category') {
+        state.draggedCategoryName = catSection.dataset.category;
+        state.draggedAppPath = null;
+        catSection.classList.add('category-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      }
     });
 
     appsContainer.addEventListener('dragend', () => {
       document.querySelectorAll('.app-card').forEach(c => {
         c.classList.remove('dragging', 'drag-over-left', 'drag-over-right');
       });
+      document.querySelectorAll('.category').forEach(cat => {
+        cat.classList.remove('category-dragging', 'category-drag-over-top', 'category-drag-over-bottom');
+      });
       state.draggedAppPath = null;
+      state.draggedCategoryName = null;
     });
 
     appsContainer.addEventListener('dragover', (e) => {
-      if (!state.editMode || !state.draggedAppPath) return;
-      const card = e.target.closest('.app-card');
-      if (!card || card.dataset.path === state.draggedAppPath) return;
-      e.preventDefault();
-      const rect = card.getBoundingClientRect();
-      const isLeft = e.clientX < rect.left + rect.width / 2;
-      document.querySelectorAll('.app-card').forEach(c => c.classList.remove('drag-over-left', 'drag-over-right'));
-      card.classList.add(isLeft ? 'drag-over-left' : 'drag-over-right');
+      // Case 1: Dragging a Category section
+      if (state.draggedCategoryName) {
+        const targetCat = e.target.closest('.category[data-category]');
+        if (!targetCat || targetCat.dataset.category === state.draggedCategoryName) return;
+        e.preventDefault();
+        const rect = targetCat.getBoundingClientRect();
+        const isTop = e.clientY < rect.top + rect.height / 2;
+        document.querySelectorAll('.category').forEach(c => {
+          c.classList.remove('category-drag-over-top', 'category-drag-over-bottom');
+        });
+        targetCat.classList.add(isTop ? 'category-drag-over-top' : 'category-drag-over-bottom');
+        return;
+      }
+
+      // Case 2: Dragging an App Card (in Edit Mode)
+      if (state.editMode && state.draggedAppPath) {
+        const card = e.target.closest('.app-card');
+        if (card && card.dataset.path !== state.draggedAppPath) {
+          e.preventDefault();
+          const rect = card.getBoundingClientRect();
+          const isLeft = e.clientX < rect.left + rect.width / 2;
+          document.querySelectorAll('.app-card').forEach(c => c.classList.remove('drag-over-left', 'drag-over-right'));
+          card.classList.add(isLeft ? 'drag-over-left' : 'drag-over-right');
+          return;
+        }
+        const catSection = e.target.closest('.category[data-category]');
+        if (catSection) {
+          e.preventDefault();
+        }
+      }
     });
 
-    appsContainer.addEventListener('drop', (e) => {
-      if (!state.editMode || !state.draggedAppPath) return;
-      const card = e.target.closest('.app-card');
-      if (!card || card.dataset.path === state.draggedAppPath) return;
-      e.preventDefault();
-      const rect = card.getBoundingClientRect();
-      const isLeft = e.clientX < rect.left + rect.width / 2;
-      reorderApp(state.draggedAppPath, card.dataset.path, isLeft);
+    appsContainer.addEventListener('drop', async (e) => {
+      // Case 1: Dropping a Category section
+      if (state.draggedCategoryName) {
+        const targetCat = e.target.closest('.category[data-category]');
+        if (!targetCat || targetCat.dataset.category === state.draggedCategoryName) return;
+        e.preventDefault();
+        const rect = targetCat.getBoundingClientRect();
+        const isTop = e.clientY < rect.top + rect.height / 2;
+        await reorderCategory(state.draggedCategoryName, targetCat.dataset.category, isTop);
+        return;
+      }
+
+      // Case 2: Dropping an App Card
+      if (state.editMode && state.draggedAppPath) {
+        const card = e.target.closest('.app-card');
+        if (card && card.dataset.path !== state.draggedAppPath) {
+          e.preventDefault();
+          const rect = card.getBoundingClientRect();
+          const isLeft = e.clientX < rect.left + rect.width / 2;
+          await reorderApp(state.draggedAppPath, card.dataset.path, isLeft);
+          return;
+        }
+        // Dropping onto a Category section (moves app to that category)
+        const catSection = e.target.closest('.category[data-category]');
+        if (catSection) {
+          e.preventDefault();
+          const targetCatName = catSection.dataset.category;
+          const source = findAppByPath(state.draggedAppPath);
+          const destCat = state.appData.categories.find(c => c.name === targetCatName);
+          if (source && destCat && source.category.name !== targetCatName) {
+            const [movedApp] = source.category.apps.splice(source.index, 1);
+            destCat.apps.push(movedApp);
+            await saveConfig();
+            renderAll();
+            showNotification('✅ Moved App', `Moved ${movedApp.name} to ${targetCatName}`);
+          }
+        }
+      }
     });
   }
 
@@ -1569,8 +1761,15 @@ function bindAllEvents() {
     showNotification('🔄 Config Reloaded', 'Configuration refreshed from disk');
   });
   document.getElementById('startFreshBtn')?.addEventListener('click', handleStartFresh);
-  document.getElementById('openUserGuideBtn')?.addEventListener('click', () => {
-    if (state.isElectron) window.electronAPI.openUserGuide();
+  document.getElementById('openUserGuideBtn')?.addEventListener('click', async () => {
+    if (state.isElectron && window.electronAPI.openUserGuide) {
+      const res = await window.electronAPI.openUserGuide();
+      if (res && res.success === false) {
+        showError('Could not open User Guide: ' + (res.error || ''));
+      }
+    } else {
+      window.open('../docs/user-guide.html', '_blank');
+    }
   });
 
   // Delegated actions inside Tools tab (Scan Results, Category Manager, Custom Paths, Cleanup)
@@ -1605,7 +1804,7 @@ function bindAllEvents() {
         document.getElementById('cleanupResults').style.display = 'none';
       }
 
-      // Category Manager buttons
+      // Category Manager buttons (Up, Down, Save Name, Delete)
       const catItem = e.target.closest('.category-item');
       if (catItem) {
         const idx = parseInt(catItem.dataset.catIndex, 10);
@@ -1618,12 +1817,18 @@ function bindAllEvents() {
           [cats[idx + 1], cats[idx]] = [cats[idx], cats[idx + 1]];
           await saveConfig();
           renderAll();
+        } else if (e.target.closest('[data-action="cat-save"]')) {
+          const input = catItem.querySelector('.category-name-input');
+          if (input) {
+            await amendCategoryName(idx, input.value);
+          }
         } else if (e.target.closest('[data-action="cat-delete"]')) {
           const cat = cats[idx];
           if (cat && confirm(`Delete category "${cat.name}" (${(cat.apps || []).length} apps)?`)) {
             cats.splice(idx, 1);
             await saveConfig();
             renderAll();
+            showNotification('🗑️ Category Deleted', `Removed "${cat.name}"`);
           }
         }
       }
@@ -1643,7 +1848,7 @@ function bindAllEvents() {
       }
     });
 
-    // Select all checkbox in App Scan results
+    // Select all checkbox in App Scan results & Category rename on Enter/blur
     settingsTab.addEventListener('change', (e) => {
       if (e.target.id === 'selectAllScannedApps') {
         const checked = e.target.checked;
@@ -1651,32 +1856,28 @@ function bindAllEvents() {
           cb.checked = checked;
         });
       } else if (e.target.classList.contains('category-name-input')) {
-        const orig = e.target.dataset.orig;
-        const next = e.target.value.trim();
-        if (next && next !== orig) {
-          const cat = state.appData.categories.find(c => c.name === orig);
-          if (cat) {
-            cat.name = next;
-            saveConfig().then(renderAll);
-          }
+        const catItem = e.target.closest('.category-item');
+        if (catItem) {
+          const idx = parseInt(catItem.dataset.catIndex, 10);
+          amendCategoryName(idx, e.target.value);
         }
+      }
+    });
+
+    settingsTab.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.classList.contains('category-name-input')) {
+        e.preventDefault();
+        e.target.blur();
       }
     });
   }
 
-  // Add Category button
-  document.getElementById('addCategoryBtn')?.addEventListener('click', async () => {
-    const name = prompt('Enter new category name:');
-    if (name && name.trim()) {
-      const trimmed = name.trim();
-      if (state.appData.categories.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
-        showError('Category already exists.');
-        return;
-      }
-      state.appData.categories.push({ name: trimmed, apps: [] });
-      await saveConfig();
-      renderAll();
-      showNotification('✅ Category Added', `Created "${trimmed}"`);
+  // Add Category button & Enter key in #newCategoryNameInput
+  document.getElementById('addCategoryBtn')?.addEventListener('click', addNewCategoryFromInput);
+  document.getElementById('newCategoryNameInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addNewCategoryFromInput();
     }
   });
 
