@@ -226,43 +226,61 @@ ipcMain.handle('open-external', async (event, url) => {
 
 let guideWindow = null;
 
-ipcMain.handle('open-user-guide', async () => {
+async function openDocWindow(docFileName, titleSuffix) {
     try {
-        if (guideWindow && !guideWindow.isDestroyed()) {
-            guideWindow.show();
-            guideWindow.focus();
-            return { success: true };
+        const allowed = new Set(['user-guide.html', 'terms.html', 'privacy.html']);
+        const safeFile = allowed.has(docFileName) ? docFileName : 'user-guide.html';
+
+        if (!guideWindow || guideWindow.isDestroyed()) {
+            guideWindow = new BrowserWindow({
+                width: 1120,
+                height: 820,
+                minWidth: 800,
+                minHeight: 600,
+                backgroundColor: '#0a0a0f',
+                title: `Music App Manager v${app.getVersion()} — ${titleSuffix}`,
+                webPreferences: {
+                    contextIsolation: true,
+                    nodeIntegration: false
+                },
+                titleBarStyle: 'default',
+                autoHideMenuBar: true,
+                show: false
+            });
+
+            guideWindow.on('closed', () => {
+                guideWindow = null;
+            });
+        } else {
+            guideWindow.setTitle(`Music App Manager v${app.getVersion()} — ${titleSuffix}`);
         }
 
-        guideWindow = new BrowserWindow({
-            width: 1120,
-            height: 820,
-            minWidth: 800,
-            minHeight: 600,
-            backgroundColor: '#0a0a0f',
-            title: `Music App Manager v${app.getVersion()} — User Guide`,
-            webPreferences: {
-                contextIsolation: true,
-                nodeIntegration: false
-            },
-            titleBarStyle: 'default',
-            autoHideMenuBar: true,
-            show: false
-        });
-
-        guideWindow.on('closed', () => {
-            guideWindow = null;
-        });
-
-        const guidePath = path.join(__dirname, 'docs', 'user-guide.html');
-        await guideWindow.loadFile(guidePath);
+        const docPath = path.join(__dirname, 'docs', safeFile);
+        await guideWindow.loadFile(docPath);
         guideWindow.show();
         guideWindow.focus();
         return { success: true };
     } catch (err) {
-        console.error('[Main] Failed to open user guide:', err);
+        console.error('[Main] Failed to open doc page:', err);
         return { success: false, error: err.message };
     }
+}
+
+ipcMain.handle('open-user-guide', async () => {
+    return await openDocWindow('user-guide.html', 'User Guide');
+});
+
+ipcMain.handle('open-doc-page', async (event, pageName) => {
+    const map = {
+        'guide': { file: 'user-guide.html', title: 'User Guide' },
+        'user-guide.html': { file: 'user-guide.html', title: 'User Guide' },
+        'terms': { file: 'terms.html', title: 'Terms & Conditions of Use' },
+        'terms.html': { file: 'terms.html', title: 'Terms & Conditions of Use' },
+        'privacy': { file: 'privacy.html', title: 'Privacy & Sponsorship Policy' },
+        'privacy.html': { file: 'privacy.html', title: 'Privacy & Sponsorship Policy' }
+    };
+    const target = map[pageName] || map['guide'];
+    return await openDocWindow(target.file, target.title);
 });
 
 // 9. Platform & App Version Info

@@ -2851,15 +2851,21 @@ function bindAllEvents() {
       await handleCompareRigFile(file);
     }
   });
-  document.getElementById('openUserGuideBtn')?.addEventListener('click', async () => {
-    if (state.isElectron && window.electronAPI.openUserGuide) {
-      const res = await window.electronAPI.openUserGuide();
-      if (res && res.success === false) {
-        showError('Could not open User Guide: ' + (res.error || ''));
+
+  // Global Footer Document Links (User Guide, Privacy, Terms)
+  document.querySelectorAll('.footer-link-btn[data-doc]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const docType = btn.dataset.doc;
+      if (state.isElectron && window.electronAPI.openDocPage) {
+        const res = await window.electronAPI.openDocPage(docType);
+        if (res && res.success === false) {
+          showError('Could not open document: ' + (res.error || ''));
+        }
+      } else {
+        const fileMap = { guide: 'user-guide.html', privacy: 'privacy.html', terms: 'terms.html' };
+        window.open(`../docs/${fileMap[docType] || 'user-guide.html'}`, '_blank');
       }
-    } else {
-      window.open('../docs/user-guide.html', '_blank');
-    }
+    });
   });
 
   // Delegated actions inside Tools tab (Scan Results, Category Manager, Custom Paths, Cleanup)

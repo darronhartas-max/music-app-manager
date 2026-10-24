@@ -40,7 +40,7 @@
     }
 
     nav {
-      width: 250px;
+      width: 265px;
       background: var(--bg-secondary);
       border-right: 1px solid var(--border-color);
       padding: 1.5rem 1.25rem;
@@ -79,7 +79,7 @@
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: 6px;
-      font-size: 0.875rem;
+      font-size: 0.85rem;
       transition: all 0.15s ease;
     }
 
@@ -91,7 +91,7 @@
     main {
       flex: 1;
       padding: 2.5rem 3rem;
-      max-width: 900px;
+      max-width: 920px;
     }
 
     h1 {
@@ -105,11 +105,11 @@
     .lead {
       color: var(--text-secondary);
       font-size: 1.05rem;
-      margin-bottom: 2.5rem;
+      margin-bottom: 2.25rem;
     }
 
     section {
-      margin-bottom: 2.75rem;
+      margin-bottom: 2.25rem;
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
@@ -125,12 +125,6 @@
       gap: 0.5rem;
     }
 
-    h3 {
-      font-size: 1rem;
-      margin: 1.25rem 0 0.5rem;
-      color: #c7d2fe;
-    }
-
     p, ul, ol {
       color: var(--text-secondary);
       font-size: 0.925rem;
@@ -142,7 +136,7 @@
     }
 
     li {
-      margin-bottom: 0.4rem;
+      margin-bottom: 0.45rem;
     }
 
     strong {
@@ -178,6 +172,27 @@
       font-size: 0.8rem;
       color: var(--text-primary);
     }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    footer a {
+      color: #a5b4fc;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 
@@ -185,36 +200,40 @@
   <div class="layout">
     <nav>
       <div class="nav-brand">🎵 Music App Manager</div>
-      <div class="nav-version">User Guide • v2.1.0</div>
+      <div class="nav-version">User Guide • v2.1.1</div>
       <ul class="nav-links">
         <li><a href="#getting-started">1. Getting Started</a></li>
-        <li><a href="#apps-dashboard">2. Apps Dashboard</a></li>
+        <li><a href="#apps-dashboard">2. Apps &amp; Studio Sessions</a></li>
         <li><a href="#edit-reorder-mode">3. Edit / Reorder Mode</a></li>
-        <li><a href="#plugins-catalog">4. Plugins Catalog &amp; Sorting</a></li>
-        <li><a href="#category-manager">5. Managing Categories</a></li>
-        <li><a href="#tools-maintenance">6. Scanners &amp; Maintenance</a></li>
-        <li><a href="#shortcuts">7. Keyboard Shortcuts</a></li>
+        <li><a href="#plugins-catalog">4. Plugins, Sorting &amp; Sizes</a></li>
+        <li><a href="#diagnostics-freezer">5. Mismatches &amp; Plugin Vault</a></li>
+        <li><a href="#license-vault">6. License &amp; Serial Key Vault</a></li>
+        <li><a href="#category-manager">7. Managing Categories</a></li>
+        <li><a href="#tools-rig-compare">8. Maintenance &amp; Rig Compare</a></li>
+        <li><a href="#shortcuts">9. Keyboard Shortcuts</a></li>
+        <li><a href="terms.html">⚖️ Terms of Use</a></li>
+        <li><a href="privacy.html">🔒 Privacy Policy</a></li>
       </ul>
     </nav>
 
     <main>
       <h1>Music App Manager — User Guide</h1>
-      <p class="lead">Everything you need to organize your music applications, reorder categories, and inspect your audio plugins on macOS and Windows PC.</p>
+      <p class="lead">Your complete guide to launching music applications, creating multi-app Studio Sessions, inspecting audio plugins, managing licenses, and comparing studio rigs on macOS and Windows PC.</p>
 
       <section id="getting-started">
         <h2>🚀 1. Getting Started</h2>
         <p>When you first open Music App Manager, populate your library in two quick steps from the <strong>⚙️ Tools</strong> tab:</p>
         <ol>
-          <li><strong>Scan for Music Apps:</strong> Automatically discovers DAWs, standalone synths, guitar amp sims, and audio utilities in <code>/Applications</code> (macOS) or Start Menu / <code>Program Files</code> (Windows), complete with real app icons.</li>
-          <li><strong>Scan for Plugins:</strong> Scans standard and custom folders for <strong>VST3, AU, CLAP, AAX, and VST2</strong> plugins, identifying manufacturers, versions, and CPU architectures.</li>
+          <li><strong>Scan for Music Apps:</strong> Automatically discovers DAWs, standalone synths, guitar amp sims, and audio utilities in <code>/Applications</code> (macOS) or Start Menu / <code>Program Files</code> (Windows), while automatically extracting and refreshing high-resolution app icons and on-disk bundle sizes.</li>
+          <li><strong>Scan for Plugins:</strong> Scans standard and custom folders for <strong>VST3, AU, CLAP, AAX, and VST2</strong> plugins, identifying manufacturers, versions, file sizes, and CPU architectures.</li>
         </ol>
       </section>
 
       <section id="apps-dashboard">
-        <h2>🎹 2. Apps Dashboard &amp; Category Ordering</h2>
+        <h2>🎹 2. Apps Dashboard &amp; Studio Sessions</h2>
         <ul>
           <li><strong>Launch Any App:</strong> Click any app card in normal mode to launch it immediately.</li>
-          <li><strong>🚀 Studio Session Multi-App Bundles:</strong> Click <strong>🚀 New Session</strong> on the Apps toolbar to create custom 1-click session presets (e.g., <em>"🎸 Guitar Jam Rig"</em> or <em>"🎙️ Mixing Session"</em>) that launch multiple applications together simultaneously.</li>
+          <li><strong>🚀 Studio Session Multi-App Bundles:</strong> Click <strong>🚀 New Session</strong> on the Apps toolbar to create custom 1-click session presets (e.g., <em>"🎸 Guitar Jam Rig"</em>, <em>"🎙️ Mixing Session"</em>, or <em>"🎹 Synth Sound Design"</em>). Check off any combination of apps, and click your saved session pill in the <strong>🚀 Studio Sessions</strong> bar to launch all of those apps simultaneously. Click <strong>✏️</strong> on any session pill to edit or delete it.</li>
           <li><strong>Group by Category or Manufacturer:</strong> Use the toolbar toggle to view apps grouped by workflow category (<em>DAWs, Synths, Guitar &amp; Bass, Audio Tools, Utilities</em>) or by manufacturer (<em>Arturia, Native Instruments, Ableton, etc.</em>).</li>
           <li><strong>Drag &amp; Drop Categories:</strong> In <em>By Category</em> view, grab any category header by its drag handle (<span class="badge">⠿</span>) and drag it up or down onto another category section to reorder your categories directly on the Apps page.</li>
           <li><strong>Right-Click Context Menu:</strong> Right-click any app card at any time to <em>Launch</em>, <em>Toggle Favorite</em>, <em>Edit Details</em>, <em>Show in Finder / Explorer</em>, or <em>Remove from Library</em>.</li>
@@ -228,52 +247,66 @@
           <li><strong>Safe Clicking (No Accidental Launches):</strong> While Edit Mode is active, clicking an app card opens its <strong>Edit App</strong> window instead of launching the application.</li>
           <li><strong>Drag &amp; Drop App Cards:</strong> Drag any app card left or right (or even into a different category) to arrange your cards in your preferred order.</li>
           <li><strong>Drag &amp; Drop Categories:</strong> Drag category headers by their <span class="badge">⠿</span> handle or use the <span class="badge">⬆️</span> <span class="badge">⬇️</span> buttons on each category header.</li>
-          <li><strong>Quick Edit &amp; Delete Buttons:</strong> Every card displays <span class="badge">✏️ Edit</span> and <span class="badge">🗑️</span> buttons so you can quickly rename apps, move them to another category, change their icon, or remove them.</li>
         </ul>
         <div class="tip">💡 Click <strong>✅ Done Editing</strong> (or press <kbd>Cmd/Ctrl</kbd> + <kbd>E</kbd>) when finished to return to one-click app launching.</div>
       </section>
 
       <section id="plugins-catalog">
-        <h2>🔌 4. Plugins Catalog &amp; Column Sorting</h2>
+        <h2>🔌 4. Plugins Catalog, Sorting &amp; Disk Space Size</h2>
         <ul>
           <li><strong>Sort by Any Column Header:</strong> Click any column title (<strong>⭐, Name, Type, Format, Manufacturer, Version, Size, Architecture, Rating, or Notes</strong>) to sort the table alphabetically or numerically. Clicking the same column header again toggles between ascending (<span class="badge">▲</span>) and descending (<span class="badge">▼</span>). By default, plugins are ordered alphabetically by <strong>Name (A–Z)</strong>.</li>
+          <li><strong>💾 Disk Space Size Column:</strong> Shows the exact on-disk footprint (<code>KB</code>, <code>MB</code>, or <code>GB</code>) of every plugin. Sort by <strong>Size</strong> to immediately see which plugins consume the most storage.</li>
           <li><strong>Grouped vs. Flat List View:</strong>
             <ul>
-              <li><strong>Grouped (Default):</strong> Combines identical plugins installed in multiple formats (e.g., <em>VST3 + AU + AAX</em>) into a single clean row with format badges.</li>
+              <li><strong>Grouped (Default):</strong> Combines identical plugins installed in multiple formats (e.g., <em>VST3 + AU + AAX</em>) into a single clean row with format badges and combined disk size.</li>
               <li><strong>Flat List:</strong> Shows every individual plugin file on disk as its own row.</li>
             </ul>
           </li>
-          <li><strong>Apple Silicon vs. Intel (Rosetta) Detection:</strong> On Apple Silicon Macs (M1–M5), the <strong>Architecture</strong> column shows whether each plugin binary is <em>Apple Silicon</em>, <em>Universal</em>, or <em>Intel (Rosetta)</em>. Click the <strong>⚠️ Intel Only</strong> filter button to immediately find legacy plugins.</li>
-          <li><strong>Local Version Mismatch &amp; Redundant VST2 Inspector:</strong> Automatically compares installed formats (e.g., <em>VST3 vs. AU vs. AAX</em>) of the same plugin on disk. Use the <strong>🔀 Version Mismatch</strong> filter button to spot plugins where one format is outdated compared to another, or click <strong>📦 Redundant VST2</strong> to find legacy VST2 files where the modern VST3 version is already installed.</li>
-          <li><strong>One-Click Rescan, Plugin Freezer Vault &amp; Per-Format Reveal:</strong> Click <strong>🔄 Rescan Plugins</strong> right on the Plugins toolbar to scan and sync new plugins in one click. Click <strong>🧊</strong> in the Actions column (or inside the plugin details modal) to temporarily freeze/disable unused plugins into the <strong>🧊 Frozen Vault</strong> so your DAW starts faster, and click <strong>🔥</strong> at any time to restore them.</li>
-          <li><strong>Rate, Note, License Vault &amp; Export:</strong> Click any plugin row to give it a 1–5 star rating, store its <strong>🔑 License Type, Registered Email/Account, and Serial Key</strong> (with 1-click Copy), save personal notes, or click <strong>📄 Export CSV</strong> to save a spreadsheet of your plugin catalog.</li>
+          <li><strong>🔄 One-Click Rescan &amp; Per-Format Reveal:</strong> Click <strong>🔄 Rescan Plugins</strong> right on the Plugins toolbar to scan and sync new plugins in one click. Click any plugin row to inspect all of its installed format locations with a dedicated <strong>📂 Reveal</strong> button next to each format file path.</li>
+        </ul>
+      </section>
+
+      <section id="diagnostics-freezer">
+        <h2>🧊 5. Version Mismatches, Redundant VST2s &amp; Plugin Freezer Vault</h2>
+        <ul>
+          <li><strong>🔀 Version Mismatch Inspector:</strong> Automatically detects when two formats of the same plugin (e.g., <em>AU vs. VST3</em>) have different version numbers on disk. Click the <strong>🔀 Version Mismatch</strong> filter pill for a reassuring, plain-English Resolution Guide and 1-click vendor updater buttons.</li>
+          <li><strong>📦 Redundant VST2 Inspector:</strong> Click <strong>📦 Redundant VST2</strong> to find legacy <code>.vst</code> files where you already have the modern <code>VST3</code> version installed.</li>
+          <li><strong>⚠️ Intel Only (Rosetta) Filter:</strong> On Apple Silicon Macs (M1–M5), click <strong>⚠️ Intel Only</strong> to spot legacy Intel-only plugins.</li>
+          <li><strong>🧊 Plugin Freezer / Vault (Disable Without Uninstalling):</strong> Click the <strong>🧊</strong> button in the Actions column (or inside the plugin details modal next to a specific format) to move unused or trial plugins out of your active system plugin folders into the safe <strong>Plugin Vault</strong>. Your DAW will boot faster and skip them, and clicking <strong>🔥</strong> restores them to their original folder in one click.</li>
+        </ul>
+      </section>
+
+      <section id="license-vault">
+        <h2>🔑 6. License, Serial Key &amp; Account Vault</h2>
+        <p>Both the <strong>Edit App</strong> and <strong>Edit Plugin</strong> modals include a built-in <strong>🔑 License, Serial Key &amp; Account Vault</strong>:</p>
+        <ul>
+          <li>Record the <strong>License Type</strong> (<em>Full License, iLok, Serial Key, Vendor Product Manager, Subscription, Hardware Dongle, Freeware, Demo/Trial</em>).</li>
+          <li>Save your <strong>Registered Account / Email</strong> or iLok ID alongside your <strong>Serial Number / Activation Code</strong> with a 1-click <strong>📋 Copy</strong> button.</li>
+          <li>Items with saved license details display a <span class="badge">🔑</span> badge on the dashboard and plugin table. All data is stored 100% locally in your configuration file.</li>
         </ul>
       </section>
 
       <section id="category-manager">
-        <h2>📂 5. Adding &amp; Amending Categories (Settings)</h2>
+        <h2>📂 7. Adding &amp; Amending Categories (Settings)</h2>
         <p>Open the <strong>⚙️ Tools</strong> tab and scroll to <strong>📂 Category Manager</strong> to manage your categories:</p>
         <ul>
-          <li><strong>Add a New Category:</strong> Type the new category name into the <em>"New category name..."</em> box and click <strong>➕ Add Category</strong> (or press <kbd>Enter</kbd>).</li>
-          <li><strong>Amend / Rename a Category:</strong> Edit the text inside any category's name box and click its <strong>💾 Save Name</strong> button (or press <kbd>Enter</kbd>). All apps inside that category are automatically kept in the renamed category.</li>
+          <li><strong>Add a New Category:</strong> Type the new category name into the input box and click <strong>➕ Add Category</strong> (or press <kbd>Enter</kbd>).</li>
+          <li><strong>Amend / Rename a Category:</strong> Edit the text inside any category's name box and click its <strong>💾 Save Name</strong> button (or press <kbd>Enter</kbd>).</li>
           <li><strong>Reorder or Delete Categories:</strong> Use the <strong>⬆️</strong> / <strong>⬇️</strong> buttons to move categories up or down, or click <strong>🗑️</strong> to remove a category.</li>
         </ul>
       </section>
 
-      <section id="tools-maintenance">
-        <h2>🛠️ 6. Update Centers, Custom Folders &amp; Maintenance</h2>
+      <section id="tools-rig-compare">
+        <h2>🛠️ 8. Update Centers, Backup/Restore &amp; Two-Machine Rig Comparison</h2>
         <ul>
-          <li><strong>🔄 Update &amp; License Centers Quick-Launch Hub:</strong> Automatically groups your installed vendor software centers and license managers (<em>Arturia Software Center, Cherry Audio Sync, UA Connect, IK Product Manager, KORG Software Pass, GForce Installer, Reason Companion, Muse Hub, iLok License Manager, Native Access, Waves Central, etc.</em>) inside the <strong>⚙️ Tools</strong> tab so you can launch any updater in one click.</li>
-          <li><strong>Custom Scan Folders:</strong> Add secondary hard drives or custom VST2/VST3 folders under <em>📁 Custom Scan Folders</em> so the scanner includes them.</li>
-          <li><strong>Clean Up Missing Apps / Plugins:</strong> Checks every item in your library against your hard drive and lets you remove uninstalled entries in one click.</li>
-          <li><strong>Export &amp; Import Config JSON:</strong> Save a complete backup of your categories, app order, ratings, and plugin notes using <strong>📤 Export Config JSON</strong>, and restore or transfer it at any time using <strong>📥 Import Config</strong>.</li>
-          <li><strong>💻 Two-Machine Rig Comparison:</strong> Load an exported Config JSON from a second studio computer (e.g., Studio Mac vs. Live Laptop or Windows PC) to immediately see which applications and plugins are missing or on different versions between the two rigs.</li>
-          <li><strong>Version Tracking:</strong> The <em>ℹ️ About</em> section at the bottom of Tools displays the live application version and platform architecture.</li>
+          <li><strong>🔄 Update &amp; License Centers Hub:</strong> Automatically groups your installed vendor software centers (<em>Arturia Software Center, Cherry Audio Sync, UA Connect, IK Product Manager, KORG Software Pass, GForce Installer, Reason Companion, Muse Hub, iLok License Manager, Native Access, Waves Central, etc.</em>) inside <strong>⚙️ Tools</strong> for 1-click launching.</li>
+          <li><strong>📤 Export &amp; 📥 Import Config JSON:</strong> Save a complete backup of your library, categories, Studio Sessions, ratings, and License Vault, and restore it anytime.</li>
+          <li><strong>💻 Two-Machine Rig Comparison:</strong> Load an exported Config JSON from a second computer (e.g., Studio Desktop vs. Live MacBook or Windows PC) to see a side-by-side report of missing apps, missing plugins, and version differences before opening a DAW project.</li>
         </ul>
       </section>
 
       <section id="shortcuts">
-        <h2>⌨️ 7. Keyboard Shortcuts</h2>
+        <h2>⌨️ 9. Keyboard Shortcuts</h2>
         <ul>
           <li><kbd>Cmd/Ctrl</kbd> + <kbd>1</kbd> — Switch to Apps Tab</li>
           <li><kbd>Cmd/Ctrl</kbd> + <kbd>2</kbd> — Switch to Plugins Tab</li>
@@ -285,6 +318,14 @@
           <li><kbd>Esc</kbd> — Close Active Modal or Menu</li>
         </ul>
       </section>
+
+      <footer>
+        <div><strong>Music App Manager v2.1.1</strong> • © Unforgettable Management Ltd 2026. All rights reserved.</div>
+        <div>
+          <a href="terms.html">Terms &amp; Conditions</a> &nbsp;•&nbsp;
+          <a href="privacy.html">Privacy &amp; Sponsorship Policy</a>
+        </div>
+      </footer>
     </main>
   </div>
 </body>

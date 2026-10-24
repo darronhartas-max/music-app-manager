@@ -42,8 +42,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Freeze / Unfreeze a plugin file into or out of the Plugin Vault
     setPluginFrozen: (payload) => ipcRenderer.invoke('set-plugin-frozen', payload),
 
-    // Open the User Guide window
+    // Open the User Guide or legal document window
     openUserGuide: () => ipcRenderer.invoke('open-user-guide'),
+    openDocPage: (pageName) => ipcRenderer.invoke('open-doc-page', pageName),
 
     // Scan progress notifications
     onScanProgress: (callback) => {
