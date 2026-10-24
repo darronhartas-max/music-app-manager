@@ -1,7 +1,7 @@
 {
   "name": "music-app-manager",
-  "version": "2.0.11",
-  "description": "Music App Manager v2.0 - Cross-platform desktop launcher for music production apps and multi-format audio plugin catalog",
+  "version": "2.1.0",
+  "description": "Music App Manager v2.1 - Cross-platform desktop launcher for music production apps and multi-format audio plugin catalog",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

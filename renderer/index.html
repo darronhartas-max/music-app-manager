@@ -298,12 +298,28 @@
           <div id="cleanupResults" class="scan-results" style="display: none;"></div>
         </div>
 
+        <!-- 6b. Two-Machine Rig Comparison -->
+        <div class="settings-section">
+          <h2 class="settings-title">💻 Two-Machine Rig Comparison</h2>
+          <p class="settings-description">Compare this computer's installed applications and plugins against an exported Config JSON from another computer (e.g., Studio Mac vs. Live Laptop or Windows PC) to spot missing plugins or version differences before opening a DAW project.</p>
+
+          <div class="settings-actions">
+            <button id="compareRigBtn" class="action-btn primary">
+              <span class="btn-icon">💻</span>
+              Load Other Rig Config JSON to Compare...
+            </button>
+            <input type="file" id="compareRigFileInput" accept=".json,application/json" style="display: none;">
+          </div>
+
+          <div id="rigComparisonResults" class="scan-results" style="display: none;"></div>
+        </div>
+
         <!-- 7. About -->
         <div class="settings-section">
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.11</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.1.0</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">

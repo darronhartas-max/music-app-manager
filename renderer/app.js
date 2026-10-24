@@ -756,6 +756,16 @@ async function saveAppFromModal() {
     return;
   }
 
+  let finalIcon = icon;
+  if (state.isElectron && !isValidImageIcon(finalIcon)) {
+    try {
+      const extracted = await window.electronAPI.extractAppIcon(appPath);
+      if (isValidImageIcon(extracted)) {
+        finalIcon = extracted;
+      }
+    } catch (e) { }
+  }
+
   let favorite = false;
   let version = '';
   let arch = 'Universal';
@@ -779,7 +789,7 @@ async function saveAppFromModal() {
     name,
     manufacturer,
     path: appPath,
-    icon,
+    icon: finalIcon,
     version,
     arch,
     favorite,
@@ -1613,6 +1623,36 @@ async function handleAppScan() {
     resultsEl.style.display = 'none';
 
     const scannedApps = await window.electronAPI.scanApps();
+    const scannedByPath = new Map(scannedApps.map(a => [a.path, a]));
+
+    // Automatically refresh icons (and version/arch metadata) for all existing apps during scan
+    let refreshedIconsCount = 0;
+    for (const cat of state.appData.categories) {
+      for (const existingApp of (cat.apps || [])) {
+        const match = scannedByPath.get(existingApp.path);
+        if (match && isValidImageIcon(match.icon)) {
+          if (existingApp.icon !== match.icon) {
+            existingApp.icon = match.icon;
+            refreshedIconsCount++;
+          }
+          if (match.version && !existingApp.version) existingApp.version = match.version;
+          if (match.arch && !existingApp.arch) existingApp.arch = match.arch;
+          if (typeof match.sizeBytes === 'number') existingApp.sizeBytes = match.sizeBytes;
+        } else if (existingApp.path && !isValidImageIcon(existingApp.icon)) {
+          try {
+            const freshIcon = await window.electronAPI.extractAppIcon(existingApp.path);
+            if (isValidImageIcon(freshIcon)) {
+              existingApp.icon = freshIcon;
+              refreshedIconsCount++;
+            }
+          } catch (e) { }
+        }
+      }
+    }
+    if (refreshedIconsCount > 0) {
+      await saveConfig();
+      renderApps();
+    }
 
     const existingPaths = new Set();
     state.appData.categories.forEach(c => (c.apps || []).forEach(a => existingPaths.add(a.path)));
@@ -1630,7 +1670,7 @@ async function handleAppScan() {
       resultsEl.innerHTML = `
         <div class="scan-results-summary">
           <p><strong>Found ${scannedApps.length} music applications</strong></p>
-          <p style="color: var(--accent-primary); margin-top: 0.5rem;">✅ All ${scannedApps.length} apps are already in your library!</p>
+          <p style="color: var(--accent-primary); margin-top: 0.5rem;">✅ All ${scannedApps.length} apps are already in your library (and all app icons have been verified/refreshed)!</p>
         </div>`;
       resultsEl.style.display = 'block';
       return;
@@ -1698,10 +1738,11 @@ async function confirmAddScannedApps() {
   const resultsEl = document.getElementById('appScanResults');
   let added = 0;
 
-  document.querySelectorAll('#appScanResults .app-select-checkbox:checked').forEach(cb => {
+  const checkboxes = Array.from(document.querySelectorAll('#appScanResults .app-select-checkbox:checked'));
+  for (const cb of checkboxes) {
     const idx = parseInt(cb.dataset.scanIdx, 10);
     const raw = scanned[idx];
-    if (!raw) return;
+    if (!raw) continue;
     const row = cb.closest('tr');
     const name = row.querySelector('.app-name-input').value.trim();
     const manufacturer = row.querySelector('.app-manufacturer-input').value.trim() || 'Unknown';
@@ -1714,24 +1755,33 @@ async function confirmAddScannedApps() {
     }
 
     if (!catObj.apps.some(a => a.path === raw.path)) {
+      let iconVal = raw.icon || '🎵';
+      if (state.isElectron && !isValidImageIcon(iconVal)) {
+        try {
+          const extracted = await window.electronAPI.extractAppIcon(raw.path);
+          if (isValidImageIcon(extracted)) iconVal = extracted;
+        } catch (e) { }
+      }
+
       catObj.apps.push({
         name: name || raw.name,
         manufacturer,
         path: raw.path,
-        icon: raw.icon || '🎵',
+        icon: iconVal,
         version: raw.version || '',
         arch: raw.arch || 'Universal',
+        sizeBytes: raw.sizeBytes || 0,
         favorite: false
       });
       added++;
     }
-  });
+  }
 
   if (added > 0) {
     await saveConfig();
     if (resultsEl) resultsEl.style.display = 'none';
     renderAll();
-    showNotification('✅ Apps Imported', `Added ${added} applications to your library`);
+    showNotification('✅ Apps Imported & Icons Refreshed', `Added ${added} applications with high-res icons to your library`);
   } else {
     showError('No applications selected.');
   }
@@ -2004,6 +2054,155 @@ async function handleImportConfigFile(file) {
     showNotification('📥 Config Imported', `Restored ${appCount} apps and ${pluginCount} plugins from backup`);
   } catch (err) {
     showError('Failed to import configuration JSON: ' + err.message);
+  }
+}
+
+async function handleCompareRigFile(file) {
+  if (!file) return;
+  const resultsEl = document.getElementById('rigComparisonResults');
+  if (!resultsEl) return;
+
+  try {
+    const text = await file.text();
+    const remote = JSON.parse(text);
+    if (!remote || typeof remote !== 'object' || !Array.isArray(remote.categories)) {
+      showError('Invalid configuration file for comparison.');
+      return;
+    }
+
+    // 1. Compare Apps by normalized name
+    const localAppsMap = new Map();
+    (state.appData.categories || []).forEach(c => {
+      (c.apps || []).forEach(a => {
+        const key = (a.name || '').toLowerCase().trim();
+        if (key) localAppsMap.set(key, { ...a, categoryName: c.name });
+      });
+    });
+
+    const remoteAppsMap = new Map();
+    (remote.categories || []).forEach(c => {
+      (c.apps || []).forEach(a => {
+        const key = (a.name || '').toLowerCase().trim();
+        if (key) remoteAppsMap.set(key, { ...a, categoryName: c.name });
+      });
+    });
+
+    const missingLocalApps = []; // On Remote Rig, Missing on This Machine
+    const onlyLocalApps = [];    // On This Machine, Missing on Remote Rig
+    remoteAppsMap.forEach((rApp, key) => {
+      if (!localAppsMap.has(key)) missingLocalApps.push(rApp);
+    });
+    localAppsMap.forEach((lApp, key) => {
+      if (!remoteAppsMap.has(key)) onlyLocalApps.push(lApp);
+    });
+
+    // 2. Compare Grouped Plugins by (name + manufacturer)
+    const groupPluginsList = (list) => {
+      const map = new Map();
+      (list || []).forEach(p => {
+        const key = getPluginGroupKey(p);
+        if (!map.has(key)) {
+          map.set(key, {
+            name: p.name || 'Unknown',
+            manufacturer: p.manufacturer || 'Unknown',
+            formats: new Set(),
+            version: normalizeVersionString(p.version)
+          });
+        }
+        const entry = map.get(key);
+        if (p.format) entry.formats.add(p.format.toUpperCase());
+        const v = normalizeVersionString(p.version);
+        if (v && !entry.version) entry.version = v;
+      });
+      return map;
+    };
+
+    const localPluginsMap = groupPluginsList(state.appData.plugins);
+    const remotePluginsMap = groupPluginsList(remote.plugins);
+
+    const missingLocalPlugins = []; // Installed on Remote Rig, Missing Here
+    const onlyLocalPlugins = [];    // Installed Here, Missing on Remote Rig
+    const versionDiffPlugins = [];  // Installed on Both, Different Versions
+
+    remotePluginsMap.forEach((rPlug, key) => {
+      if (!localPluginsMap.has(key)) {
+        missingLocalPlugins.push(rPlug);
+      } else {
+        const lPlug = localPluginsMap.get(key);
+        if (rPlug.version && lPlug.version && rPlug.version !== lPlug.version) {
+          versionDiffPlugins.push({
+            name: rPlug.name,
+            manufacturer: rPlug.manufacturer,
+            localVersion: lPlug.version,
+            remoteVersion: rPlug.version
+          });
+        }
+      }
+    });
+
+    localPluginsMap.forEach((lPlug, key) => {
+      if (!remotePluginsMap.has(key)) {
+        onlyLocalPlugins.push(lPlug);
+      }
+    });
+
+    resultsEl.innerHTML = `
+      <div class="scan-results-summary">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>💻 Rig Comparison vs. "${escapeHtml(file.name)}"</h3>
+          <button type="button" class="category-save-btn" id="closeRigCompareBtn">✕ Close Report</button>
+        </div>
+        <div class="rig-compare-stats-row">
+          <span class="plugin-diag-badge mismatch">⚠️ Missing on This Machine: ${missingLocalPlugins.length} plugins, ${missingLocalApps.length} apps</span>
+          <span class="plugin-diag-badge redundant">📤 Missing on Other Rig: ${onlyLocalPlugins.length} plugins, ${onlyLocalApps.length} apps</span>
+          <span class="plugin-diag-badge license">🔀 Version Differences: ${versionDiffPlugins.length} plugins</span>
+        </div>
+      </div>
+
+      <div class="rig-compare-columns">
+        <div class="rig-compare-col">
+          <h4>⚠️ Missing on This Computer (${missingLocalPlugins.length} Plugins, ${missingLocalApps.length} Apps)</h4>
+          ${missingLocalPlugins.length === 0 && missingLocalApps.length === 0
+            ? `<div class="rig-compare-empty">✅ This computer has every app and plugin from the other rig!</div>`
+            : `
+              <div class="rig-compare-list">
+                ${missingLocalApps.map(a => `<div class="rig-compare-item"><span>🎵 <strong>${escapeHtml(a.name)}</strong></span><span class="rig-compare-meta">App • ${escapeHtml(a.manufacturer || '')}</span></div>`).join('')}
+                ${missingLocalPlugins.map(p => `<div class="rig-compare-item"><span>🔌 <strong>${escapeHtml(p.name)}</strong></span><span class="rig-compare-meta">${escapeHtml(Array.from(p.formats).join('/'))} • ${escapeHtml(p.manufacturer)}</span></div>`).join('')}
+              </div>
+            `}
+        </div>
+
+        <div class="rig-compare-col">
+          <h4>📤 Only on This Computer (${onlyLocalPlugins.length} Plugins, ${onlyLocalApps.length} Apps)</h4>
+          ${onlyLocalPlugins.length === 0 && onlyLocalApps.length === 0
+            ? `<div class="rig-compare-empty">✅ The other rig has all apps and plugins from this computer!</div>`
+            : `
+              <div class="rig-compare-list">
+                ${onlyLocalApps.map(a => `<div class="rig-compare-item"><span>🎵 <strong>${escapeHtml(a.name)}</strong></span><span class="rig-compare-meta">App • ${escapeHtml(a.manufacturer || '')}</span></div>`).join('')}
+                ${onlyLocalPlugins.map(p => `<div class="rig-compare-item"><span>🔌 <strong>${escapeHtml(p.name)}</strong></span><span class="rig-compare-meta">${escapeHtml(Array.from(p.formats).join('/'))} • ${escapeHtml(p.manufacturer)}</span></div>`).join('')}
+              </div>
+            `}
+        </div>
+      </div>
+
+      ${versionDiffPlugins.length > 0 ? `
+        <div class="rig-compare-col" style="margin-top: 0.85rem;">
+          <h4>🔀 Installed on Both Rigs — Version Differences (${versionDiffPlugins.length})</h4>
+          <div class="rig-compare-list">
+            ${versionDiffPlugins.map(v => `
+              <div class="rig-compare-item">
+                <span>🔌 <strong>${escapeHtml(v.name)}</strong> (${escapeHtml(v.manufacturer)})</span>
+                <span class="rig-compare-meta">This Machine: <strong>v${escapeHtml(v.localVersion)}</strong> &nbsp;↔&nbsp; Other Rig: <strong>v${escapeHtml(v.remoteVersion)}</strong></span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    `;
+    resultsEl.style.display = 'block';
+    showNotification('💻 Rig Comparison Complete', `Compared against ${file.name}`);
+  } catch (err) {
+    showError('Could not compare rig configuration: ' + err.message);
   }
 }
 
@@ -2639,6 +2838,19 @@ function bindAllEvents() {
       await handleImportConfigFile(file);
     }
   });
+  document.getElementById('compareRigBtn')?.addEventListener('click', () => {
+    const fileInput = document.getElementById('compareRigFileInput');
+    if (fileInput) {
+      fileInput.value = '';
+      fileInput.click();
+    }
+  });
+  document.getElementById('compareRigFileInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      await handleCompareRigFile(file);
+    }
+  });
   document.getElementById('openUserGuideBtn')?.addEventListener('click', async () => {
     if (state.isElectron && window.electronAPI.openUserGuide) {
       const res = await window.electronAPI.openUserGuide();
@@ -2680,6 +2892,8 @@ function bindAllEvents() {
         showNotification('🗑️ Cleaned Up', `Removed ${missing.length} missing plugin file(s)`);
       } else if (e.target.closest('#cancelCleanupBtn')) {
         document.getElementById('cleanupResults').style.display = 'none';
+      } else if (e.target.closest('#closeRigCompareBtn')) {
+        document.getElementById('rigComparisonResults').style.display = 'none';
       }
 
       // Category Manager buttons (Up, Down, Save Name, Delete)
