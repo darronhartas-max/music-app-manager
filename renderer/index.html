@@ -12,7 +12,7 @@
 
 <body>
   <div class="container">
-    <!-- Compact Header with Integrated Search -->
+    <!-- Header with Integrated Search -->
     <header>
       <div class="header-content">
         <div class="logo">
@@ -22,7 +22,7 @@
 
         <div class="search-container">
           <span class="search-icon">🔍</span>
-          <input type="text" id="searchInput" placeholder="Search apps and plugins..." autocomplete="off">
+          <input type="text" id="searchInput" placeholder="Search apps, plugins, manufacturers..." autocomplete="off">
         </div>
 
         <nav class="nav-tabs">
@@ -63,38 +63,56 @@
         </div>
       </div>
       <div id="appsContainer">
-        <!-- Apps will be dynamically loaded here -->
+        <!-- Apps loaded here -->
       </div>
     </div>
 
     <!-- Plugins Tab -->
     <div id="pluginsTab" class="tab-content">
-      <div class="plugin-filters">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="favorites">⭐ Favorites</button>
-        <button class="filter-btn" data-filter="instrument">Instruments</button>
-        <button class="filter-btn" data-filter="effect">Effects</button>
-        <button class="filter-btn" data-filter="VST3">VST3</button>
-        <button class="filter-btn" data-filter="AU">AU</button>
-        <button class="filter-btn" data-filter="unknown">Unknown</button>
+      <div class="plugins-header-bar">
+        <div class="plugin-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="favorites">⭐ Favorites</button>
+          <button class="filter-btn" data-filter="instrument">Instruments</button>
+          <button class="filter-btn" data-filter="effect">Effects</button>
+          <button class="filter-btn" data-filter="VST3">VST3</button>
+          <button class="filter-btn" data-filter="AU">AU</button>
+          <button class="filter-btn" data-filter="CLAP">CLAP</button>
+          <button class="filter-btn" data-filter="AAX">AAX</button>
+          <button class="filter-btn" data-filter="VST">VST</button>
+          <button class="filter-btn" data-filter="rosetta" title="Intel-only plugins running under Rosetta on Apple Silicon">⚠️ Intel Only</button>
+        </div>
+
+        <div class="plugin-view-actions">
+          <div class="segmented-control">
+            <button id="pluginViewModeGrouped" class="segment-btn active" data-mode="grouped" title="Group identical plugins across formats">Grouped</button>
+            <button id="pluginViewModeFlat" class="segment-btn" data-mode="flat" title="Show every installed plugin file separately">Flat List</button>
+          </div>
+          <button id="exportCsvBtn" class="toolbar-btn" title="Export plugin inventory to CSV">
+            <span class="btn-icon">📄</span>
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <div class="plugin-table-container">
         <table class="plugin-table">
           <thead>
             <tr>
-              <th>⭐</th>
-              <th>Name</th>
-              <th>Type</th>
+              <th style="width: 44px; text-align: center;">⭐</th>
+              <th data-sort="name" class="sortable">Name <span class="sort-arrow"></span></th>
+              <th data-sort="type" class="sortable">Type <span class="sort-arrow"></span></th>
               <th>Format</th>
-              <th>Manufacturer</th>
-              <th>Rating</th>
+              <th data-sort="manufacturer" class="sortable">Manufacturer <span class="sort-arrow"></span></th>
+              <th>Version</th>
+              <th>Architecture</th>
+              <th data-sort="rating" class="sortable" style="text-align: center;">Rating <span class="sort-arrow"></span></th>
               <th>Notes</th>
-              <th>Path</th>
+              <th style="width: 70px; text-align: center;">Actions</th>
             </tr>
           </thead>
           <tbody id="pluginTableBody">
-            <!-- Plugins will be dynamically loaded here -->
+            <!-- Plugins loaded here -->
           </tbody>
         </table>
       </div>
@@ -104,11 +122,33 @@
     <div id="settingsTab" class="tab-content">
       <div class="settings-container">
 
-        <!-- 1. App Scanner (first — populate apps before plugins) -->
+        <!-- 1. Statistics Dashboard -->
+        <div class="settings-section">
+          <h2 class="settings-title">📊 Library Statistics</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-number" id="statApps">0</div>
+              <div class="stat-label">Applications</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statPlugins">0</div>
+              <div class="stat-label">Unique Plugins</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statTotalPluginFiles">0</div>
+              <div class="stat-label">Plugin Files</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statCategories">0</div>
+              <div class="stat-label">Categories</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. App Scanner -->
         <div class="settings-section">
           <h2 class="settings-title">🎵 App Scanner</h2>
-          <p class="settings-description">Scan your /Applications folder for music production apps. Reads each app's
-            bundle to identify the manufacturer automatically.</p>
+          <p class="settings-description">Automatically scan your system for music production applications, DAWs, and software instruments.</p>
 
           <div class="settings-actions">
             <button id="scanAppsBtn" class="action-btn primary">
@@ -120,11 +160,10 @@
           <div id="appScanResults" class="scan-results" style="display: none;"></div>
         </div>
 
-        <!-- 2. Plugin Scanner -->
+        <!-- 3. Plugin Scanner -->
         <div class="settings-section">
-          <h2 class="settings-title">🔍 Plugin Scanner</h2>
-          <p class="settings-description">Automatically scan your system for installed audio plugins (VST, VST3, AU)
-            across all standard plugin directories.</p>
+          <h2 class="settings-title">🔍 Audio Plugin Scanner</h2>
+          <p class="settings-description">Scan standard and custom directories for installed audio plugins (VST3, AU, CLAP, AAX, VST2) with native architecture and version detection.</p>
 
           <div class="settings-actions">
             <button id="scanPluginsBtn" class="action-btn primary">
@@ -142,10 +181,48 @@
           <div id="scanResults" class="scan-results" style="display: none;"></div>
         </div>
 
-        <!-- 3. Configuration -->
+        <!-- 4. Category Manager -->
         <div class="settings-section">
-          <h2 class="settings-title">💾 Configuration</h2>
-          <p class="settings-description">Manage your library and settings</p>
+          <h2 class="settings-title">📂 Category Manager</h2>
+          <p class="settings-description">Add, rename, reorder, or remove dashboard categories.</p>
+
+          <div id="categoryList" class="category-list">
+            <!-- Categories rendered here -->
+          </div>
+
+          <div class="settings-actions" style="margin-top: 1rem;">
+            <button id="addCategoryBtn" class="action-btn">
+              <span class="btn-icon">➕</span>
+              Add Category
+            </button>
+          </div>
+        </div>
+
+        <!-- 5. Custom Scan Directories -->
+        <div class="settings-section">
+          <h2 class="settings-title">📁 Custom Scan Folders</h2>
+          <p class="settings-description">Specify custom folders on your drives where additional VST plugins or music software are installed.</p>
+
+          <div id="customPathsList" class="custom-paths-list">
+            <!-- Custom paths rendered here -->
+          </div>
+
+          <div class="settings-actions" style="margin-top: 1rem;">
+            <button id="addCustomPluginPathBtn" class="action-btn">
+              <span class="btn-icon">➕</span>
+              Add Plugin Folder
+            </button>
+            <button id="addCustomAppPathBtn" class="action-btn">
+              <span class="btn-icon">➕</span>
+              Add App Folder
+            </button>
+          </div>
+        </div>
+
+        <!-- 6. Library Maintenance & Storage -->
+        <div class="settings-section">
+          <h2 class="settings-title">💾 Library Maintenance</h2>
+          <p class="settings-description">Manage configuration files, refresh app icons, and remove missing software.</p>
 
           <div class="settings-actions">
             <button id="refreshIconsBtn" class="action-btn">
@@ -156,30 +233,33 @@
               <span class="btn-icon">🧹</span>
               Clean Up Missing Apps
             </button>
+            <button id="cleanupPluginsBtn" class="action-btn">
+              <span class="btn-icon">🧹</span>
+              Clean Up Missing Plugins
+            </button>
             <button id="exportConfigBtn" class="action-btn">
               <span class="btn-icon">📤</span>
-              Export Config
+              Export Config JSON
             </button>
             <button id="reloadConfigBtn" class="action-btn">
               <span class="btn-icon">🔄</span>
               Reload Config
             </button>
-            <button id="startFreshBtn" class="action-btn" onclick="handleStartFresh()">
+            <button id="startFreshBtn" class="action-btn danger">
               <span class="btn-icon">✨</span>
-              Reset & Start Fresh
+              Reset &amp; Start Fresh
             </button>
           </div>
 
           <div id="cleanupResults" class="scan-results" style="display: none;"></div>
         </div>
 
-
-        <!-- 6. About -->
+        <!-- 7. About -->
         <div class="settings-section">
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
-            <p><strong>Music App Manager</strong> - App &amp; Plugin Dashboard</p>
-            <p>Version: 1.0.6 (Accuracy Update)</p>
+            <p><strong>Music App Manager</strong> (AppViewr v2.0)</p>
+            <p>Modern cross-platform desktop launcher and plugin catalog for macOS &amp; Windows.</p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">
@@ -190,11 +270,8 @@
           </div>
         </div>
 
-
       </div>
     </div>
-  </div>
-
   </div>
 
   <!-- Welcome / First-Run Modal -->
@@ -202,8 +279,8 @@
     <div class="modal-content welcome-modal-content">
       <div class="welcome-hero">
         <div class="welcome-logo">🎵</div>
-        <h2 id="welcomeTitle" class="welcome-title">Welcome to Music App Manager</h2>
-        <p class="welcome-subtitle">Your personal dashboard for music production apps and plugins.</p>
+        <h2 id="welcomeTitle" class="welcome-title">Welcome to Music App Manager v2.0</h2>
+        <p class="welcome-subtitle">Your unified command center for music production software and audio plugins.</p>
       </div>
 
       <div class="welcome-steps">
@@ -211,25 +288,21 @@
           <div class="welcome-step-num">1</div>
           <div class="welcome-step-body">
             <strong>Scan for Apps</strong>
-            <p>Go to <em>Tools → App Scanner</em> and click <strong>Scan for Music Apps</strong>. The app reads your
-              /Applications folder and auto-detects music software, identifying the manufacturer from each app's bundle.
-            </p>
+            <p>Click <strong>Scan for Music Apps</strong> in Tools. It automatically discovers DAWs, synths, and utilities, extracting real high-res icons.</p>
           </div>
         </div>
         <div class="welcome-step">
           <div class="welcome-step-num">2</div>
           <div class="welcome-step-body">
             <strong>Scan for Plugins</strong>
-            <p>Click <strong>Scan for Plugins</strong> to catalogue your VST, VST3, and AU plugins from all standard
-              directories. Plugins are added to your library in one click.</p>
+            <p>Catalogue your VST3, AU, CLAP, AAX, and VST2 plugins with architecture badges (Apple Silicon Native vs Intel Rosetta) and format grouping.</p>
           </div>
         </div>
         <div class="welcome-step">
           <div class="welcome-step-num">3</div>
           <div class="welcome-step-body">
-            <strong>Launch &amp; Manage</strong>
-            <p>Click any app card to launch it instantly. Use <em>Edit Mode</em> to drag cards into your preferred
-              order, or use the search bar to find anything fast.</p>
+            <strong>Customize &amp; Launch</strong>
+            <p>Group by category or manufacturer, drag and drop cards to reorder, mark favorites, and right-click to reveal in Finder or Explorer.</p>
           </div>
         </div>
       </div>
@@ -237,7 +310,7 @@
       <div class="welcome-actions">
         <button id="welcomeStartBtn" class="action-btn primary">
           <span class="btn-icon">🎵</span>
-          Start Scanning — Go to Tools
+          Get Started — Go to Tools
         </button>
         <button id="welcomeDismissBtn" class="action-btn">
           Maybe Later
@@ -246,47 +319,50 @@
     </div>
   </div>
 
-  <!-- Modal: Add/Edit App -->
+  <!-- Modal: Add / Edit App -->
   <div id="appModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="appModalTitle">Add App</h2>
-        <button class="modal-close" onclick="closeModal('appModal')">✕</button>
+        <button class="modal-close" id="appModalCloseBtn">✕</button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="appOriginalPath" value="">
         <div class="form-group">
           <label>App Name *</label>
-          <input type="text" id="appName" placeholder="e.g., Ableton Live">
+          <input type="text" id="appName" placeholder="e.g., Ableton Live 12 Suite">
         </div>
         <div class="form-group">
           <label>Manufacturer</label>
-          <input type="text" id="appManufacturer" placeholder="e.g., Arturia, Cherry Audio, Native Instruments">
+          <input type="text" id="appManufacturer" placeholder="e.g., Ableton, Arturia, Native Instruments">
         </div>
         <div class="form-group">
-          <label>App Path *</label>
+          <label>App Executable / Bundle Path *</label>
           <div class="input-with-button">
             <input type="text" id="appPath" placeholder="/Applications/YourApp.app">
-            <button class="browse-btn" onclick="browseForApp()">Browse...</button>
+            <button type="button" class="browse-btn" id="browseAppBtn">Browse...</button>
           </div>
         </div>
         <div class="form-group">
           <label>Category *</label>
           <select id="appCategory">
-            <option value="DAWs">DAWs</option>
-            <option value="Synths">Synths</option>
-            <option value="Guitar & Bass">Guitar & Bass</option>
-            <option value="Audio Tools">Audio Tools</option>
-            <option value="Utilities">Utilities</option>
+            <!-- Dynamically populated from config categories -->
           </select>
         </div>
         <div class="form-group">
-          <label>Icon (Emoji)</label>
-          <input type="text" id="appIcon" placeholder="🎹" maxlength="2">
+          <label>Icon</label>
+          <div class="icon-selector-row">
+            <div id="appIconPreview" class="icon-preview-box">🎵</div>
+            <input type="text" id="appIcon" placeholder="Emoji (e.g. 🎹) or Image URL" style="flex: 1;">
+            <button type="button" class="browse-btn" id="uploadIconBtn">🖼️ Upload</button>
+            <input type="file" id="appIconFileInput" accept="image/*" style="display: none;">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" onclick="closeModal('appModal')">Cancel</button>
-        <button class="btn-primary" onclick="saveApp()">Save App</button>
+        <button type="button" id="deleteAppModalBtn" class="btn-danger" style="display: none; margin-right: auto;">Delete App</button>
+        <button type="button" class="btn-secondary" id="appModalCancelBtn">Cancel</button>
+        <button type="button" class="btn-primary" id="saveAppBtn">Save App</button>
       </div>
     </div>
   </div>
@@ -296,7 +372,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Edit Plugin</h2>
-        <button class="modal-close" onclick="closeModal('pluginModal')">✕</button>
+        <button class="modal-close" id="pluginModalCloseBtn">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -304,8 +380,12 @@
           <input type="text" id="pluginName" readonly>
         </div>
         <div class="form-group">
+          <label>Manufacturer &amp; Formats</label>
+          <div id="pluginMetaInfo" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+        </div>
+        <div class="form-group">
           <label>Rating</label>
-          <div class="rating-input">
+          <div class="rating-input" id="pluginRatingStars">
             <span class="star" data-rating="1">☆</span>
             <span class="star" data-rating="2">☆</span>
             <span class="star" data-rating="3">☆</span>
@@ -316,7 +396,7 @@
         </div>
         <div class="form-group">
           <label>Notes</label>
-          <textarea id="pluginNotes" rows="4" placeholder="Add your notes about this plugin..."></textarea>
+          <textarea id="pluginNotes" rows="4" placeholder="Personal notes, favorite presets, mix notes..."></textarea>
         </div>
         <div class="form-group">
           <label>
@@ -326,10 +406,21 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" onclick="closeModal('pluginModal')">Cancel</button>
-        <button class="btn-primary" onclick="savePlugin()">Save Changes</button>
+        <button type="button" class="btn-secondary" id="pluginModalCancelBtn">Cancel</button>
+        <button type="button" class="btn-primary" id="savePluginBtn">Save Changes</button>
       </div>
     </div>
+  </div>
+
+  <!-- Floating Context Menu for App Cards -->
+  <div id="appContextMenu" class="context-menu" style="display: none;">
+    <div class="context-menu-item" data-action="launch">🚀 Launch App</div>
+    <div class="context-menu-item" data-action="favorite">⭐ Toggle Favorite</div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="edit">✏️ Edit Details</div>
+    <div class="context-menu-item" data-action="reveal">📂 Show in Finder / Explorer</div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item danger" data-action="delete">🗑️ Remove from Library</div>
   </div>
 
   <!-- Keyboard Shortcuts Overlay -->
@@ -370,12 +461,11 @@
           <span>Close Modal/Overlay</span>
         </div>
       </div>
-      <button class="btn-primary" onclick="closeShortcuts()">Got it!</button>
+      <button class="btn-primary" id="closeShortcutsBtn">Got it!</button>
     </div>
   </div>
 
-  <script src="phase4.js"></script>
-  <script src="phase5.js"></script>
+  <!-- Unified Modular Controller -->
   <script src="app.js"></script>
 </body>
 

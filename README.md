@@ -1,114 +1,48 @@
-# AppViewr - Music App & Plugin Manager
+# Music App Manager (AppViewr v2.0)
 
-> **Phase 5: Tools & Automation** - Intelligent scan-to-library workflow with atomic data protection.
-
-![AppViewr](https://img.shields.io/badge/version-1.0.7--phase5-purple)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-green)
+![Version](https://img.shields.io/badge/version-2.0.0-purple)
+![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon%20%26%20Intel)%20%7C%20Windows%20PC-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
 ## 🎵 Overview
 
-AppViewr is a cross-platform desktop application built with Electron that helps music producers organize and launch their music production apps and catalog their audio plugin inventory. **Phase 5 introduces a robust App Scanner, Atomic Saving, and intelligent automatic categorization for your entire workspace.**
+**Music App Manager** (`AppViewr v2.0`) is a cross-platform desktop application built with Electron for music producers to organize and launch their music production software and catalog their entire audio plugin inventory across **macOS (Apple Silicon M-series & Intel)** and **Windows PC**.
 
-### Key Features
+### Key Features in v2.0
 
 ✨ **App Launcher Dashboard**
-- Grid layout with categorized sections (DAWs, Synths, Guitar Tools, etc.)
-- Visual app cards with high-fidelity icons automatically extracted from bundles
-- **✅ ACTUAL APP LAUNCHING** - Click to open applications
-- **✅ APP SCANNER** - Automatically finds your music apps in `/Applications`
-- Real-time search across apps and plugins
+- **Category & Manufacturer Views**: Group your toolkit by workflow category (`DAWs`, `Synths`, `Guitar & Bass`, `Audio Tools`, `Utilities`) or by software publisher (`Arturia`, `Native Instruments`, `FabFilter`, etc.).
+- **Cross-Platform App Scanner**: Automatically discovers installed music software in `/Applications` & `~/Applications` on macOS and via Start Menu shortcuts (`.lnk`) & `Program Files` on Windows PC.
+- **Native High-Res Icons**: Extracts real application icons via Electron's native icon API with `.icns` fallback.
+- **Full App Lifecycle**: Add, Edit, Reorder (Drag-and-Drop in Edit Mode), Favorite, Reveal in Finder/Explorer (via Right-Click Context Menu), or Remove apps.
 
-🔌 **Plugin Inventory & Scanner**
-- Comprehensive plugin catalog with VST/AU/VST3 support
-- **✅ ATOMIC SAVING** - Prevents data loss with crash-proof file writing
-- **✅ INTELLIGENT PLUGIN SCANNER** - Auto-detects manufacturer and format
-- **✅ AUTOMATIC TYPE DETECTION** - Identifies instruments vs effects
-- **✅ MANUFACTURER EXTRACTION** - Recognizes Arturia, NI, Waves, etc., and fallbacks to directory names
-- Filter by type, format, favorites, and manufacturer
+🔌 **Multi-Format Plugin Catalog & Inspector**
+- **5 Plugin Formats Supported**: Scans `VST3`, `AU` (Audio Units), `CLAP`, `AAX` (Pro Tools), and `VST2`.
+- **Grouped vs. Flat View**: Deduplicates identical plugins installed in multiple formats into a single row with format badges (`[VST3]` `[AU]` `[CLAP]` `[AAX]`), or switch to Flat List view to inspect every file individually.
+- **Version & CPU Architecture Detection**: Displays installed plugin versions and binary architectures (`Apple Silicon`, `Universal`, `Intel (Rosetta)`, `x64`), plus a dedicated **⚠️ Intel Only** filter to spot Rosetta plugins on M-series Macs.
+- **Ratings, Notes & CSV Export**: Rate plugins (1–5 stars), store personal mix/preset notes, and export your catalog to CSV.
 
-⚙️ **Settings & Tools Panel**
-- **Category Manager**: Add, Rename, Reorder, or delete custom categories
-- **App Cleanup**: Detect and remove orphan apps that no longer exist on disk
-- **Statistics Dashboard**: Total counts for categories, apps, and plugins
-- **Configuration Migration**: Automatically moves your database to system-safe locations
-
-🎨 **Premium UI/UX**
-- Dark theme optimized for studio environments
-- Glassmorphism effects with macOS native window controls
-- Action-oriented interface with hover micro-animations
-- Search-first navigation
-
-🖥️ **Desktop Integration**
-- **MacOS Native**: Transparent title bar with drag-to-move support
-- **Production-Ready Storage**: Uses `~/Library/Application Support/` for data persistence
-- **Secure Architecture**: Context-isolated renderer with atomic write-back
-
-## 🛠️ Development
-
-### Running in Development Mode
-
-```bash
-npm run dev
-```
-
-### Building for Distribution
-
-Build for your current platform:
-```bash
-npm run build
-```
-
-Installers will be created in the `dist/` directory.
-
-## 🔮 Roadmap
-
-### ✅ Phase 1: Proof of Concept (Complete)
-- [x] Basic HTML/CSS/JS dashboard
-- [x] Search and filtering
-
-### ✅ Phase 2: Electron Wrapper (Complete)
-- [x] Actual app launching & IPC communication
-
-### ✅ Phase 3: Enhanced Plugin Scanner (Complete)
-- [x] Auto-scan plugin directories
-- [x] Intelligent type detection
-
-### ✅ Phase 4: Advanced Features (Complete)
-- [x] In-app configuration editor
-- [x] Manufacturer grouping view
-- [x] Plugin favorites and ratings
-
-### ✅ Phase 5: Tools & Automation (Complete)
-- [x] **App Scanner**: Auto-scan /Applications for music apps
-- [x] **Atomic Saving**: Safe, crash-proof configuration management
-- [x] **Category Manager**: Full control over dashboard organization
-- [x] **App Cleanup**: Remove missing/uninstalled applications
-- [x] **Smart Identification**: Mapping for 100+ synths (Arturia V, Serum, etc.)
-
-### 📋 Phase 6: Core User Experience (Planned)
-- [ ] Drag-and-drop app reordering
-- [ ] Custom app icon uploads
-- [ ] Advanced fuzzy search
-- [ ] System tray integration
-
-## 🛠️ Technical Details
-
-### Storage & Configuration
-
-On macOS, your library and preferences are stored in the system data folder to ensure compatibility with packaged releases.
-
-**Configuration Path:**
-`~/Library/Application Support/music-app-manager/config/apps-config.json`
-
-The app uses an **Atomic Rename** strategy: it writes a `.tmp` file and only swaps it with the main database once the write is successful. This prevents the "blank library" bug if your computer crashes during a save.
-
-## 📝 License
-
-MIT License - feel free to use and modify.
+⚙️ **Tools & Library Management**
+- **Library Statistics Dashboard**: Real-time counts for Applications, Unique Plugins, Total Plugin Files, and Categories.
+- **Category Manager**: Add, rename, reorder (`⬆️`/`⬇️`), or delete custom categories.
+- **Custom Scan Folders**: Add custom VST or App directories on secondary drives.
+- **Missing Software Cleanup**: Detect and clean up uninstalled applications or plugin files with one click.
+- **Crash-Safe Atomic Storage**: Stores configuration in `app.getPath('userData')` using atomic temp-file-and-rename writes.
 
 ---
 
-**Built with ❤️ for music producers by music producers**
+## 🛠️ Development & Packaging
 
-**Phase 5 Complete** - Atomic protection and full automation suite! 🚀
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev
+
+# Build installers for macOS (arm64 + x64 DMG/ZIP)
+npm run build:mac
+
+# Build installers for Windows PC (x64 NSIS + Portable)
+npm run build:win
+```

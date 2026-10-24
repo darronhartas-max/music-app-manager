@@ -1,1442 +1,1751 @@
-// Music App Manager
-// Phase 5: Full Feature Set
+// Music App Manager v2.0 — Unified Renderer Controller
+// Replaces legacy app.js, phase4.js, and phase5.js
 
-let appData = null;
-let currentTab = 'apps';
-let currentPluginFilter = 'all';
-let isElectron = false;
+const state = {
+  appData: null,
+  currentTab: 'apps',
+  currentAppView: 'category', // 'category' | 'manufacturer'
+  currentAppFilter: 'all',    // 'all' | 'favorites' | 'recent'
+  editMode: false,
+  currentPluginFilter: 'all',
+  pluginViewMode: 'grouped',  // 'grouped' | 'flat'
+  pluginSortField: 'name',
+  pluginSortAsc: true,
+  searchQuery: '',
+  searchHistory: [],
+  draggedAppPath: null,
+  contextMenuAppPath: null,
+  editingPluginGroup: null,
+  isElectron: Boolean(window.electronAPI && window.electronAPI.isElectron),
+  platformInfo: { platform: 'darwin', arch: 'arm64' }
+};
 
-// Initialize app on page load
+const MAX_SEARCH_HISTORY = 10;
+
+// Utility: HTML escaping to prevent broken attributes with Windows backslashes or quotes
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
 document.addEventListener('DOMContentLoaded', async () => {
-  // Check if running in Electron
-  isElectron = window.electronAPI && window.electronAPI.isElectron;
-
-  if (isElectron) {
-    console.log('Running in Electron mode');
-    const platform = await window.electronAPI.getPlatform();
-    console.log('Platform:', platform);
-  } else {
-    console.log('Running in browser mode');
+  if (state.isElectron) {
+    try {
+      state.platformInfo = await window.electronAPI.getPlatform();
+      if (state.platformInfo.platform === 'win32') {
+        document.body.classList.add('platform-win');
+      }
+    } catch (e) {
+      console.error('Failed to get platform info:', e);
+    }
   }
 
+  loadSearchHistory();
   await loadConfig();
-  initializeEventListeners();
-
-  // Initialize Phase 4 features
-  if (typeof initializePhase4 === 'function') {
-    initializePhase4();
-  }
-
-  // Initialize Phase 5 features
-  if (typeof initializePhase5 === 'function') {
-    initializePhase5();
-  }
-
-  renderApps();
-
-  // Show first-run welcome modal if library is empty and never shown before
-  _checkFirstRun();
+  bindAllEvents();
+  renderAll();
+  checkFirstRun();
 });
 
-// Show welcome modal when the library is completely empty on first launch
-function _checkFirstRun() {
-  const hasSeenWelcome = localStorage.getItem('mam-welcome-shown');
-  if (hasSeenWelcome) return;
+async function loadConfig() {
+  try {
+    if (state.isElectron) {
+      state.appData = await window.electronAPI.loadConfig();
+    } else {
+      const res = await fetch('../config/apps-config.json');
+      state.appData = await res.json();
+    }
+  } catch (err) {
+    console.error('Error loading config:', err);
+    state.appData = { categories: [], plugins: [], recentApps: [], settings: {} };
+  }
 
-  const totalApps = (appData && appData.categories)
-    ? appData.categories.reduce((n, c) => n + c.apps.length, 0)
-    : 0;
-  const totalPlugins = (appData && appData.plugins) ? appData.plugins.length : 0;
+  if (!Array.isArray(state.appData.categories)) state.appData.categories = [];
+  if (!Array.isArray(state.appData.plugins)) state.appData.plugins = [];
+  if (!Array.isArray(state.appData.recentApps)) state.appData.recentApps = [];
+  if (!state.appData.settings) state.appData.settings = {};
+  if (!Array.isArray(state.appData.settings.customPluginPaths)) state.appData.settings.customPluginPaths = [];
+  if (!Array.isArray(state.appData.settings.customAppPaths)) state.appData.settings.customAppPaths = [];
 
-  if (totalApps === 0 && totalPlugins === 0) {
-    setTimeout(() => _showWelcomeModal(), 600); // small delay so the app renders first
+  if (state.appData.settings.pluginViewMode) {
+    state.pluginViewMode = state.appData.settings.pluginViewMode;
   }
 }
 
-function _showWelcomeModal() {
-  const modal = document.getElementById('welcomeModal');
-  if (!modal) return;
-  modal.style.display = 'flex';
-
-  document.getElementById('welcomeStartBtn').onclick = () => {
-    _hideWelcomeModal();
-    switchTab('settings');
-    // Scroll to App Scanner section
-    setTimeout(() => {
-      const scanAppsBtn = document.getElementById('scanAppsBtn');
-      if (scanAppsBtn) scanAppsBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-  };
-
-  document.getElementById('welcomeDismissBtn').onclick = () => _hideWelcomeModal();
-
-  // Click backdrop to dismiss
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) _hideWelcomeModal();
-  });
+async function saveConfig() {
+  if (state.isElectron && state.appData) {
+    await window.electronAPI.saveConfig(state.appData);
+  }
 }
 
-function _hideWelcomeModal() {
+function renderAll() {
+  renderApps();
+  renderPlugins();
+  updateStatistics();
+  renderCategoryManager();
+  renderCustomPaths();
+  updatePlatformDisplay();
+}
+
+// ============================================
+// FIRST-RUN WELCOME MODAL
+// ============================================
+
+function checkFirstRun() {
+  if (localStorage.getItem('mam-welcome-shown')) return;
+  const totalApps = state.appData.categories.reduce((acc, c) => acc + (c.apps ? c.apps.length : 0), 0);
+  const totalPlugins = state.appData.plugins.length;
+
+  if (totalApps === 0 && totalPlugins === 0) {
+    const modal = document.getElementById('welcomeModal');
+    if (modal) modal.style.display = 'flex';
+  }
+}
+
+function hideWelcomeModal() {
   const modal = document.getElementById('welcomeModal');
   if (modal) modal.style.display = 'none';
   localStorage.setItem('mam-welcome-shown', '1');
 }
 
-// Refresh icons for all apps already in the config by re-extracting from their bundles
-async function handleRefreshIcons() {
-  const btn = document.getElementById('refreshIconsBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing...'; }
+// ============================================
+// APPS DASHBOARD & FUZZY SEARCH
+// ============================================
 
-  if (!appData || !appData.categories) return;
-
-  let updated = 0;
-  for (const cat of appData.categories) {
-    for (const app of cat.apps) {
-      if (!app.path || !app.path.endsWith('.app')) continue;
-      try {
-        const dataUrl = await window.electronAPI.extractAppIcon(app.path);
-        if (dataUrl) {
-          app.icon = dataUrl;
-          updated++;
-        }
-      } catch (e) { /* skip */ }
+function fuzzyScore(query, text) {
+  if (!text || !query) return 0;
+  const q = query.toLowerCase();
+  const t = String(text).toLowerCase();
+  if (t.includes(q)) return 100 + Math.max(0, 100 - t.indexOf(q));
+  let qi = 0;
+  let score = 0;
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === q[qi]) {
+      qi++;
+      score += 10;
+      if (qi === q.length) return score;
     }
   }
-
-  if (updated > 0) {
-    await window.electronAPI.saveConfig(appData);
-    renderApps();
-    showNotification('🖼️ Icons Refreshed', `Updated ${updated} app icon${updated !== 1 ? 's' : ''}`);
-  } else {
-    showNotification('ℹ️ No Updates', 'All icons are already up to date');
-  }
-
-  if (btn) { btn.disabled = false; btn.innerHTML = '<span class="btn-icon">🖼️</span> Refresh App Icons'; }
+  return 0;
 }
 
-// Load configuration
-async function loadConfig() {
-  try {
-    if (isElectron) {
-      // Load via Electron IPC
-      appData = await window.electronAPI.loadConfig();
-      console.log('Configuration loaded via Electron:', appData);
-      console.log(`Loaded ${appData.plugins ? appData.plugins.length : 0} plugins.`);
-    } else {
-      // Load via fetch (browser mode)
-      const response = await fetch('../config/apps-config.json');
-      appData = await response.json();
-      console.log('Configuration loaded via fetch:', appData);
-      console.log(`Loaded ${appData.plugins ? appData.plugins.length : 0} plugins.`);
+function findAppByPath(appPath) {
+  for (const cat of state.appData.categories) {
+    const idx = cat.apps.findIndex(a => a.path === appPath);
+    if (idx !== -1) {
+      return { app: cat.apps[idx], category: cat, index: idx };
     }
-
-    // Ensure all required fields exist
-    if (!appData.plugins) appData.plugins = [];
-    if (!appData.categories) appData.categories = [];
-    if (!appData.recentApps) appData.recentApps = [];
-
-  } catch (error) {
-    console.error('Error loading configuration:', error);
-    showError('Failed to load configuration file');
   }
+  return null;
 }
 
-// Initialize event listeners
-function initializeEventListeners() {
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      switchTab(e.target.dataset.tab);
+function renderApps() {
+  const container = document.getElementById('appsContainer');
+  if (!container) return;
+
+  container.classList.toggle('edit-mode', state.editMode);
+
+  const query = state.searchQuery.trim();
+  const recentPaths = state.appData.recentApps || [];
+
+  // Flatten all apps with category reference
+  let allApps = [];
+  state.appData.categories.forEach(cat => {
+    (cat.apps || []).forEach(app => {
+      allApps.push({ ...app, categoryName: cat.name });
     });
   });
 
-  // Search functionality
-  const searchInput = document.getElementById('searchInput');
-  searchInput.addEventListener('input', (e) => {
-    handleSearch(e.target.value);
-  });
-
-  // Plugin filters
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      setPluginFilter(e.target.dataset.filter);
-    });
-  });
-}
-
-// Switch between tabs
-function switchTab(tabName) {
-  currentTab = tabName;
-
-  // Update tab buttons
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabName);
-  });
-
-  // Update tab content
-  document.querySelectorAll('.tab-content').forEach(content => {
-    content.classList.toggle('active', content.id === `${tabName}Tab`);
-  });
-
-  // Render appropriate content
-  if (tabName === 'apps') {
-    renderApps();
-  } else if (tabName === 'plugins') {
-    renderPlugins();
-  } else if (tabName === 'settings') {
-    // Render category manager when settings tab is opened
-    if (typeof renderCategoryManager === 'function') {
-      setTimeout(() => renderCategoryManager(), 100);
-    }
+  // Apply quick filters
+  if (state.currentAppFilter === 'favorites') {
+    allApps = allApps.filter(a => a.favorite);
+  } else if (state.currentAppFilter === 'recent') {
+    allApps = allApps
+      .filter(a => recentPaths.includes(a.path))
+      .sort((a, b) => recentPaths.indexOf(a.path) - recentPaths.indexOf(b.path));
   }
 
-  // Clear search
-  document.getElementById('searchInput').value = '';
-}
+  // Apply search query (with fuzzy scoring)
+  if (query) {
+    const scored = [];
+    allApps.forEach(app => {
+      const score =
+        fuzzyScore(query, app.name) * 3 +
+        fuzzyScore(query, app.manufacturer) * 2 +
+        fuzzyScore(query, app.categoryName);
+      if (score > 0) scored.push({ app, score });
+    });
+    scored.sort((a, b) => b.score - a.score);
 
-// Render apps dashboard
-function renderApps(searchTerm = '') {
-  // Use Phase 4 rendering if available
-  if (typeof renderAppsPhase4 === 'function') {
-    renderAppsPhase4(searchTerm);
+    if (scored.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <p>No applications found matching "<strong>${escapeHtml(query)}</strong>"</p>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="category">
+        <div class="category-header">
+          <h2 class="category-title">Search Results</h2>
+          <span class="category-count">${scored.length}</span>
+        </div>
+        <div class="app-grid">
+          ${scored.map(s => createAppCardHtml(s.app)).join('')}
+        </div>
+      </div>`;
     return;
   }
 
-  // Fallback to original rendering
-  const container = document.getElementById('appsContainer');
-
-  if (!appData || !appData.categories) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>No configuration data available</p></div>';
+  if (allApps.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🎵</div>
+        <p>No apps in this view yet. Go to <strong>⚙️ Tools → Scan for Music Apps</strong> or click <strong>➕ Add App</strong>.</p>
+      </div>`;
     return;
   }
 
   let html = '';
-  let hasResults = false;
 
-  appData.categories.forEach(category => {
-    // Filter apps based on search term
-    const filteredApps = category.apps.filter(app =>
-      app.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  if (state.currentAppView === 'manufacturer') {
+    const byMfr = {};
+    allApps.forEach(app => {
+      const mfr = app.manufacturer || 'Unknown';
+      if (!byMfr[mfr]) byMfr[mfr] = [];
+      byMfr[mfr].push(app);
+    });
 
-    if (filteredApps.length === 0 && searchTerm) return;
-
-    hasResults = true;
-
-    html += `
-      <div class="category">
-        <div class="category-header">
-          <h2 class="category-title">${category.name}</h2>
-          <span class="category-count">${filteredApps.length}</span>
-        </div>
-        <div class="app-grid">
-          ${filteredApps.map(app => createAppCard(app)).join('')}
-        </div>
-      </div>
-    `;
-  });
-
-  if (!hasResults) {
-    html = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🔍</div>
-        <p>No apps found matching "${searchTerm}"</p>
-      </div>
-    `;
+    Object.keys(byMfr).sort().forEach(mfr => {
+      const list = byMfr[mfr];
+      html += `
+        <div class="category" data-group="${escapeHtml(mfr)}">
+          <div class="category-header">
+            <h2 class="category-title">${escapeHtml(mfr)}</h2>
+            <span class="category-count">${list.length}</span>
+          </div>
+          <div class="app-grid">
+            ${list.map(app => createAppCardHtml(app)).join('')}
+          </div>
+        </div>`;
+    });
+  } else {
+    state.appData.categories.forEach(cat => {
+      const list = allApps.filter(a => a.categoryName === cat.name);
+      if (list.length === 0) return;
+      html += `
+        <div class="category" data-category="${escapeHtml(cat.name)}">
+          <div class="category-header">
+            <h2 class="category-title">${escapeHtml(cat.name)}</h2>
+            <span class="category-count">${list.length}</span>
+          </div>
+          <div class="app-grid">
+            ${list.map(app => createAppCardHtml(app)).join('')}
+          </div>
+        </div>`;
+    });
   }
 
   container.innerHTML = html;
-
-  // Add click handlers to app cards
-  document.querySelectorAll('.app-card').forEach(card => {
-    card.addEventListener('click', () => {
-      launchApp(card.dataset.path, card.dataset.name);
-    });
-  });
 }
 
-// Create app card HTML
-function createAppCard(app) {
+function createAppCardHtml(app) {
+  const isRecent = (state.appData.recentApps || []).includes(app.path);
+  const isFav = Boolean(app.favorite);
+  const iconVal = app.icon || '🎵';
+  const iconHtml = iconVal.startsWith('data:') || iconVal.startsWith('http')
+    ? `<img src="${escapeHtml(iconVal)}" class="app-icon-img" alt="${escapeHtml(app.name)}">`
+    : `<div class="app-icon">${escapeHtml(iconVal)}</div>`;
+
+  const editBadge = state.editMode
+    ? `<button type="button" class="app-card-edit-action-btn" data-action="edit-app" title="Edit App">✏️ Edit</button>`
+    : '';
+
+  const subtitle = app.manufacturer && app.manufacturer !== 'Unknown'
+    ? app.manufacturer
+    : app.path;
+
   return `
-    <div class="app-card" data-path="${app.path}" data-name="${app.name}">
-      <div class="app-icon">${app.icon}</div>
-      <div class="app-name">${app.name}</div>
-      <div class="app-path">${app.path}</div>
-    </div>
-  `;
+    <div class="app-card ${isRecent ? 'recent' : ''}"
+         data-path="${escapeHtml(app.path)}"
+         data-name="${escapeHtml(app.name)}"
+         draggable="${state.editMode ? 'true' : 'false'}">
+      ${editBadge}
+      <button type="button" class="favorite-btn ${isFav ? 'active' : ''}" data-action="favorite-app" title="Toggle Favorite">
+        ${isFav ? '⭐' : '☆'}
+      </button>
+      ${iconHtml}
+      <div class="app-name">${escapeHtml(app.name)}</div>
+      <div class="app-path">${escapeHtml(subtitle)}</div>
+    </div>`;
 }
 
-// Launch application
-async function launchApp(path, name) {
-  console.log(`Launching: ${name} at ${path}`);
+async function launchApp(appPath, appName) {
+  if (!appPath) return;
 
-  if (isElectron) {
-    try {
-      // Use Electron API to launch app
-      const result = await window.electronAPI.launchApp(path, name);
+  // Track recent apps
+  const recent = state.appData.recentApps || [];
+  const filtered = recent.filter(p => p !== appPath);
+  filtered.unshift(appPath);
+  state.appData.recentApps = filtered.slice(0, state.appData.settings.maxRecentApps || 10);
+  await saveConfig();
 
-      if (result.success) {
-        showNotification(`🚀 Launched ${name}`, `Successfully opened the application`);
-      } else {
-        showError(`Failed to launch ${name}: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Launch error:', error);
-      showError(`Failed to launch ${name}: ${error.message || 'Unknown error'}`);
+  if (state.isElectron) {
+    const res = await window.electronAPI.launchApp(appPath, appName);
+    if (res && res.success) {
+      showNotification(`🚀 Launched ${appName}`, 'Application opened successfully');
+    } else {
+      showError(`Failed to launch ${appName}: ${(res && res.error) || 'Unknown error'}`);
     }
   } else {
-    // Browser mode - show info notification
-    showNotification(`🚀 ${name}`, `Install the Electron app to launch applications`);
+    showNotification(`🚀 ${appName}`, 'Run in Electron to launch desktop applications');
   }
 }
 
-// Render plugins table
-function renderPlugins(searchTerm = '') {
-  const tbody = document.getElementById('pluginTableBody');
+async function toggleAppFavorite(appPath) {
+  const found = findAppByPath(appPath);
+  if (!found) return;
+  found.app.favorite = !found.app.favorite;
+  await saveConfig();
+  renderApps();
+}
 
-  if (!appData || !appData.plugins || !Array.isArray(appData.plugins)) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No plugin data available</td></tr>';
-    console.warn('renderPlugins: No plugins array in appData', appData);
+function toggleEditMode() {
+  state.editMode = !state.editMode;
+  const btn = document.getElementById('editModeBtn');
+  if (btn) {
+    btn.classList.toggle('active', state.editMode);
+    btn.innerHTML = state.editMode
+      ? '<span class="btn-icon">✅</span> Done'
+      : '<span class="btn-icon">✏️</span> Edit Mode';
+  }
+  renderApps();
+}
+
+async function reorderApp(draggedPath, targetPath, insertBefore) {
+  if (!draggedPath || !targetPath || draggedPath === targetPath) return;
+  const source = findAppByPath(draggedPath);
+  const dest = findAppByPath(targetPath);
+  if (!source || !dest) return;
+
+  const [movedApp] = source.category.apps.splice(source.index, 1);
+  let targetIdx = dest.category.apps.findIndex(a => a.path === targetPath);
+  if (targetIdx === -1) targetIdx = dest.category.apps.length;
+
+  const insertIdx = insertBefore ? targetIdx : targetIdx + 1;
+  dest.category.apps.splice(insertIdx, 0, movedApp);
+
+  await saveConfig();
+  renderApps();
+  showNotification('✅ Reordered', `Moved ${movedApp.name}`);
+}
+
+// ============================================
+// ADD / EDIT APP MODAL
+// ============================================
+
+function populateCategorySelect(selectedCategory = 'DAWs') {
+  const select = document.getElementById('appCategory');
+  if (!select) return;
+  const cats = state.appData.categories.map(c => c.name);
+  if (cats.length === 0) cats.push('DAWs', 'Synths', 'Guitar & Bass', 'Audio Tools', 'Utilities');
+
+  select.innerHTML = cats.map(c =>
+    `<option value="${escapeHtml(c)}" ${c === selectedCategory ? 'selected' : ''}>${escapeHtml(c)}</option>`
+  ).join('');
+}
+
+function updateIconPreview(iconVal) {
+  const preview = document.getElementById('appIconPreview');
+  if (!preview) return;
+  const val = (iconVal || '🎵').trim();
+  if (val.startsWith('data:') || val.startsWith('http')) {
+    preview.innerHTML = `<img src="${escapeHtml(val)}" alt="App Icon">`;
+  } else {
+    preview.textContent = val || '🎵';
+  }
+}
+
+function openAddAppModal() {
+  populateCategorySelect('DAWs');
+  document.getElementById('appModalTitle').textContent = 'Add Application';
+  document.getElementById('appOriginalPath').value = '';
+  document.getElementById('appName').value = '';
+  document.getElementById('appManufacturer').value = '';
+  document.getElementById('appPath').value = '';
+  document.getElementById('appIcon').value = '🎹';
+  updateIconPreview('🎹');
+  document.getElementById('deleteAppModalBtn').style.display = 'none';
+  document.getElementById('appModal').classList.add('active');
+}
+
+function openEditAppModal(appPath) {
+  const found = findAppByPath(appPath);
+  if (!found) return;
+  const { app, category } = found;
+
+  populateCategorySelect(category.name);
+  document.getElementById('appModalTitle').textContent = 'Edit Application';
+  document.getElementById('appOriginalPath').value = app.path;
+  document.getElementById('appName').value = app.name || '';
+  document.getElementById('appManufacturer').value = app.manufacturer || '';
+  document.getElementById('appPath').value = app.path || '';
+  document.getElementById('appIcon').value = app.icon || '🎵';
+  updateIconPreview(app.icon || '🎵');
+  document.getElementById('deleteAppModalBtn').style.display = 'inline-block';
+  document.getElementById('appModal').classList.add('active');
+}
+
+async function saveAppFromModal() {
+  const origPath = document.getElementById('appOriginalPath').value;
+  const name = document.getElementById('appName').value.trim();
+  const manufacturer = document.getElementById('appManufacturer').value.trim() || 'Unknown';
+  const appPath = document.getElementById('appPath').value.trim();
+  const categoryName = document.getElementById('appCategory').value || 'Utilities';
+  const icon = document.getElementById('appIcon').value.trim() || '🎹';
+
+  if (!name || !appPath) {
+    showError('Please fill in both App Name and App Path.');
     return;
   }
 
-  console.log(`renderPlugins: Attempting to render ${appData.plugins.length} plugins (filter: ${currentPluginFilter}, search: "${searchTerm}")`);
-
-  // Filter plugins
-  let filteredPlugins = appData.plugins.filter(plugin => {
-    const name = (plugin.name || '').toLowerCase();
-    const mfr = (plugin.manufacturer || '').toLowerCase();
-    const type = (plugin.type || 'unknown').toLowerCase();
-    const format = (plugin.format || 'unknown').toUpperCase();
-    const term = (searchTerm || '').toLowerCase();
-
-    const matchesSearch = term === '' || name.includes(term) || mfr.includes(term);
-
-    let matchesFilter = currentPluginFilter === 'all';
-
-    if (currentPluginFilter === 'favorites') {
-      matchesFilter = plugin.favorite === true;
-    } else if (currentPluginFilter !== 'all') {
-      const filterLower = currentPluginFilter.toLowerCase();
-      matchesFilter = (type === filterLower) || (format === currentPluginFilter);
+  let favorite = false;
+  if (origPath) {
+    const existing = findAppByPath(origPath);
+    if (existing) {
+      favorite = Boolean(existing.app.favorite);
+      existing.category.apps.splice(existing.index, 1);
     }
+  }
 
-    return matchesSearch && matchesFilter;
+  let targetCat = state.appData.categories.find(c => c.name === categoryName);
+  if (!targetCat) {
+    targetCat = { name: categoryName, apps: [] };
+    state.appData.categories.push(targetCat);
+  }
+
+  targetCat.apps.push({
+    name,
+    manufacturer,
+    path: appPath,
+    icon,
+    favorite
   });
 
-  console.log(`renderPlugins: ${filteredPlugins.length}/${appData.plugins.length} plugins passed filter.`);
-
-  if (filteredPlugins.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
-          <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
-          No plugins found
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
-  tbody.innerHTML = filteredPlugins.map((plugin, index) => {
-    const favorite = plugin.favorite ? '⭐' : '☆';
-    const rating = plugin.rating ? '★'.repeat(plugin.rating) : '-';
-    const rowClass = plugin.favorite ? 'favorite' : '';
-
-    return `
-      <tr class="${rowClass} plugin-row" data-index="${index}" style="cursor: pointer;">
-        <td class="favorite-cell ${plugin.favorite ? 'active' : ''}">${favorite}</td>
-        <td><strong>${plugin.name}</strong></td>
-        <td><span class="plugin-type ${plugin.type}">${plugin.type}</span></td>
-        <td><span class="plugin-format">${plugin.format}</span></td>
-        <td>${plugin.manufacturer}</td>
-        <td class="rating-cell">${rating}</td>
-        <td class="plugin-notes">${plugin.notes || '-'}</td>
-        <td style="font-size: 0.75rem; color: var(--text-muted);">${plugin.path}</td>
-      </tr>
-    `;
-  }).join('');
-
-  // Attach event listeners safely
-  document.querySelectorAll('.plugin-row').forEach(row => {
-    row.addEventListener('click', () => {
-      const index = parseInt(row.dataset.index, 10);
-      if (typeof openPluginModal === 'function') {
-        openPluginModal(filteredPlugins[index]);
-      }
-    });
-  });
+  await saveConfig();
+  closeModal('appModal');
+  renderAll();
+  showNotification('✅ Saved', `${name} saved in ${categoryName}`);
 }
 
-// Set plugin filter
-function setPluginFilter(filter) {
-  currentPluginFilter = filter;
+async function deleteAppByPath(appPath) {
+  const found = findAppByPath(appPath);
+  if (!found) return;
+  if (!confirm(`Remove "${found.app.name}" from your Music App Manager library?`)) return;
 
-  // Update filter buttons
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === filter);
-  });
-
-  // Re-render plugins
-  const searchTerm = document.getElementById('searchInput').value;
-  renderPlugins(searchTerm);
+  found.category.apps.splice(found.index, 1);
+  await saveConfig();
+  closeModal('appModal');
+  renderAll();
+  showNotification('🗑️ Removed', `${found.app.name} removed from library`);
 }
-
-// Handle search
-function handleSearch(searchTerm) {
-  if (currentTab === 'apps') {
-    renderApps(searchTerm);
-  } else if (currentTab === 'plugins') {
-    renderPlugins(searchTerm);
-  }
-}
-
-// Show notification
-function showNotification(title, message) {
-  // Create notification element
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    background: var(--bg-glass);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 1.5rem;
-    max-width: 400px;
-    box-shadow: var(--shadow-lg);
-    z-index: 1000;
-    animation: slideIn 0.3s ease;
-  `;
-
-  notification.innerHTML = `
-    <div style="font-weight: 600; margin-bottom: 0.5rem;">${title}</div>
-    <div style="color: var(--text-secondary); font-size: 0.875rem;">${message}</div>
-  `;
-
-  document.body.appendChild(notification);
-
-  // Remove after 3 seconds
-  setTimeout(() => {
-    notification.style.animation = 'slideOut 0.3s ease';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
-}
-
-// Show error
-function showError(message) {
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    background: rgba(239, 68, 68, 0.2);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(239, 68, 68, 0.5);
-    border-radius: var(--radius-md);
-    padding: 1.5rem;
-    max-width: 400px;
-    box-shadow: var(--shadow-lg);
-    z-index: 1000;
-    color: #fca5a5;
-  `;
-
-  notification.innerHTML = `
-    <div style="font-weight: 600; margin-bottom: 0.5rem;">⚠️ Error</div>
-    <div style="font-size: 0.875rem;">${message}</div>
-  `;
-
-  document.body.appendChild(notification);
-
-  setTimeout(() => notification.remove(), 5000);
-}
-
-// Add animation styles
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes slideIn {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-  
-  @keyframes slideOut {
-    from {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    to {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-  }
-`;
-document.head.appendChild(style);
 
 // ============================================
-// PHASE 3: Settings Panel Functionality
+// PLUGINS CATALOG (GROUPED & FLAT VIEWS)
 // ============================================
 
-// Initialize settings panel
-function initializeSettings() {
-  if (!isElectron) return;
+function getFormatBadgeHtml(fmt) {
+  const f = (fmt || 'VST').toUpperCase();
+  const cls = f === 'VST3' ? 'vst3'
+    : f === 'AU' ? 'au'
+    : f === 'CLAP' ? 'clap'
+    : f === 'AAX' ? 'aax' : 'vst';
+  return `<span class="badge-format badge-format-${cls}">${escapeHtml(f)}</span>`;
+}
 
-  // Scan plugins button
-  const scanBtn = document.getElementById('scanPluginsBtn');
-  if (scanBtn) {
-    scanBtn.addEventListener('click', handlePluginScan);
+function getArchBadgeHtml(arch) {
+  const a = (arch || 'Universal').toLowerCase();
+  if (a.includes('apple') || a.includes('arm64')) {
+    return `<span class="badge-arch badge-arch-apple">Apple Silicon</span>`;
+  }
+  if (a.includes('intel') || a.includes('rosetta')) {
+    return `<span class="badge-arch badge-arch-intel">Intel (Rosetta)</span>`;
+  }
+  if (a.includes('x64') || a.includes('win')) {
+    return `<span class="badge-arch badge-arch-x64">x64</span>`;
+  }
+  return `<span class="badge-arch badge-arch-universal">Universal</span>`;
+}
+
+function buildDisplayPlugins() {
+  const rawPlugins = state.appData.plugins || [];
+  const query = state.searchQuery.trim().toLowerCase();
+
+  // Filter raw plugins first
+  const filteredRaw = rawPlugins.filter(p => {
+    const name = (p.name || '').toLowerCase();
+    const mfr = (p.manufacturer || '').toLowerCase();
+    const notes = (p.notes || '').toLowerCase();
+    const type = (p.type || 'unknown').toLowerCase();
+    const format = (p.format || '').toUpperCase();
+    const arch = (p.arch || '').toLowerCase();
+
+    if (query && !name.includes(query) && !mfr.includes(query) && !notes.includes(query)) {
+      return false;
+    }
+
+    const f = state.currentPluginFilter;
+    if (f === 'favorites') return Boolean(p.favorite);
+    if (f === 'instrument' || f === 'effect') return type === f;
+    if (f === 'rosetta') return arch.includes('intel') || arch.includes('rosetta');
+    if (f !== 'all') return format === f.toUpperCase();
+    return true;
+  });
+
+  if (state.pluginViewMode === 'flat') {
+    return filteredRaw.map(p => ({
+      key: p.path,
+      name: p.name || 'Unknown',
+      type: p.type || 'unknown',
+      formats: [p.format || 'VST'],
+      manufacturer: p.manufacturer || 'Unknown',
+      version: p.version || '-',
+      arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
+      rating: p.rating || 0,
+      favorite: Boolean(p.favorite),
+      notes: p.notes || '',
+      paths: [p.path],
+      primaryPath: p.path
+    }));
   }
 
-  // Export config button
-  const exportBtn = document.getElementById('exportConfigBtn');
-  if (exportBtn) {
-    exportBtn.addEventListener('click', handleExportConfig);
-  }
-
-  // Reload config button
-  const reloadBtn = document.getElementById('reloadConfigBtn');
-  if (reloadBtn) {
-    reloadBtn.addEventListener('click', handleReloadConfig);
-  }
-
-  // Add category button
-  const addCategoryBtn = document.getElementById('addCategoryBtn');
-  if (addCategoryBtn) {
-    // Guard against double-binding (called every time settings tab opens)
-    if (!addCategoryBtn.dataset.bound) {
-      addCategoryBtn.dataset.bound = 'true';
-      addCategoryBtn.addEventListener('click', () => {
-        const name = prompt('Enter category name:');
-        if (name && name.trim()) {
-          addCategory(name.trim()).then(() => {
-            if (typeof renderCategoryManager === 'function') renderCategoryManager();
-          });
-        }
+  // Grouped mode: merge identical plugin name + manufacturer across formats
+  const groups = new Map();
+  filteredRaw.forEach(p => {
+    const groupKey = `${(p.name || '').toLowerCase().trim()}::${(p.manufacturer || 'unknown').toLowerCase().trim()}`;
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        key: groupKey,
+        name: p.name || 'Unknown',
+        type: p.type || 'unknown',
+        formats: [],
+        manufacturer: p.manufacturer || 'Unknown',
+        version: p.version || '',
+        arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
+        rating: p.rating || 0,
+        favorite: Boolean(p.favorite),
+        notes: p.notes || '',
+        paths: [],
+        primaryPath: p.path
       });
     }
-  }
-
-  // Scan apps button
-  const scanAppsBtn = document.getElementById('scanAppsBtn');
-  if (scanAppsBtn) {
-    scanAppsBtn.addEventListener('click', handleAppScan);
-  }
-
-  // Cleanup apps button
-  const cleanupAppsBtn = document.getElementById('cleanupAppsBtn');
-  if (cleanupAppsBtn) {
-    cleanupAppsBtn.addEventListener('click', handleCleanupApps);
-  }
-
-  // Refresh Icons button
-  const refreshIconsBtn = document.getElementById('refreshIconsBtn');
-  if (refreshIconsBtn) {
-    if (!refreshIconsBtn.dataset.bound) {
-      refreshIconsBtn.dataset.bound = 'true';
-      refreshIconsBtn.addEventListener('click', handleRefreshIcons);
-    }
-  }
-
-  // Open User Guide button
-  const openUserGuideBtn = document.getElementById('openUserGuideBtn');
-  if (openUserGuideBtn && !openUserGuideBtn.dataset.bound) {
-    openUserGuideBtn.dataset.bound = 'true';
-    openUserGuideBtn.addEventListener('click', () => {
-      if (window.electronAPI && window.electronAPI.openUserGuide) {
-        window.electronAPI.openUserGuide();
-      }
-    });
-  }
-
-  // Update statistics
-  updateStatistics();
-
-  // Update platform info
-  updatePlatformInfo();
-
-  // Listen for scan progress
-  if (window.electronAPI.onScanProgress) {
-    window.electronAPI.onScanProgress((data) => {
-      updateScanProgress(data);
-    });
-  }
-}
-
-// Handle plugin scan
-async function handlePluginScan() {
-  const scanBtn = document.getElementById('scanPluginsBtn');
-  const scanProgress = document.getElementById('scanProgress');
-  const scanResults = document.getElementById('scanResults');
-
-  try {
-    // Disable button and show progress
-    scanBtn.disabled = true;
-    scanProgress.style.display = 'flex';
-    scanResults.style.display = 'none';
-
-    // Start scan
-    const result = await window.electronAPI.scanPlugins();
-
-    // Hide progress
-    scanProgress.style.display = 'none';
-
-    // Show results
-    scanResults.style.display = 'block';
-    // Show results summary and a preview
-    const preview = result.plugins.slice(0, 5);
-    let previewHtml = `
-      <div class="scan-preview" style="margin-top: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 4px; border: 1px solid var(--border-color);">
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Preview</div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-          ${preview.map(p => `
-            <tr>
-              <td style="padding: 2px 0;"><strong>${p.name}</strong></td>
-              <td style="padding: 2px 0; color: var(--text-muted); text-align: right;">${p.manufacturer}</td>
-            </tr>
-          `).join('')}
-        </table>
-        ${result.count > 5 ? `<div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem;">+ ${result.count - 5} more...</div>` : ''}
-      </div>
-    `;
-
-    scanResults.innerHTML = `
-      <h3>✅ Scan Complete!</h3>
-      <p><strong>${result.count}</strong> plugins found in standard folders.</p>
-      
-      ${previewHtml}
-
-      <div style="margin-top: var(--spacing-md); display: flex; gap: 0.5rem;">
-        <button id="mergePluginsBtn" class="action-btn primary">
-          <span class="btn-icon">📥</span>
-          Add All to Library
-        </button>
-        <button id="viewScannedBtn" class="action-btn">
-          <span class="btn-icon">👁️</span>
-          Full Details
-        </button>
-      </div>
-    `;
-
-    // Store scanned plugins temporarily
-    window.scannedPlugins = result.plugins;
-
-    // Add merge button handler via onclick to prevent listener stacking
-    document.getElementById('mergePluginsBtn').onclick = async () => {
-      document.getElementById('mergePluginsBtn').disabled = true;
-      await handleMergePlugins(window.scannedPlugins);
-    };
-
-    // Add view button handler
-    document.getElementById('viewScannedBtn').addEventListener('click', () => {
-      showScannedPluginsDetails(result.plugins);
-    });
-
-  } catch (error) {
-    console.error('Scan error:', error);
-    scanProgress.style.display = 'none';
-    scanResults.style.display = 'block';
-    scanResults.innerHTML = `
-      <h3>⚠️ Scan Error</h3>
-      <p style="color: #fca5a5;">${error.message || 'Failed to scan plugins'}</p>
-    `;
-  } finally {
-    scanBtn.disabled = false;
-  }
-}
-
-// Update scan progress
-function updateScanProgress(data) {
-  const progressText = document.querySelector('.progress-text');
-  if (progressText) {
-    progressText.textContent = `Scanning... ${data.count} plugins found (${data.current})`;
-  }
-}
-
-// Handle merge plugins (Now handles merging locally for better state consistency)
-async function handleMergePlugins(scannedPlugins) {
-  try {
-    if (!scannedPlugins || !Array.isArray(scannedPlugins)) {
-      throw new Error('Invalid plugin data received from scanner');
-    }
-
-    // Ensure we have current data before merging
-    await loadConfig();
-
-    if (!appData.plugins) {
-      appData.plugins = [];
-    }
-
-    const existingPaths = new Set(appData.plugins.map(p => p.path));
-    const newItems = scannedPlugins.filter(p => !existingPaths.has(p.path));
-
-    if (newItems.length > 0) {
-      // Merge into local appData
-      appData.plugins = [...appData.plugins, ...newItems];
-
-      // Save the merged state atomically
-      if (isElectron) {
-        const saveResult = await window.electronAPI.saveConfig(appData);
-        if (!saveResult.success) throw new Error('Failed to save to disk');
-      }
-    }
-
-    showNotification(
-      '✅ Plugins Added',
-      `Added ${newItems.length} new plugins. Total library size: ${appData.plugins.length}`
-    );
-
-    updateStatistics();
-
-    // Clear search bar and reset filters to show the new ones
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) searchInput.value = '';
-
-    currentPluginFilter = 'all';
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === 'all');
-    });
-
-    // Switch to plugins tab for visual confirmation
-    switchTab('plugins');
-
-    // Extra render call to update UI
-    renderPlugins();
-
-  } catch (error) {
-    console.error('Merge Error:', error);
-    showError(`Failed to merge plugins: ${error.message}`);
-  } finally {
-    const btn = document.getElementById('mergePluginsBtn');
-    if (btn) btn.disabled = false;
-  }
-}
-
-// Show scanned plugins details
-function showScannedPluginsDetails(plugins) {
-  const scanResults = document.getElementById('scanResults');
-
-  // Group by format
-  const byFormat = {};
-  plugins.forEach(p => {
-    if (!byFormat[p.format]) byFormat[p.format] = [];
-    byFormat[p.format].push(p);
+    const g = groups.get(groupKey);
+    const fmt = p.format || 'VST';
+    if (!g.formats.includes(fmt)) g.formats.push(fmt);
+    if (!g.paths.includes(p.path)) g.paths.push(p.path);
+    if (p.type && p.type !== 'unknown' && g.type === 'unknown') g.type = p.type;
+    if (p.version && !g.version) g.version = p.version;
+    if (p.favorite) g.favorite = true;
+    if ((p.rating || 0) > g.rating) g.rating = p.rating;
+    if (p.notes && !g.notes) g.notes = p.notes;
+    if ((p.arch || '').toLowerCase().includes('intel')) g.arch = p.arch;
   });
 
-  let html = '<h3>📋 Scanned Plugins</h3>';
+  return Array.from(groups.values());
+}
 
-  Object.keys(byFormat).forEach(format => {
-    html += `
-      <div style="margin-top: var(--spacing-md);">
-        <strong>${format}</strong>: ${byFormat[format].length} plugins
-      </div>
-    `;
+function renderPlugins() {
+  const tbody = document.getElementById('pluginTableBody');
+  if (!tbody) return;
+
+  // Update view mode buttons
+  document.querySelectorAll('.segment-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === state.pluginViewMode);
   });
 
-  html += `
-    <div style="margin-top: var(--spacing-md); display: flex; gap: 0.5rem;">
-      <button id="mergeFromDetailsBtn" class="action-btn primary">
-        <span class="btn-icon">📥</span>
-        Add ${plugins.length} Plugins
-      </button>
-      <button id="backToScanBtn" class="action-btn">
-        <span class="btn-icon">←</span>
-        Back
-      </button>
-    </div>
-  `;
+  const items = buildDisplayPlugins();
 
-  scanResults.innerHTML = html;
-
-  document.getElementById('mergeFromDetailsBtn').addEventListener('click', async () => {
-    await handleMergePlugins(plugins);
+  // Sort items
+  const field = state.pluginSortField;
+  const dir = state.pluginSortAsc ? 1 : -1;
+  items.sort((a, b) => {
+    if (field === 'rating') return ((a.rating || 0) - (b.rating || 0)) * dir;
+    const valA = String(a[field] || '').toLowerCase();
+    const valB = String(b[field] || '').toLowerCase();
+    return valA.localeCompare(valB) * dir;
   });
 
-  document.getElementById('backToScanBtn').addEventListener('click', () => {
-    handlePluginScan();
+  // Update sort header indicators
+  document.querySelectorAll('th.sortable').forEach(th => {
+    const isCurrent = th.dataset.sort === field;
+    th.classList.toggle('asc', isCurrent && state.pluginSortAsc);
+    th.classList.toggle('desc', isCurrent && !state.pluginSortAsc);
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isCurrent ? (state.pluginSortAsc ? '▲' : '▼') : '';
+  });
+
+  state.currentDisplayedPlugins = items;
+
+  if (items.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
+          No plugins match the current filter. Go to <strong>⚙️ Tools → Scan for Plugins</strong> to populate your catalog.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map((item, idx) => {
+    const stars = item.rating ? '★'.repeat(item.rating) : '-';
+    const formatsHtml = `<div class="format-badges-container">${item.formats.map(getFormatBadgeHtml).join('')}</div>`;
+    const archHtml = getArchBadgeHtml(item.arch);
+
+    return `
+      <tr class="plugin-row ${item.favorite ? 'favorite' : ''}" data-idx="${idx}">
+        <td class="favorite-cell ${item.favorite ? 'active' : ''}" data-action="toggle-plugin-fav" style="text-align: center; cursor: pointer;">
+          ${item.favorite ? '⭐' : '☆'}
+        </td>
+        <td><strong>${escapeHtml(item.name)}</strong></td>
+        <td><span class="plugin-type ${escapeHtml(item.type)}">${escapeHtml(item.type)}</span></td>
+        <td>${formatsHtml}</td>
+        <td>${escapeHtml(item.manufacturer)}</td>
+        <td style="font-size: 0.8125rem; color: var(--text-secondary);">${escapeHtml(item.version || '-')}</td>
+        <td>${archHtml}</td>
+        <td class="rating-cell" style="text-align: center;">${stars}</td>
+        <td class="plugin-notes">${escapeHtml(item.notes || '-')}</td>
+        <td style="text-align: center;">
+          <button type="button" class="reorder-btn" data-action="reveal-plugin" title="Show in Finder / Explorer">📂</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function openPluginModal(item) {
+  if (!item) return;
+  state.editingPluginGroup = item;
+  document.getElementById('pluginName').value = item.name;
+  document.getElementById('pluginMetaInfo').textContent =
+    `${item.manufacturer} • Formats: ${item.formats.join(', ')} • ${item.paths.length} file(s)`;
+  document.getElementById('pluginNotes').value = item.notes || '';
+  document.getElementById('pluginFavorite').checked = Boolean(item.favorite);
+  document.getElementById('pluginRating').value = item.rating || 0;
+  updateRatingStars(item.rating || 0);
+  document.getElementById('pluginModal').classList.add('active');
+}
+
+function updateRatingStars(rating) {
+  document.querySelectorAll('#pluginRatingStars .star').forEach((star, i) => {
+    const active = i < rating;
+    star.textContent = active ? '★' : '☆';
+    star.classList.toggle('active', active);
   });
 }
 
-// Handle export config
-async function handleExportConfig() {
-  try {
-    const configJson = JSON.stringify(appData, null, 2);
-    const blob = new Blob([configJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `appviewr-config-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+async function savePluginFromModal() {
+  const group = state.editingPluginGroup;
+  if (!group) return;
 
-    showNotification('📤 Config Exported', 'Configuration file downloaded');
-  } catch (error) {
-    showError(`Failed to export config: ${error.message}`);
-  }
+  const notes = document.getElementById('pluginNotes').value.trim();
+  const favorite = document.getElementById('pluginFavorite').checked;
+  const rating = parseInt(document.getElementById('pluginRating').value, 10) || 0;
+  const pathSet = new Set(group.paths);
+
+  state.appData.plugins.forEach(p => {
+    if (pathSet.has(p.path)) {
+      p.notes = notes;
+      p.favorite = favorite;
+      p.rating = rating;
+    }
+  });
+
+  await saveConfig();
+  closeModal('pluginModal');
+  renderPlugins();
+  showNotification('✅ Plugin Updated', `Saved details for ${group.name}`);
 }
 
-// Handle reload config
-async function handleReloadConfig() {
-  try {
-    await loadConfig();
-    updateStatistics();
-    renderApps();
-    renderPlugins();
-    showNotification('🔄 Config Reloaded', 'Configuration refreshed successfully');
-  } catch (error) {
-    showError(`Failed to reload config: ${error.message}`);
+function exportPluginsCsv() {
+  const items = buildDisplayPlugins();
+  if (items.length === 0) {
+    showError('No plugins to export.');
+    return;
   }
+
+  const headers = ['Name', 'Manufacturer', 'Type', 'Formats', 'Version', 'Architecture', 'Rating', 'Favorite', 'Notes', 'Primary Path'];
+  const csvRows = [headers.join(',')];
+
+  const csvEscape = (val) => `"${String(val || '').replace(/"/g, '""')}"`;
+
+  items.forEach(item => {
+    csvRows.push([
+      csvEscape(item.name),
+      csvEscape(item.manufacturer),
+      csvEscape(item.type),
+      csvEscape(item.formats.join(' | ')),
+      csvEscape(item.version),
+      csvEscape(item.arch),
+      item.rating || 0,
+      item.favorite ? 'Yes' : 'No',
+      csvEscape(item.notes),
+      csvEscape(item.primaryPath)
+    ].join(','));
+  });
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `plugin-inventory-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showNotification('📄 CSV Exported', `Exported ${items.length} plugins to CSV`);
 }
 
-// Update statistics
+// ============================================
+// TOOLS / SETTINGS TAB
+// ============================================
+
 function updateStatistics() {
-  if (!appData) return;
+  if (!state.appData) return;
 
-  // Count apps
-  let totalApps = 0;
-  if (appData.categories) {
-    appData.categories.forEach(cat => {
-      totalApps += cat.apps.length;
-    });
-  }
+  const totalApps = state.appData.categories.reduce((acc, c) => acc + (c.apps ? c.apps.length : 0), 0);
+  const totalPluginFiles = state.appData.plugins.length;
 
-  // Count plugins
-  const totalPlugins = appData.plugins ? appData.plugins.length : 0;
+  // Unique plugins count (by name + manufacturer)
+  const uniqueKeys = new Set(
+    state.appData.plugins.map(p => `${(p.name || '').toLowerCase()}::${(p.manufacturer || '').toLowerCase()}`)
+  );
+  const totalCategories = state.appData.categories.length;
 
-  // Count categories
-  const totalCategories = appData.categories ? appData.categories.length : 0;
+  const elApps = document.getElementById('statApps');
+  const elUniquePlugins = document.getElementById('statPlugins');
+  const elPluginFiles = document.getElementById('statTotalPluginFiles');
+  const elCats = document.getElementById('statCategories');
 
-  // Update UI
-  const statApps = document.getElementById('statApps');
-  const statPlugins = document.getElementById('statPlugins');
-  const statCategories = document.getElementById('statCategories');
-
-  if (statApps) statApps.textContent = totalApps;
-  if (statPlugins) statPlugins.textContent = totalPlugins;
-  if (statCategories) statCategories.textContent = totalCategories;
+  if (elApps) elApps.textContent = totalApps;
+  if (elUniquePlugins) elUniquePlugins.textContent = uniqueKeys.size;
+  if (elPluginFiles) elPluginFiles.textContent = totalPluginFiles;
+  if (elCats) elCats.textContent = totalCategories;
 }
 
-// Update platform info
-async function updatePlatformInfo() {
-  if (!isElectron) return;
-
-  try {
-    const platform = await window.electronAPI.getPlatform();
-    const platformInfo = document.getElementById('platformInfo');
-
-    if (platformInfo) {
-      const platformName = platform.platform === 'darwin' ? 'macOS' :
-        platform.platform === 'win32' ? 'Windows' :
-          platform.platform;
-      platformInfo.textContent = `Platform: ${platformName} (${platform.arch})`;
-    }
-  } catch (error) {
-    console.error('Failed to get platform info:', error);
-  }
+function updatePlatformDisplay() {
+  const el = document.getElementById('platformInfo');
+  if (!el) return;
+  const p = state.platformInfo.platform === 'darwin' ? 'macOS'
+    : state.platformInfo.platform === 'win32' ? 'Windows PC'
+    : state.platformInfo.platform;
+  el.textContent = `Platform: ${p} (${state.platformInfo.arch})`;
 }
 
-// Call initialize settings when settings tab is opened
-const originalSwitchTab = switchTab;
-switchTab = function (tabName) {
-  originalSwitchTab(tabName);
-
-  if (tabName === 'settings' && isElectron) {
-    initializeSettings();
-  }
-};
-
-// ============================================
-// CATEGORY REORDERING
-// ============================================
-
-// Render category manager
+// --- Category Manager ---
 function renderCategoryManager() {
-  const categoryList = document.getElementById('categoryList');
-  if (!categoryList || !appData || !appData.categories) return;
+  const listEl = document.getElementById('categoryList');
+  if (!listEl || !state.appData) return;
 
-  categoryList.innerHTML = appData.categories.map((category, index) => `
-    <div class="category-item">
+  const cats = state.appData.categories;
+  if (cats.length === 0) {
+    listEl.innerHTML = `<div style="color: var(--text-muted); font-size: 0.875rem;">No categories configured.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = cats.map((cat, idx) => `
+    <div class="category-item" data-cat-index="${idx}">
       <div class="category-reorder-btns">
-        <button class="reorder-btn" onclick="moveCategoryUp(${index})" ${index === 0 ? 'disabled' : ''}>⬆️</button>
-        <button class="reorder-btn" onclick="moveCategoryDown(${index})" ${index === appData.categories.length - 1 ? 'disabled' : ''}>⬇️</button>
+        <button type="button" class="reorder-btn" data-action="cat-up" ${idx === 0 ? 'disabled' : ''} title="Move Up">⬆️</button>
+        <button type="button" class="reorder-btn" data-action="cat-down" ${idx === cats.length - 1 ? 'disabled' : ''} title="Move Down">⬇️</button>
       </div>
-      <input type="text" value="${category.name}" 
-             onblur="handleCategoryRename(this, '${category.name}')"
-             onkeypress="if(event.key==='Enter') this.blur()">
-      <span style="color: var(--text-muted); font-size: 0.75rem;">${category.apps.length} apps</span>
-      <button class="delete-btn" onclick="handleCategoryDelete('${category.name}')">🗑️</button>
+      <input type="text" class="category-name-input" value="${escapeHtml(cat.name)}" data-orig="${escapeHtml(cat.name)}">
+      <span style="color: var(--text-muted); font-size: 0.75rem; min-width: 60px; text-align: right;">${(cat.apps || []).length} apps</span>
+      <button type="button" class="delete-btn" data-action="cat-delete" title="Delete Category">🗑️</button>
     </div>
   `).join('');
 }
 
-// Move category up
-async function moveCategoryUp(index) {
-  if (index === 0) return;
+// --- Custom Scan Paths ---
+function renderCustomPaths() {
+  const listEl = document.getElementById('customPathsList');
+  if (!listEl || !state.appData) return;
 
-  // Swap with previous
-  const temp = appData.categories[index];
-  appData.categories[index] = appData.categories[index - 1];
-  appData.categories[index - 1] = temp;
+  const pluginPaths = (state.appData.settings.customPluginPaths || []).map(p => ({ path: p, kind: 'plugin' }));
+  const appPaths = (state.appData.settings.customAppPaths || []).map(p => ({ path: p, kind: 'app' }));
+  const all = [...pluginPaths, ...appPaths];
 
-  // Save and re-render
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
-  }
-
-  renderCategoryManager();
-  renderApps();
-  showNotification('✅ Reordered', `Moved ${temp.name} up`);
-}
-
-// Move category down
-async function moveCategoryDown(index) {
-  if (index === appData.categories.length - 1) return;
-
-  // Swap with next
-  const temp = appData.categories[index];
-  appData.categories[index] = appData.categories[index + 1];
-  appData.categories[index + 1] = temp;
-
-  // Save and re-render
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
-  }
-
-  renderCategoryManager();
-  renderApps();
-  showNotification('✅ Reordered', `Moved ${temp.name} down`);
-}
-
-// Handle category rename
-function handleCategoryRename(input, oldName) {
-  const newName = input.value.trim();
-  if (newName && newName !== oldName) {
-    renameCategory(oldName, newName);
-  } else {
-    input.value = oldName;
-  }
-}
-
-// Rename category
-async function renameCategory(oldName, newName) {
-  if (!newName || !newName.trim()) {
-    showError('Category name is required');
+  if (all.length === 0) {
+    listEl.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem;">Using system default scan folders. Click below to add custom VST or App directories.</div>`;
     return;
   }
 
-  const category = appData.categories.find(c => c.name === oldName);
-  if (!category) return;
-
-  category.name = newName.trim();
-
-  // Save
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
-  }
-
-  renderCategoryManager();
-  renderApps();
-  showNotification('✅ Category Renamed', `${oldName} → ${newName}`);
+  listEl.innerHTML = all.map((item, idx) => `
+    <div class="custom-path-item" data-path="${escapeHtml(item.path)}" data-kind="${item.kind}">
+      <span class="badge-format ${item.kind === 'plugin' ? 'badge-format-vst3' : 'badge-format-au'}">${item.kind === 'plugin' ? 'Plugin Folder' : 'App Folder'}</span>
+      <span style="flex: 1; font-size: 0.85rem; color: var(--text-secondary); word-break: break-all;">${escapeHtml(item.path)}</span>
+      <button type="button" class="delete-btn" data-action="remove-custom-path" title="Remove Folder">🗑️</button>
+    </div>
+  `).join('');
 }
 
-// Handle category delete
-async function handleCategoryDelete(name) {
-  const category = appData.categories.find(c => c.name === name);
-  if (!category) return;
-
-  if (category.apps.length > 0) {
-    const confirmed = confirm(`Delete "${name}" category? This will remove ${category.apps.length} apps.`);
-    if (!confirmed) return;
-  }
-
-  // Remove category
-  appData.categories = appData.categories.filter(c => c.name !== name);
-
-  // Save
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
-  }
-
-  renderCategoryManager();
-  renderApps();
-  updateStatistics();
-  showNotification('🗑️ Category Deleted', `${name} has been removed`);
-}
-
-// Add category
-async function addCategory(name) {
-  if (!name || !name.trim()) {
-    showError('Category name is required');
-    return;
-  }
-
-  // Check if exists
-  if (appData.categories.find(c => c.name === name)) {
-    showError('Category already exists');
-    return;
-  }
-
-  // Add category
-  appData.categories.push({
-    name: name.trim(),
-    apps: []
-  });
-
-  // Save
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
-  }
-
-  renderCategoryManager();
-  renderApps();
-  updateStatistics();
-  showNotification('✅ Category Added', `${name} has been created`);
-}
-
-// Export functions
-window.renderCategoryManager = renderCategoryManager;
-window.moveCategoryUp = moveCategoryUp;
-window.moveCategoryDown = moveCategoryDown;
-window.handleCategoryRename = handleCategoryRename;
-window.handleCategoryDelete = handleCategoryDelete;
-
-
-// ============================================
-// APP SCANNER
-// ============================================
-
-// Handle app scan
+// --- App Scanner ---
 async function handleAppScan() {
-  const scanBtn = document.getElementById('scanAppsBtn');
-  const appScanResults = document.getElementById('appScanResults');
+  if (!state.isElectron) return;
+  const btn = document.getElementById('scanAppsBtn');
+  const resultsEl = document.getElementById('appScanResults');
+  if (!btn || !resultsEl) return;
 
   try {
-    // Disable button
-    scanBtn.disabled = true;
-    scanBtn.innerHTML = '<span class="btn-icon">⏳</span> Scanning...';
-    appScanResults.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Scanning System Apps...';
+    resultsEl.style.display = 'none';
 
-    // Scan for apps
     const scannedApps = await window.electronAPI.scanApps();
 
-    // Re-enable button
-    scanBtn.disabled = false;
-    scanBtn.innerHTML = '<span class="btn-icon">🎵</span> Scan for Music Apps';
+    const existingPaths = new Set();
+    state.appData.categories.forEach(c => (c.apps || []).forEach(a => existingPaths.add(a.path)));
+
+    const newApps = scannedApps.filter(a => !existingPaths.has(a.path));
+    const alreadyCount = scannedApps.length - newApps.length;
 
     if (scannedApps.length === 0) {
-      appScanResults.innerHTML = `
-        <div class="scan-results-summary">
-          <p>No music apps found in /Applications</p>
-        </div>
-      `;
-      appScanResults.style.display = 'block';
+      resultsEl.innerHTML = `<div class="scan-results-summary"><p>No music applications detected.</p></div>`;
+      resultsEl.style.display = 'block';
       return;
     }
-
-    // Filter out apps that are already in the library
-    const existingAppPaths = [];
-    appData.categories.forEach(category => {
-      category.apps.forEach(app => {
-        existingAppPaths.push(app.path);
-      });
-    });
-
-    const totalScanned = scannedApps.length;
-    const newApps = scannedApps.filter(app => !existingAppPaths.includes(app.path));
-    const alreadyAdded = totalScanned - newApps.length;
 
     if (newApps.length === 0) {
-      appScanResults.innerHTML = `
+      resultsEl.innerHTML = `
         <div class="scan-results-summary">
-          <p><strong>Found ${totalScanned} music apps</strong></p>
-          <p style="color: var(--accent-primary); margin-top: 0.5rem;">
-            ✅ All ${totalScanned} apps are already in your library!
-          </p>
-          <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
-            No new apps to add. Your existing apps remain unchanged.
-          </p>
-        </div>
-      `;
-      appScanResults.style.display = 'block';
+          <p><strong>Found ${scannedApps.length} music applications</strong></p>
+          <p style="color: var(--accent-primary); margin-top: 0.5rem;">✅ All ${scannedApps.length} apps are already in your library!</p>
+        </div>`;
+      resultsEl.style.display = 'block';
       return;
     }
 
-    // Show results with editable table (only new apps)
-    displayAppScanResults(newApps, totalScanned, alreadyAdded);
+    state.lastScannedApps = newApps;
+    const categories = state.appData.categories.map(c => c.name);
 
-  } catch (error) {
-    console.error('Error scanning apps:', error);
-    scanBtn.disabled = false;
-    scanBtn.innerHTML = '<span class="btn-icon">🎵</span> Scan for Music Apps';
-    showError('Failed to scan apps: ' + error.message);
-  }
-}
-
-// Display app scan results with editable fields
-function displayAppScanResults(apps, totalScanned = apps.length, alreadyAdded = 0) {
-  const appScanResults = document.getElementById('appScanResults');
-
-  const categories = appData.categories.map(c => c.name);
-
-  let summaryMessage = `<p><strong>Found ${totalScanned} music apps</strong></p>`;
-
-  if (alreadyAdded > 0) {
-    summaryMessage += `
-      <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
-        ✅ ${alreadyAdded} already in library • 🆕 ${apps.length} new apps found
-      </p>
-      <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">
-        Showing only new apps below. Your existing apps remain unchanged.
-      </p>
-    `;
-  } else {
-    summaryMessage += `
-      <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
-        Review and edit the details below, then click "Add Selected Apps"
-      </p>
-    `;
-  }
-
-  appScanResults.innerHTML = `
-    <div class="scan-results-summary">
-      ${summaryMessage}
-    </div>
-    
-    <div class="app-scan-table-container">
-      <table class="app-scan-table">
-        <thead>
-          <tr>
-            <th style="width: 40px;">
-              <input type="checkbox" id="selectAllApps" checked onchange="toggleAllAppSelections(this.checked)">
-            </th>
-            <th>App Name</th>
-            <th>Manufacturer</th>
-            <th>Category</th>
-            <th>Icon</th>
-          </tr>
-        </thead>
-        <tbody id="appScanTableBody">
-          ${apps.map((app, index) => `
-            <tr data-index="${index}" data-icon="${app.icon && app.icon.startsWith('data:') ? '' : app.icon || '🎵'}">
-              <td>
-                <input type="checkbox" class="app-select-checkbox" checked data-index="${index}">
-              </td>
-              <td>
-                <input type="text" class="app-name-input" value="${app.name}" data-index="${index}">
-              </td>
-              <td>
-                <input type="text" class="app-manufacturer-input" value="${app.manufacturer}" data-index="${index}">
-              </td>
-              <td>
-                <select class="app-category-select" data-index="${index}">
-                  ${categories.map(cat => `
-                    <option value="${cat}" ${cat === app.suggestedCategory ? 'selected' : ''}>${cat}</option>
-                  `).join('')}
-                </select>
-              </td>
-              <td style="text-align:center;">
-                ${app.icon && app.icon.startsWith('data:')
-      ? `<img src="${app.icon}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" title="Real app icon">`
-      : `<span style="font-size:1.5rem" title="Default icon">${app.icon || '🎵'}</span>`
-    }
-              </td>
+    resultsEl.innerHTML = `
+      <div class="scan-results-summary">
+        <p><strong>Found ${scannedApps.length} music apps</strong> (${alreadyCount} already in library • 🆕 <strong>${newApps.length} new</strong>)</p>
+      </div>
+      <div class="app-scan-table-container">
+        <table class="app-scan-table">
+          <thead>
+            <tr>
+              <th style="width: 40px;"><input type="checkbox" id="selectAllScannedApps" checked></th>
+              <th>App Name</th>
+              <th>Manufacturer</th>
+              <th>Category</th>
+              <th>Arch</th>
+              <th>Icon</th>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-    
-    <div class="scan-results-actions">
-      <button id="addSelectedAppsBtn" class="action-btn primary">
-        <span class="btn-icon">📥</span>
-        Add Selected Apps
-      </button>
-      <button class="action-btn" onclick="document.getElementById('appScanResults').style.display='none'">
-        Cancel
-      </button>
-    </div>
-  `;
+          </thead>
+          <tbody>
+            ${newApps.map((app, i) => `
+              <tr data-scan-idx="${i}">
+                <td><input type="checkbox" class="app-select-checkbox" checked data-scan-idx="${i}"></td>
+                <td><input type="text" class="app-name-input" value="${escapeHtml(app.name)}"></td>
+                <td><input type="text" class="app-manufacturer-input" value="${escapeHtml(app.manufacturer || 'Unknown')}"></td>
+                <td>
+                  <select class="app-category-select">
+                    ${categories.map(c => `<option value="${escapeHtml(c)}" ${c === app.suggestedCategory ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+                  </select>
+                </td>
+                <td>${getArchBadgeHtml(app.arch)}</td>
+                <td style="text-align: center;">
+                  ${app.icon && app.icon.startsWith('data:')
+                    ? `<img src="${escapeHtml(app.icon)}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;">`
+                    : `<span style="font-size:1.3rem;">${escapeHtml(app.icon || '🎵')}</span>`}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="scan-results-actions">
+        <button type="button" id="confirmAddScannedAppsBtn" class="action-btn primary">
+          <span class="btn-icon">📥</span> Add Selected Apps
+        </button>
+        <button type="button" id="cancelScannedAppsBtn" class="action-btn">Cancel</button>
+      </div>`;
 
-  appScanResults.style.display = 'block';
-
-  // Set onclick to prevent stacked multi-click corruption
-  window.scannedMusicApps = apps;
-  document.getElementById('addSelectedAppsBtn').onclick = async () => {
-    document.getElementById('addSelectedAppsBtn').disabled = true;
-    await addSelectedApps(window.scannedMusicApps);
-  };
+    resultsEl.style.display = 'block';
+  } catch (err) {
+    showError('Failed to scan apps: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="btn-icon">🎵</span> Scan for Music Apps';
+  }
 }
 
-// Toggle all app selections
-function toggleAllAppSelections(checked) {
-  document.querySelectorAll('.app-select-checkbox').forEach(checkbox => {
-    checkbox.checked = checked;
-  });
-}
+async function confirmAddScannedApps() {
+  const scanned = state.lastScannedApps || [];
+  const resultsEl = document.getElementById('appScanResults');
+  let added = 0;
 
-// Add selected apps to library
-async function addSelectedApps(scannedApps) {
-  const selectedApps = [];
-
-  document.querySelectorAll('.app-select-checkbox:checked').forEach(checkbox => {
-    const index = parseInt(checkbox.dataset.index);
-    const row = checkbox.closest('tr');
-
+  document.querySelectorAll('#appScanResults .app-select-checkbox:checked').forEach(cb => {
+    const idx = parseInt(cb.dataset.scanIdx, 10);
+    const raw = scanned[idx];
+    if (!raw) return;
+    const row = cb.closest('tr');
     const name = row.querySelector('.app-name-input').value.trim();
-    const manufacturer = row.querySelector('.app-manufacturer-input').value.trim();
-    const category = row.querySelector('.app-category-select').value;
+    const manufacturer = row.querySelector('.app-manufacturer-input').value.trim() || 'Unknown';
+    const categoryName = row.querySelector('.app-category-select').value;
 
-    // Icon: use the full data URL stored on the scanned app (not the text field)
-    const icon = scannedApps[index].icon || '🎵';
+    let catObj = state.appData.categories.find(c => c.name === categoryName);
+    if (!catObj) {
+      catObj = { name: categoryName, apps: [] };
+      state.appData.categories.push(catObj);
+    }
 
-    if (name) {
-      selectedApps.push({
-        name,
-        manufacturer: manufacturer || 'Unknown',
-        path: scannedApps[index].path,
-        category,
-        icon,
+    if (!catObj.apps.some(a => a.path === raw.path)) {
+      catObj.apps.push({
+        name: name || raw.name,
+        manufacturer,
+        path: raw.path,
+        icon: raw.icon || '🎵',
+        version: raw.version || '',
+        arch: raw.arch || 'Universal',
         favorite: false
       });
+      added++;
     }
   });
 
-  if (selectedApps.length === 0) {
-    showError('No apps selected');
+  if (added > 0) {
+    await saveConfig();
+    if (resultsEl) resultsEl.style.display = 'none';
+    renderAll();
+    showNotification('✅ Apps Imported', `Added ${added} applications to your library`);
+  } else {
+    showError('No applications selected.');
+  }
+}
+
+// --- Plugin Scanner ---
+async function handlePluginScan() {
+  if (!state.isElectron) return;
+  const btn = document.getElementById('scanPluginsBtn');
+  const progressEl = document.getElementById('scanProgress');
+  const resultsEl = document.getElementById('scanResults');
+
+  try {
+    btn.disabled = true;
+    progressEl.style.display = 'flex';
+    resultsEl.style.display = 'none';
+
+    const result = await window.electronAPI.scanPlugins();
+    progressEl.style.display = 'none';
+    state.lastScannedPlugins = result.plugins || [];
+
+    const existingMap = new Map(state.appData.plugins.map(p => [p.path, p]));
+    const newCount = state.lastScannedPlugins.filter(p => !existingMap.has(p.path)).length;
+
+    resultsEl.innerHTML = `
+      <div class="scan-results-summary">
+        <h3>✅ Plugin Scan Complete</h3>
+        <p style="margin-top: 0.35rem;">Found <strong>${result.count}</strong> plugin files across ${result.scannedPaths.length} directories (${newCount} new, ${result.count - newCount} existing to update).</p>
+      </div>
+      <div class="scan-results-actions" style="margin-top: 1rem;">
+        <button type="button" id="mergeScannedPluginsBtn" class="action-btn primary">
+          <span class="btn-icon">📥</span> Sync ${result.count} Plugins to Catalog
+        </button>
+      </div>`;
+    resultsEl.style.display = 'block';
+  } catch (err) {
+    progressEl.style.display = 'none';
+    showError('Plugin scan failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function mergeScannedPlugins() {
+  const scanned = state.lastScannedPlugins || [];
+  if (scanned.length === 0) return;
+
+  const existingByPath = new Map(state.appData.plugins.map(p => [p.path, p]));
+  let added = 0;
+  let updated = 0;
+
+  scanned.forEach(sp => {
+    if (existingByPath.has(sp.path)) {
+      const ex = existingByPath.get(sp.path);
+      ex.version = sp.version || ex.version || '';
+      ex.arch = sp.arch || ex.arch || 'Universal';
+      if ((!ex.manufacturer || ex.manufacturer === 'Unknown') && sp.manufacturer !== 'Unknown') {
+        ex.manufacturer = sp.manufacturer;
+      }
+      if ((!ex.type || ex.type === 'unknown') && sp.type !== 'unknown') {
+        ex.type = sp.type;
+      }
+      updated++;
+    } else {
+      state.appData.plugins.push(sp);
+      added++;
+    }
+  });
+
+  await saveConfig();
+  document.getElementById('scanResults').style.display = 'none';
+  renderAll();
+  switchTab('plugins');
+  showNotification('✅ Catalog Synced', `Added ${added} new plugins and updated metadata for ${updated} existing plugins.`);
+}
+
+
+// --- Maintenance: Refresh Icons, Cleanup Missing Apps & Plugins, Reset ---
+async function handleRefreshIcons() {
+  if (!state.isElectron) return;
+  const btn = document.getElementById('refreshIconsBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Refreshing...';
+  }
+
+  let updated = 0;
+  for (const cat of state.appData.categories) {
+    for (const app of (cat.apps || [])) {
+      if (!app.path) continue;
+      try {
+        const iconUrl = await window.electronAPI.extractAppIcon(app.path);
+        if (iconUrl) {
+          app.icon = iconUrl;
+          updated++;
+        }
+      } catch (e) { }
+    }
+  }
+
+  if (updated > 0) {
+    await saveConfig();
+    renderApps();
+    showNotification('🖼️ Icons Refreshed', `Updated ${updated} application icon(s)`);
+  } else {
+    showNotification('ℹ️ Icons Up to Date', 'All application icons are current');
+  }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="btn-icon">🖼️</span> Refresh App Icons';
+  }
+}
+
+async function handleCleanupApps() {
+  if (!state.isElectron) return;
+  const btn = document.getElementById('cleanupAppsBtn');
+  const resultsEl = document.getElementById('cleanupResults');
+  if (!btn || !resultsEl) return;
+
+  btn.disabled = true;
+  const missing = [];
+  let total = 0;
+
+  for (const cat of state.appData.categories) {
+    for (const app of (cat.apps || [])) {
+      total++;
+      const exists = await window.electronAPI.checkAppExists(app.path);
+      if (!exists) missing.push({ app, categoryName: cat.name });
+    }
+  }
+  btn.disabled = false;
+
+  if (missing.length === 0) {
+    resultsEl.innerHTML = `
+      <div class="scan-results-summary">
+        <p style="color: var(--accent-primary);">✅ All ${total} applications are installed and accessible on disk!</p>
+      </div>`;
+    resultsEl.style.display = 'block';
     return;
   }
 
-  // Add apps to their categories
-  selectedApps.forEach(app => {
-    let categoryObj = appData.categories.find(c => c.name === app.category);
-    if (!categoryObj) {
-      categoryObj = { name: app.category, apps: [] };
-      appData.categories.push(categoryObj);
-    }
+  state.missingAppsToClean = missing;
+  resultsEl.innerHTML = `
+    <div class="scan-results-summary">
+      <p><strong>Found ${missing.length} missing application(s)</strong> no longer on disk:</p>
+    </div>
+    <div class="missing-apps-list">
+      ${missing.map(m => `
+        <div class="missing-app-item">
+          <div>
+            <strong>${escapeHtml(m.app.name)}</strong>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(m.categoryName)} • ${escapeHtml(m.app.path)}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="scan-results-actions">
+      <button type="button" id="confirmRemoveMissingAppsBtn" class="action-btn primary">
+        <span class="btn-icon">🗑️</span> Remove ${missing.length} Missing Apps
+      </button>
+      <button type="button" id="cancelCleanupBtn" class="action-btn">Cancel</button>
+    </div>`;
+  resultsEl.style.display = 'block';
+}
 
-    // Check if app already exists
-    const exists = categoryObj.apps.some(existingApp => existingApp.path === app.path);
-    if (!exists) {
-      categoryObj.apps.push({
-        name: app.name,
-        manufacturer: app.manufacturer,
-        path: app.path,
-        icon: app.icon,
-        favorite: false
-      });
+async function handleCleanupPlugins() {
+  if (!state.isElectron) return;
+  const btn = document.getElementById('cleanupPluginsBtn');
+  const resultsEl = document.getElementById('cleanupResults');
+  if (!btn || !resultsEl) return;
+
+  btn.disabled = true;
+  const missing = [];
+  const total = state.appData.plugins.length;
+
+  for (const p of state.appData.plugins) {
+    const exists = await window.electronAPI.checkAppExists(p.path);
+    if (!exists) missing.push(p);
+  }
+  btn.disabled = false;
+
+  if (missing.length === 0) {
+    resultsEl.innerHTML = `
+      <div class="scan-results-summary">
+        <p style="color: var(--accent-primary);">✅ All ${total} plugin files exist on disk!</p>
+      </div>`;
+    resultsEl.style.display = 'block';
+    return;
+  }
+
+  state.missingPluginsToClean = missing;
+  resultsEl.innerHTML = `
+    <div class="scan-results-summary">
+      <p><strong>Found ${missing.length} uninstalled plugin file(s)</strong>:</p>
+    </div>
+    <div class="missing-apps-list">
+      ${missing.slice(0, 25).map(p => `
+        <div class="missing-app-item">
+          <div>
+            <strong>${escapeHtml(p.name)} (${escapeHtml(p.format)})</strong>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(p.path)}</div>
+          </div>
+        </div>
+      `).join('')}
+      ${missing.length > 25 ? `<div style="padding: 0.5rem; color: var(--text-muted); font-size: 0.8rem;">+ ${missing.length - 25} more...</div>` : ''}
+    </div>
+    <div class="scan-results-actions">
+      <button type="button" id="confirmRemoveMissingPluginsBtn" class="action-btn primary">
+        <span class="btn-icon">🗑️</span> Remove ${missing.length} Missing Plugins
+      </button>
+      <button type="button" id="cancelCleanupBtn" class="action-btn">Cancel</button>
+    </div>`;
+  resultsEl.style.display = 'block';
+}
+
+async function handleExportConfig() {
+  const json = JSON.stringify(state.appData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `music-app-manager-config-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showNotification('📤 Config Exported', 'Configuration JSON downloaded');
+}
+
+async function handleStartFresh() {
+  if (!confirm('Clear your current library and start fresh?\n\nThis resets your dashboard categories, apps, and plugin catalog. No files on your computer will be deleted.')) {
+    return;
+  }
+  state.appData = {
+    categories: [
+      { name: 'DAWs', apps: [] },
+      { name: 'Synths', apps: [] },
+      { name: 'Guitar & Bass', apps: [] },
+      { name: 'Audio Tools', apps: [] },
+      { name: 'Utilities', apps: [] }
+    ],
+    plugins: [],
+    recentApps: [],
+    settings: {
+      defaultView: 'category',
+      pluginViewMode: 'grouped',
+      showRecentApps: true,
+      maxRecentApps: 10,
+      customPluginPaths: [],
+      customAppPaths: []
     }
+  };
+  await saveConfig();
+  localStorage.removeItem('mam-welcome-shown');
+  renderAll();
+  checkFirstRun();
+  showNotification('✨ Library Reset', 'Ready for a fresh scan');
+}
+
+// ============================================
+// SEARCH HISTORY & NOTIFICATIONS
+// ============================================
+
+function loadSearchHistory() {
+  try {
+    const saved = localStorage.getItem('appviewr-search-history');
+    if (saved) state.searchHistory = JSON.parse(saved);
+  } catch (e) {
+    state.searchHistory = [];
+  }
+}
+
+function addToSearchHistory(query) {
+  if (!query || query.length < 2) return;
+  state.searchHistory = [query, ...state.searchHistory.filter(q => q !== query)].slice(0, MAX_SEARCH_HISTORY);
+  try {
+    localStorage.setItem('appviewr-search-history', JSON.stringify(state.searchHistory));
+  } catch (e) { }
+}
+
+function closeModal(modalId) {
+  const m = document.getElementById(modalId);
+  if (m) m.classList.remove('active');
+}
+
+function switchTab(tabName) {
+  state.currentTab = tabName;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.toggle('active', content.id === `${tabName}Tab`);
   });
 
-  try {
-    // Save config
-    if (isElectron) {
-      await window.electronAPI.saveConfig(appData);
-    }
-
-    // Hide results and update UI
-    document.getElementById('appScanResults').style.display = 'none';
-    renderApps();
+  if (tabName === 'apps') renderApps();
+  else if (tabName === 'plugins') renderPlugins();
+  else if (tabName === 'settings') {
     updateStatistics();
-
-    // Re-render category manager to update app counts per category in Tools tab
-    if (typeof renderCategoryManager === 'function') {
-      setTimeout(() => renderCategoryManager(), 100);
-    }
-
-    showNotification('✅ Apps Added', `Successfully imported ${selectedApps.length} applications.`);
-
-  } catch (err) {
-    console.error('Failed to save selected apps:', err);
-    showError('Error saving apps: ' + err.message);
-    document.getElementById('addSelectedAppsBtn').disabled = false;
+    renderCategoryManager();
+    renderCustomPaths();
   }
 }
 
-// Export functions
-window.handleAppScan = handleAppScan;
-window.toggleAllAppSelections = toggleAllAppSelections;
-window.addSelectedApps = addSelectedApps;
-
-
-// ============================================
-// CLEANUP MISSING APPS
-// ============================================
-
-// Handle cleanup of missing apps
-async function handleCleanupApps() {
-  const cleanupBtn = document.getElementById('cleanupAppsBtn');
-  const cleanupResults = document.getElementById('cleanupResults');
-
-  try {
-    // Disable button
-    cleanupBtn.disabled = true;
-    cleanupBtn.innerHTML = '<span class="btn-icon">⏳</span> Checking...';
-    cleanupResults.style.display = 'none';
-
-    // Check all apps
-    const missingApps = [];
-    const totalApps = [];
-
-    for (const category of appData.categories) {
-      for (const app of category.apps) {
-        totalApps.push({ app, category: category.name });
-
-        // Check if app exists
-        const exists = await window.electronAPI.checkAppExists(app.path);
-        if (!exists) {
-          missingApps.push({ app, category: category.name });
-        }
-      }
-    }
-
-    // Re-enable button
-    cleanupBtn.disabled = false;
-    cleanupBtn.innerHTML = '<span class="btn-icon">🧹</span> Clean Up Missing Apps';
-
-    if (missingApps.length === 0) {
-      cleanupResults.innerHTML = `
-      < div class= "scan-results-summary" >
-          <p style="color: var(--accent-primary);">
-            ✅ All ${totalApps.length} apps are installed and accessible!
-          </p>
-          <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
-            No cleanup needed.
-          </p>
-        </div >
-        `;
-      cleanupResults.style.display = 'block';
-      return;
-    }
-
-    // Show missing apps
-    cleanupResults.innerHTML = `
-        < div class= "scan-results-summary" >
-        <p><strong>Found ${missingApps.length} missing apps</strong></p>
-        <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">
-          These apps are in your library but no longer exist on your system.
-        </p>
-      </div >
-      
-      <div class="missing-apps-list">
-        ${missingApps.map(({ app, category }) => `
-          <div class="missing-app-item">
-            <div>
-              <strong>${app.name}</strong>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">
-                ${category} • ${app.manufacturer || 'Unknown'}
-              </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
-                ${app.path}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      
-      <div class="scan-results-actions">
-        <button class="action-btn primary" onclick="removeMissingApps(${JSON.stringify(missingApps).replace(/"/g, '&quot;')})">
-          <span class="btn-icon">🗑️</span>
-          Remove ${missingApps.length} Missing Apps
-        </button>
-        <button class="action-btn" onclick="document.getElementById('cleanupResults').style.display='none'">
-          Cancel
-        </button>
-      </div >
-        `;
-
-    cleanupResults.style.display = 'block';
-
-  } catch (error) {
-    console.error('Error checking apps:', error);
-    cleanupBtn.disabled = false;
-    cleanupBtn.innerHTML = '<span class="btn-icon">🧹</span> Clean Up Missing Apps';
-    showError('Failed to check apps: ' + error.message);
-  }
+function showNotification(title, message) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position: fixed; top: 2rem; right: 2rem;
+    background: var(--bg-glass); backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color); border-radius: var(--radius-md);
+    padding: 1.15rem 1.5rem; max-width: 380px; box-shadow: var(--shadow-lg);
+    z-index: 3000; animation: slideIn 0.25s ease;
+  `;
+  el.innerHTML = `
+    <div style="font-weight: 600; margin-bottom: 0.3rem;">${escapeHtml(title)}</div>
+    <div style="color: var(--text-secondary); font-size: 0.85rem;">${escapeHtml(message)}</div>
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
 }
 
-// Remove missing apps from library
-async function removeMissingApps(missingApps) {
-  const confirmed = confirm(
-    `Remove ${missingApps.length} missing apps from your library ?\n\n` +
-    `This will not delete any files, only remove them from AppViewr.`
-  );
+function showError(message) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position: fixed; top: 2rem; right: 2rem;
+    background: rgba(239, 68, 68, 0.22); backdrop-filter: blur(20px);
+    border: 1px solid rgba(239, 68, 68, 0.5); border-radius: var(--radius-md);
+    padding: 1.15rem 1.5rem; max-width: 400px; box-shadow: var(--shadow-lg);
+    z-index: 3000; color: #fca5a5;
+  `;
+  el.innerHTML = `
+    <div style="font-weight: 600; margin-bottom: 0.3rem;">⚠️ Error</div>
+    <div style="font-size: 0.85rem;">${escapeHtml(message)}</div>
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
 
-  if (!confirmed) return;
 
-  // Remove missing apps
-  missingApps.forEach(({ app }) => {
-    appData.categories.forEach(category => {
-      category.apps = category.apps.filter(a => a.path !== app.path);
+// ============================================
+// UNIFIED EVENT DELEGATION & BINDINGS
+// ============================================
+
+function bindAllEvents() {
+  // 1. Navigation Tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // 2. Search Input + Clear Button
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'search-clear-btn';
+    clearBtn.innerHTML = '✕';
+    clearBtn.style.display = 'none';
+    searchInput.parentElement.appendChild(clearBtn);
+
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      state.searchQuery = '';
+      clearBtn.style.display = 'none';
+      if (state.currentTab === 'apps') renderApps();
+      else if (state.currentTab === 'plugins') renderPlugins();
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      clearBtn.style.display = state.searchQuery ? 'flex' : 'none';
+      if (state.currentTab === 'apps') renderApps();
+      else if (state.currentTab === 'plugins') renderPlugins();
+    });
+
+    searchInput.addEventListener('change', (e) => {
+      addToSearchHistory(e.target.value.trim());
+    });
+  }
+
+  // 3. Apps Toolbar (Quick Filters, View Toggle, Add App, Edit Mode)
+  document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.currentAppFilter = btn.dataset.filter;
+      document.querySelectorAll('.quick-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderApps();
     });
   });
 
-  // Save config
-  if (isElectron) {
-    await window.electronAPI.saveConfig(appData);
-  }
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.currentAppView = btn.dataset.view;
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderApps();
+    });
+  });
 
-  // Hide results and update UI
-  document.getElementById('cleanupResults').style.display = 'none';
-  renderApps();
-  updateStatistics();
+  document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
+  document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
 
-  showNotification('🗑️ Cleaned Up', `Removed ${missingApps.length} missing apps`);
-}
+  // 4. Apps Container Event Delegation (Click, Drag & Drop, Right-Click Context Menu)
+  const appsContainer = document.getElementById('appsContainer');
+  if (appsContainer) {
+    appsContainer.addEventListener('click', (e) => {
+      const card = e.target.closest('.app-card');
+      if (!card) return;
+      const appPath = card.dataset.path;
+      const appName = card.dataset.name;
 
-// Reset the library to a clean state
-async function handleStartFresh() {
-  if (!confirm("Would you like to clear your current library and start fresh?\n\nThis will remove all apps, plugins, and recent items from the dashboard so you can run a clean scan. No actual files on your computer will be deleted.")) {
-    return;
-  }
-
-  try {
-    console.log('Starting fresh reset...');
-    const defaultCategories = [
-      { name: "DAWs", apps: [] },
-      { name: "Synths", apps: [] },
-      { name: "Guitar & Bass", apps: [] },
-      { name: "Audio Tools", apps: [] },
-      { name: "Utilities", apps: [] }
-    ];
-
-    const cleanData = {
-      categories: defaultCategories,
-      plugins: [],
-      recentApps: [],
-      settings: (appData && appData.settings) ? appData.settings : {
-        defaultView: 'category',
-        showRecentApps: true,
-        maxRecentApps: 10
+      if (e.target.closest('[data-action="favorite-app"]')) {
+        e.stopPropagation();
+        toggleAppFavorite(appPath);
+        return;
       }
-    };
 
-    if (isElectron) {
-      console.log('Saving clean config to disk...');
-      const result = await window.electronAPI.saveConfig(cleanData);
-      console.log('Save result:', result);
+      if (e.target.closest('[data-action="edit-app"]') || state.editMode) {
+        e.stopPropagation();
+        openEditAppModal(appPath);
+        return;
+      }
+
+      launchApp(appPath, appName);
+    });
+
+    // Context menu on app cards
+    appsContainer.addEventListener('contextmenu', (e) => {
+      const card = e.target.closest('.app-card');
+      if (!card) return;
+      e.preventDefault();
+      state.contextMenuAppPath = card.dataset.path;
+      const menu = document.getElementById('appContextMenu');
+      if (menu) {
+        menu.style.display = 'block';
+        menu.style.left = `${Math.min(e.clientX, window.innerWidth - 210)}px`;
+        menu.style.top = `${Math.min(e.clientY, window.innerHeight - 220)}px`;
+      }
+    });
+
+    // HTML5 Drag & Drop Reordering
+    appsContainer.addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.app-card');
+      if (!card || !state.editMode) return;
+      state.draggedAppPath = card.dataset.path;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    appsContainer.addEventListener('dragend', () => {
+      document.querySelectorAll('.app-card').forEach(c => {
+        c.classList.remove('dragging', 'drag-over-left', 'drag-over-right');
+      });
+      state.draggedAppPath = null;
+    });
+
+    appsContainer.addEventListener('dragover', (e) => {
+      if (!state.editMode || !state.draggedAppPath) return;
+      const card = e.target.closest('.app-card');
+      if (!card || card.dataset.path === state.draggedAppPath) return;
+      e.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const isLeft = e.clientX < rect.left + rect.width / 2;
+      document.querySelectorAll('.app-card').forEach(c => c.classList.remove('drag-over-left', 'drag-over-right'));
+      card.classList.add(isLeft ? 'drag-over-left' : 'drag-over-right');
+    });
+
+    appsContainer.addEventListener('drop', (e) => {
+      if (!state.editMode || !state.draggedAppPath) return;
+      const card = e.target.closest('.app-card');
+      if (!card || card.dataset.path === state.draggedAppPath) return;
+      e.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const isLeft = e.clientX < rect.left + rect.width / 2;
+      reorderApp(state.draggedAppPath, card.dataset.path, isLeft);
+    });
+  }
+
+  // 5. Floating Context Menu Actions
+  const ctxMenu = document.getElementById('appContextMenu');
+  if (ctxMenu) {
+    ctxMenu.addEventListener('click', async (e) => {
+      const item = e.target.closest('.context-menu-item');
+      if (!item || !state.contextMenuAppPath) return;
+      const action = item.dataset.action;
+      const appPath = state.contextMenuAppPath;
+      const found = findAppByPath(appPath);
+      ctxMenu.style.display = 'none';
+
+      if (action === 'launch' && found) launchApp(appPath, found.app.name);
+      else if (action === 'favorite') toggleAppFavorite(appPath);
+      else if (action === 'edit') openEditAppModal(appPath);
+      else if (action === 'reveal' && state.isElectron) {
+        await window.electronAPI.showItemInFolder(appPath);
+      } else if (action === 'delete') deleteAppByPath(appPath);
+    });
+
+    document.addEventListener('click', () => {
+      ctxMenu.style.display = 'none';
+    });
+  }
+
+  // 6. Plugins Toolbar, Sorting & Table Delegation
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.currentPluginFilter = btn.dataset.filter;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderPlugins();
+    });
+  });
+
+  document.querySelectorAll('.segment-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      state.pluginViewMode = btn.dataset.mode;
+      state.appData.settings.pluginViewMode = state.pluginViewMode;
+      await saveConfig();
+      renderPlugins();
+    });
+  });
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const sortKey = th.dataset.sort;
+      if (state.pluginSortField === sortKey) {
+        state.pluginSortAsc = !state.pluginSortAsc;
+      } else {
+        state.pluginSortField = sortKey;
+        state.pluginSortAsc = true;
+      }
+      renderPlugins();
+    });
+  });
+
+  document.getElementById('exportCsvBtn')?.addEventListener('click', exportPluginsCsv);
+
+  const pluginTbody = document.getElementById('pluginTableBody');
+  if (pluginTbody) {
+    pluginTbody.addEventListener('click', async (e) => {
+      const row = e.target.closest('.plugin-row');
+      if (!row) return;
+      const idx = parseInt(row.dataset.idx, 10);
+      const item = (state.currentDisplayedPlugins || [])[idx];
+      if (!item) return;
+
+      if (e.target.closest('[data-action="reveal-plugin"]')) {
+        e.stopPropagation();
+        if (state.isElectron && item.primaryPath) {
+          await window.electronAPI.showItemInFolder(item.primaryPath);
+        }
+        return;
+      }
+
+      if (e.target.closest('[data-action="toggle-plugin-fav"]')) {
+        e.stopPropagation();
+        const newFav = !item.favorite;
+        const pathSet = new Set(item.paths);
+        state.appData.plugins.forEach(p => {
+          if (pathSet.has(p.path)) p.favorite = newFav;
+        });
+        await saveConfig();
+        renderPlugins();
+        return;
+      }
+
+      openPluginModal(item);
+    });
+  }
+
+  // 7. Modals (Add/Edit App, Edit Plugin, Welcome)
+  document.getElementById('appModalCloseBtn')?.addEventListener('click', () => closeModal('appModal'));
+  document.getElementById('appModalCancelBtn')?.addEventListener('click', () => closeModal('appModal'));
+  document.getElementById('saveAppBtn')?.addEventListener('click', saveAppFromModal);
+  document.getElementById('deleteAppModalBtn')?.addEventListener('click', () => {
+    const orig = document.getElementById('appOriginalPath').value;
+    if (orig) deleteAppByPath(orig);
+  });
+
+  document.getElementById('browseAppBtn')?.addEventListener('click', async () => {
+    if (!state.isElectron) return;
+    const selected = await window.electronAPI.selectAppFile();
+    if (selected) {
+      document.getElementById('appPath').value = selected;
+      const base = selected.split(/[/\\]/).pop().replace(/\.(app|exe)$/i, '');
+      if (!document.getElementById('appName').value) {
+        document.getElementById('appName').value = base;
+      }
+      const iconData = await window.electronAPI.extractAppIcon(selected);
+      if (iconData) {
+        document.getElementById('appIcon').value = iconData;
+        updateIconPreview(iconData);
+      }
+    }
+  });
+
+  document.getElementById('appIcon')?.addEventListener('input', (e) => {
+    updateIconPreview(e.target.value);
+  });
+
+  document.getElementById('uploadIconBtn')?.addEventListener('click', () => {
+    document.getElementById('appIconFileInput')?.click();
+  });
+
+  document.getElementById('appIconFileInput')?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      document.getElementById('appIcon').value = ev.target.result;
+      updateIconPreview(ev.target.result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Plugin Modal
+  document.getElementById('pluginModalCloseBtn')?.addEventListener('click', () => closeModal('pluginModal'));
+  document.getElementById('pluginModalCancelBtn')?.addEventListener('click', () => closeModal('pluginModal'));
+  document.getElementById('savePluginBtn')?.addEventListener('click', savePluginFromModal);
+
+  document.querySelectorAll('#pluginRatingStars .star').forEach(star => {
+    star.addEventListener('click', () => {
+      const r = parseInt(star.dataset.rating, 10);
+      document.getElementById('pluginRating').value = r;
+      updateRatingStars(r);
+    });
+  });
+
+  // Welcome Modal
+  document.getElementById('welcomeStartBtn')?.addEventListener('click', () => {
+    hideWelcomeModal();
+    switchTab('settings');
+  });
+  document.getElementById('welcomeDismissBtn')?.addEventListener('click', hideWelcomeModal);
+
+  // 8. Tools / Settings Tab Actions
+  document.getElementById('scanAppsBtn')?.addEventListener('click', handleAppScan);
+  document.getElementById('scanPluginsBtn')?.addEventListener('click', handlePluginScan);
+  document.getElementById('refreshIconsBtn')?.addEventListener('click', handleRefreshIcons);
+  document.getElementById('cleanupAppsBtn')?.addEventListener('click', handleCleanupApps);
+  document.getElementById('cleanupPluginsBtn')?.addEventListener('click', handleCleanupPlugins);
+  document.getElementById('exportConfigBtn')?.addEventListener('click', handleExportConfig);
+  document.getElementById('reloadConfigBtn')?.addEventListener('click', async () => {
+    await loadConfig();
+    renderAll();
+    showNotification('🔄 Config Reloaded', 'Configuration refreshed from disk');
+  });
+  document.getElementById('startFreshBtn')?.addEventListener('click', handleStartFresh);
+  document.getElementById('openUserGuideBtn')?.addEventListener('click', () => {
+    if (state.isElectron) window.electronAPI.openUserGuide();
+  });
+
+  // Delegated actions inside Tools tab (Scan Results, Category Manager, Custom Paths, Cleanup)
+  const settingsTab = document.getElementById('settingsTab');
+  if (settingsTab) {
+    settingsTab.addEventListener('click', async (e) => {
+      if (e.target.closest('#confirmAddScannedAppsBtn')) {
+        await confirmAddScannedApps();
+      } else if (e.target.closest('#cancelScannedAppsBtn')) {
+        document.getElementById('appScanResults').style.display = 'none';
+      } else if (e.target.closest('#mergeScannedPluginsBtn')) {
+        await mergeScannedPlugins();
+      } else if (e.target.closest('#confirmRemoveMissingAppsBtn')) {
+        const missing = state.missingAppsToClean || [];
+        const removeSet = new Set(missing.map(m => m.app.path));
+        state.appData.categories.forEach(c => {
+          c.apps = (c.apps || []).filter(a => !removeSet.has(a.path));
+        });
+        await saveConfig();
+        document.getElementById('cleanupResults').style.display = 'none';
+        renderAll();
+        showNotification('🗑️ Cleaned Up', `Removed ${missing.length} missing application(s)`);
+      } else if (e.target.closest('#confirmRemoveMissingPluginsBtn')) {
+        const missing = state.missingPluginsToClean || [];
+        const removeSet = new Set(missing.map(p => p.path));
+        state.appData.plugins = state.appData.plugins.filter(p => !removeSet.has(p.path));
+        await saveConfig();
+        document.getElementById('cleanupResults').style.display = 'none';
+        renderAll();
+        showNotification('🗑️ Cleaned Up', `Removed ${missing.length} missing plugin file(s)`);
+      } else if (e.target.closest('#cancelCleanupBtn')) {
+        document.getElementById('cleanupResults').style.display = 'none';
+      }
+
+      // Category Manager buttons
+      const catItem = e.target.closest('.category-item');
+      if (catItem) {
+        const idx = parseInt(catItem.dataset.catIndex, 10);
+        const cats = state.appData.categories;
+        if (e.target.closest('[data-action="cat-up"]') && idx > 0) {
+          [cats[idx - 1], cats[idx]] = [cats[idx], cats[idx - 1]];
+          await saveConfig();
+          renderAll();
+        } else if (e.target.closest('[data-action="cat-down"]') && idx < cats.length - 1) {
+          [cats[idx + 1], cats[idx]] = [cats[idx], cats[idx + 1]];
+          await saveConfig();
+          renderAll();
+        } else if (e.target.closest('[data-action="cat-delete"]')) {
+          const cat = cats[idx];
+          if (cat && confirm(`Delete category "${cat.name}" (${(cat.apps || []).length} apps)?`)) {
+            cats.splice(idx, 1);
+            await saveConfig();
+            renderAll();
+          }
+        }
+      }
+
+      // Custom path removal
+      const pathItem = e.target.closest('.custom-path-item');
+      if (pathItem && e.target.closest('[data-action="remove-custom-path"]')) {
+        const p = pathItem.dataset.path;
+        const kind = pathItem.dataset.kind;
+        if (kind === 'plugin') {
+          state.appData.settings.customPluginPaths = state.appData.settings.customPluginPaths.filter(x => x !== p);
+        } else {
+          state.appData.settings.customAppPaths = state.appData.settings.customAppPaths.filter(x => x !== p);
+        }
+        await saveConfig();
+        renderCustomPaths();
+      }
+    });
+
+    // Select all checkbox in App Scan results
+    settingsTab.addEventListener('change', (e) => {
+      if (e.target.id === 'selectAllScannedApps') {
+        const checked = e.target.checked;
+        document.querySelectorAll('#appScanResults .app-select-checkbox').forEach(cb => {
+          cb.checked = checked;
+        });
+      } else if (e.target.classList.contains('category-name-input')) {
+        const orig = e.target.dataset.orig;
+        const next = e.target.value.trim();
+        if (next && next !== orig) {
+          const cat = state.appData.categories.find(c => c.name === orig);
+          if (cat) {
+            cat.name = next;
+            saveConfig().then(renderAll);
+          }
+        }
+      }
+    });
+  }
+
+  // Add Category button
+  document.getElementById('addCategoryBtn')?.addEventListener('click', async () => {
+    const name = prompt('Enter new category name:');
+    if (name && name.trim()) {
+      const trimmed = name.trim();
+      if (state.appData.categories.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
+        showError('Category already exists.');
+        return;
+      }
+      state.appData.categories.push({ name: trimmed, apps: [] });
+      await saveConfig();
+      renderAll();
+      showNotification('✅ Category Added', `Created "${trimmed}"`);
+    }
+  });
+
+  // Add Custom Folders
+  document.getElementById('addCustomPluginPathBtn')?.addEventListener('click', async () => {
+    if (!state.isElectron) return;
+    const dir = await window.electronAPI.selectDirectory();
+    if (dir && !state.appData.settings.customPluginPaths.includes(dir)) {
+      state.appData.settings.customPluginPaths.push(dir);
+      await saveConfig();
+      renderCustomPaths();
+      showNotification('📁 Folder Added', `Added plugin scan folder: ${dir}`);
+    }
+  });
+
+  document.getElementById('addCustomAppPathBtn')?.addEventListener('click', async () => {
+    if (!state.isElectron) return;
+    const dir = await window.electronAPI.selectDirectory();
+    if (dir && !state.appData.settings.customAppPaths.includes(dir)) {
+      state.appData.settings.customAppPaths.push(dir);
+      await saveConfig();
+      renderCustomPaths();
+      showNotification('📁 Folder Added', `Added app scan folder: ${dir}`);
+    }
+  });
+
+  // Scan progress listener
+  if (state.isElectron && window.electronAPI.onScanProgress) {
+    window.electronAPI.onScanProgress((data) => {
+      const txt = document.querySelector('#scanProgress .progress-text');
+      if (txt) txt.textContent = `Scanning... ${data.count} items found (${data.current || ''})`;
+    });
+  }
+
+  // 9. Keyboard Shortcuts
+  document.getElementById('closeShortcutsBtn')?.addEventListener('click', () => {
+    document.getElementById('shortcutsOverlay').style.display = 'none';
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const isMac = state.platformInfo.platform === 'darwin';
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+
+    if (mod) {
+      if (e.key === '1') { e.preventDefault(); switchTab('apps'); }
+      else if (e.key === '2') { e.preventDefault(); switchTab('plugins'); }
+      else if (e.key === '3') { e.preventDefault(); switchTab('settings'); }
+      else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        document.getElementById('searchInput')?.focus();
+      } else if (e.key.toLowerCase() === 'n' && state.currentTab === 'apps') {
+        e.preventDefault();
+        openAddAppModal();
+      } else if (e.key.toLowerCase() === 'e' && state.currentTab === 'apps') {
+        e.preventDefault();
+        toggleEditMode();
+      } else if (e.key === '?') {
+        e.preventDefault();
+        document.getElementById('shortcutsOverlay').style.display = 'flex';
+      }
     }
 
-    // Reset first-run flag so welcome screen reappears
-    localStorage.removeItem('mam-welcome-shown');
-    console.log('First-run flag reset.');
-
-    // Reload UI from fresh config
-    console.log('Reloading window...');
-    window.location.reload();
-
-  } catch (error) {
-    console.error('Error resetting library:', error);
-    showError('Failed to reset library: ' + error.message);
-  }
+    if (e.key === 'Escape') {
+      closeModal('appModal');
+      closeModal('pluginModal');
+      hideWelcomeModal();
+      document.getElementById('shortcutsOverlay').style.display = 'none';
+      const ctx = document.getElementById('appContextMenu');
+      if (ctx) ctx.style.display = 'none';
+    }
+  });
 }
-
-// Export functions
-window.handleCleanupApps = handleCleanupApps;
-window.removeMissingApps = removeMissingApps;
-window.handleStartFresh = handleStartFresh;
-

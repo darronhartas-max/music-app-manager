@@ -1,8 +1,6 @@
 // Preload script - Security bridge between main and renderer
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
     // Launch an application
     launchApp: (appPath, appName) => ipcRenderer.invoke('launch-app', appPath, appName),
@@ -19,30 +17,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Scan for plugins
     scanPlugins: () => ipcRenderer.invoke('scan-plugins'),
 
-    // Open external link
-    openExternal: (url) => ipcRenderer.invoke('open-external', url),
-
-    // Get platform info
-    getPlatform: () => ipcRenderer.invoke('get-platform'),
-
-    // File dialogs
-    selectAppFile: () => ipcRenderer.invoke('select-app-file'),
-    selectPluginFile: () => ipcRenderer.invoke('select-plugin-file'),
-
-    // Merge scanned plugins with config
-    mergePlugins: (scannedPlugins) => ipcRenderer.invoke('merge-plugins', scannedPlugins),
-
     // Scan for music apps
     scanApps: () => ipcRenderer.invoke('scan-apps'),
 
     // Extract real icon for an app at a given path
     extractAppIcon: (appPath) => ipcRenderer.invoke('extract-app-icon', appPath),
 
+    // Reveal item in Finder / File Explorer
+    showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
+
+    // File dialogs
+    selectAppFile: () => ipcRenderer.invoke('select-app-file'),
+    selectPluginFile: () => ipcRenderer.invoke('select-plugin-file'),
+    selectDirectory: () => ipcRenderer.invoke('select-directory'),
+
+    // Open external link
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+    // Get platform info
+    getPlatform: () => ipcRenderer.invoke('get-platform'),
+
     // Open the User Guide window
     openUserGuide: () => ipcRenderer.invoke('open-user-guide'),
 
-    // Listen for scan progress
+    // Scan progress notifications
     onScanProgress: (callback) => {
+        ipcRenderer.removeAllListeners('scan-progress');
         ipcRenderer.on('scan-progress', (event, data) => callback(data));
     },
 
