@@ -2301,3 +2301,40 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   font-size: 0.95rem;
   line-height: 1;
 }
+
+/* ============================================
+   v2.0.5: Per-Format Plugin Paths in Edit Modal
+   ============================================ */
+
+.plugin-format-paths-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 175px;
+  overflow-y: auto;
+}
+
+.plugin-format-path-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.38rem 0.6rem;
+}
+
+.plugin-format-path-text {
+  flex: 1;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plugin-format-path-ver {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}

@@ -103,6 +103,10 @@
             <button id="pluginViewModeGrouped" class="segment-btn active" data-mode="grouped" title="Group identical plugins across formats">Grouped</button>
             <button id="pluginViewModeFlat" class="segment-btn" data-mode="flat" title="Show every installed plugin file separately">Flat List</button>
           </div>
+          <button id="quickRescanPluginsBtn" class="toolbar-btn" title="Rescan and sync installed audio plugins">
+            <span class="btn-icon">🔄</span>
+            Rescan Plugins
+          </button>
           <button id="exportCsvBtn" class="toolbar-btn" title="Export plugin inventory to CSV">
             <span class="btn-icon">📄</span>
             Export CSV
@@ -271,10 +275,6 @@
               Import Config
             </button>
             <input type="file" id="importConfigFileInput" accept=".json,application/json" style="display: none;">
-            <button id="reloadConfigBtn" class="action-btn">
-              <span class="btn-icon">🔄</span>
-              Reload Config
-            </button>
           </div>
 
           <div id="cleanupResults" class="scan-results" style="display: none;"></div>
@@ -285,7 +285,7 @@
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.4</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.0.5</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">
@@ -408,6 +408,10 @@
         <div class="form-group">
           <label>Manufacturer &amp; Formats</label>
           <div id="pluginMetaInfo" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+        </div>
+        <div class="form-group">
+          <label>Installed Format Locations</label>
+          <div id="pluginFormatPathsList" class="plugin-format-paths-list"></div>
         </div>
         <div class="form-group">
           <label>Rating</label>

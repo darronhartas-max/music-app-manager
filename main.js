@@ -209,26 +209,6 @@ ipcMain.handle('select-app-file', async () => {
     return null;
 });
 
-ipcMain.handle('select-plugin-file', async () => {
-    const isMac = process.platform === 'darwin';
-    const filters = isMac
-        ? [
-            { name: 'Audio Plugins', extensions: ['vst3', 'component', 'clap', 'aaxplugin', 'vst'] },
-            { name: 'All Files', extensions: ['*'] }
-        ]
-        : [
-            { name: 'Audio Plugins', extensions: ['vst3', 'clap', 'aaxplugin', 'dll', 'vst'] },
-            { name: 'All Files', extensions: ['*'] }
-        ];
-
-    const result = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openFile'],
-        filters
-    });
-    if (!result.canceled && result.filePaths.length > 0) return result.filePaths[0];
-    return null;
-});
-
 ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory', 'createDirectory']

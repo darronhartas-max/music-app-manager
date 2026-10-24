@@ -28,7 +28,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // File dialogs
     selectAppFile: () => ipcRenderer.invoke('select-app-file'),
-    selectPluginFile: () => ipcRenderer.invoke('select-plugin-file'),
     selectDirectory: () => ipcRenderer.invoke('select-directory'),
 
     // Open external link

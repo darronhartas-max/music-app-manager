@@ -778,6 +778,25 @@ function openPluginModal(item) {
   document.getElementById('pluginName').value = item.name;
   document.getElementById('pluginMetaInfo').textContent =
     `${item.manufacturer} • Formats: ${item.formats.join(', ')} • ${item.paths.length} file(s)`;
+
+  const pathsListEl = document.getElementById('pluginFormatPathsList');
+  if (pathsListEl) {
+    const pathSet = new Set(item.paths || []);
+    const matchedFiles = (state.appData.plugins || []).filter(p => pathSet.has(p.path));
+    const entries = matchedFiles.length > 0
+      ? matchedFiles
+      : (item.paths || []).map((p, i) => ({ format: item.formats[i] || item.formats[0] || 'VST', path: p, version: item.version || '' }));
+
+    pathsListEl.innerHTML = entries.map(entry => `
+      <div class="plugin-format-path-row">
+        ${getFormatBadgeHtml(entry.format || 'VST')}
+        <span class="plugin-format-path-text" title="${escapeHtml(entry.path)}">${escapeHtml(entry.path)}</span>
+        ${entry.version ? `<span class="plugin-format-path-ver">v${escapeHtml(String(entry.version).replace(/^v/i, ''))}</span>` : ''}
+        <button type="button" class="reorder-btn" data-action="modal-reveal-plugin-path" data-path="${escapeHtml(entry.path)}" title="Reveal in Finder / Explorer">📂 Reveal</button>
+      </div>
+    `).join('');
+  }
+
   document.getElementById('pluginNotes').value = item.notes || '';
   document.getElementById('pluginFavorite').checked = Boolean(item.favorite);
   document.getElementById('pluginRating').value = item.rating || 0;
@@ -1188,10 +1207,30 @@ async function mergeScannedPlugins() {
   });
 
   await saveConfig();
-  document.getElementById('scanResults').style.display = 'none';
+  const scanResultsEl = document.getElementById('scanResults');
+  if (scanResultsEl) scanResultsEl.style.display = 'none';
   renderAll();
   switchTab('plugins');
   showNotification('✅ Catalog Synced', `Added ${added} new plugins and updated metadata for ${updated} existing plugins.`);
+}
+
+async function handleQuickRescanPlugins() {
+  if (!state.isElectron) return;
+  const btn = document.getElementById('quickRescanPluginsBtn');
+  if (!btn) return;
+  const origHtml = btn.innerHTML;
+  try {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Scanning...';
+    const result = await window.electronAPI.scanPlugins();
+    state.lastScannedPlugins = result.plugins || [];
+    await mergeScannedPlugins();
+  } catch (err) {
+    showError('Plugin rescan failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
 }
 
 
@@ -1757,6 +1796,7 @@ function bindAllEvents() {
     });
   });
 
+  document.getElementById('quickRescanPluginsBtn')?.addEventListener('click', handleQuickRescanPlugins);
   document.getElementById('exportCsvBtn')?.addEventListener('click', exportPluginsCsv);
 
   const pluginTbody = document.getElementById('pluginTableBody');
@@ -1841,6 +1881,12 @@ function bindAllEvents() {
   document.getElementById('pluginModalCloseBtn')?.addEventListener('click', () => closeModal('pluginModal'));
   document.getElementById('pluginModalCancelBtn')?.addEventListener('click', () => closeModal('pluginModal'));
   document.getElementById('savePluginBtn')?.addEventListener('click', savePluginFromModal);
+  document.getElementById('pluginFormatPathsList')?.addEventListener('click', async (e) => {
+    const revealBtn = e.target.closest('[data-action="modal-reveal-plugin-path"]');
+    if (revealBtn && state.isElectron && revealBtn.dataset.path) {
+      await window.electronAPI.showItemInFolder(revealBtn.dataset.path);
+    }
+  });
 
   document.querySelectorAll('#pluginRatingStars .star').forEach(star => {
     star.addEventListener('click', () => {
@@ -1876,11 +1922,6 @@ function bindAllEvents() {
     if (file) {
       await handleImportConfigFile(file);
     }
-  });
-  document.getElementById('reloadConfigBtn')?.addEventListener('click', async () => {
-    await loadConfig();
-    renderAll();
-    showNotification('🔄 Config Reloaded', 'Configuration refreshed from disk');
   });
   document.getElementById('openUserGuideBtn')?.addEventListener('click', async () => {
     if (state.isElectron && window.electronAPI.openUserGuide) {
