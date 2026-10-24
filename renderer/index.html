@@ -52,6 +52,10 @@
           <button class="view-btn" data-view="manufacturer">🏢 By Manufacturer</button>
         </div>
         <div class="apps-actions">
+          <button id="newSessionBtn" class="toolbar-btn" title="Create a 1-click multi-app Studio Session bundle">
+            <span class="btn-icon">🚀</span>
+            New Session
+          </button>
           <button id="addAppBtn" class="toolbar-btn">
             <span class="btn-icon">➕</span>
             Add App
@@ -61,6 +65,11 @@
             Edit / Reorder
           </button>
         </div>
+      </div>
+
+      <!-- Studio Sessions Multi-App Launcher Bar -->
+      <div id="studioSessionsBar" class="studio-sessions-bar" style="display: none;">
+        <!-- Dynamically populated with saved Studio Session presets -->
       </div>
 
       <!-- Explanatory banner shown when Edit / Reorder Mode is active -->
@@ -284,7 +293,7 @@
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.8</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.0.9</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">
@@ -497,6 +506,41 @@
       <div class="modal-footer">
         <button type="button" class="btn-secondary" id="pluginModalCancelBtn">Cancel</button>
         <button type="button" class="btn-primary" id="savePluginBtn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create / Edit Studio Session Multi-App Bundle -->
+  <div id="sessionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="sessionModalTitle">New Studio Session</h2>
+        <button class="modal-close" id="sessionModalCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="sessionEditId" value="">
+        <div class="license-vault-grid">
+          <div class="form-group">
+            <label>Session Name *</label>
+            <input type="text" id="sessionNameInput" placeholder="e.g., Guitar Jam Rig, Mixing Session">
+          </div>
+          <div class="form-group">
+            <label>Icon (Emoji)</label>
+            <input type="text" id="sessionIconInput" value="🚀" placeholder="🎸, 🎙️, 🎹, 🚀">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Select Apps to Launch Together *</label>
+          <input type="text" id="sessionAppFilterInput" placeholder="Filter apps..." style="margin-bottom: 0.5rem;">
+          <div id="sessionAppsChecklist" class="session-apps-checklist">
+            <!-- Populated dynamically with checkboxes for all library apps -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="deleteSessionModalBtn" class="btn-danger" style="display: none; margin-right: auto;">Delete Session</button>
+        <button type="button" class="btn-secondary" id="sessionModalCancelBtn">Cancel</button>
+        <button type="button" class="btn-primary" id="saveSessionBtn">Save Session</button>
       </div>
     </div>
   </div>

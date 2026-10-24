@@ -2523,3 +2523,129 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   opacity: 0.85;
   pointer-events: none;
 }
+
+/* ============================================
+   v2.0.9: Studio Session Multi-App Launcher Presets
+   ============================================ */
+
+.studio-sessions-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.9rem;
+  margin-bottom: var(--spacing-md);
+}
+
+.studio-sessions-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-right: 0.2rem;
+}
+
+.studio-sessions-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.studio-session-pill {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  overflow: hidden;
+  transition: all 0.18s ease;
+}
+
+.studio-session-pill:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.session-pill-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  padding: 0.32rem 0.65rem 0.32rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.session-pill-launch:hover {
+  background: var(--hover-bg);
+}
+
+.session-pill-count {
+  background: rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+}
+
+.session-pill-edit {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 0.32rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.session-pill-edit:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.session-apps-checklist {
+  max-height: 230px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.session-app-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.38rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.83rem;
+}
+
+.session-app-check-item:hover {
+  background: var(--hover-bg);
+}
+
+.session-app-check-name {
+  flex: 1;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.session-app-check-cat {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}

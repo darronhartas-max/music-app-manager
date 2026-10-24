@@ -72,6 +72,7 @@ async function loadConfig() {
   if (!Array.isArray(state.appData.categories)) state.appData.categories = [];
   if (!Array.isArray(state.appData.plugins)) state.appData.plugins = [];
   if (!Array.isArray(state.appData.recentApps)) state.appData.recentApps = [];
+  if (!Array.isArray(state.appData.sessions)) state.appData.sessions = [];
   if (!state.appData.settings) state.appData.settings = {};
   if (!Array.isArray(state.appData.settings.customPluginPaths)) state.appData.settings.customPluginPaths = [];
   if (!Array.isArray(state.appData.settings.customAppPaths)) state.appData.settings.customAppPaths = [];
@@ -89,12 +90,179 @@ async function saveConfig() {
 
 function renderAll() {
   renderApps();
+  renderStudioSessionsBar();
   renderPlugins();
   updateStatistics();
   renderUpdateCentersBars();
   renderCategoryManager();
   renderCustomPaths();
   updatePlatformDisplay();
+}
+
+// ============================================
+// STUDIO SESSIONS (MULTI-APP LAUNCHER PRESETS)
+// ============================================
+
+function renderStudioSessionsBar() {
+  const bar = document.getElementById('studioSessionsBar');
+  if (!bar) return;
+  const sessions = state.appData.sessions || [];
+  if (sessions.length === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <span class="studio-sessions-label">🚀 Studio Sessions:</span>
+    <div class="studio-sessions-pills">
+      ${sessions.map(s => {
+        const count = (s.appPaths || []).length;
+        return `
+          <div class="studio-session-pill" data-session-id="${escapeHtml(s.id)}">
+            <button type="button" class="session-pill-launch" data-action="launch-session" data-session-id="${escapeHtml(s.id)}" title="Launch all ${count} apps in ${escapeHtml(s.name)}">
+              <span class="session-pill-icon">${escapeHtml(s.icon || '🚀')}</span>
+              <span class="session-pill-name">${escapeHtml(s.name)}</span>
+              <span class="session-pill-count">${count}</span>
+            </button>
+            <button type="button" class="session-pill-edit" data-action="edit-session" data-session-id="${escapeHtml(s.id)}" title="Edit or Delete Session">✏️</button>
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function populateSessionChecklist(selectedPaths = [], filterQuery = '') {
+  const listEl = document.getElementById('sessionAppsChecklist');
+  if (!listEl) return;
+  const selectedSet = new Set(selectedPaths);
+  const q = filterQuery.trim().toLowerCase();
+
+  const allApps = [];
+  (state.appData.categories || []).forEach(cat => {
+    (cat.apps || []).forEach(app => {
+      allApps.push({ ...app, categoryName: cat.name });
+    });
+  });
+
+  const filtered = q
+    ? allApps.filter(a => (a.name || '').toLowerCase().includes(q) || (a.categoryName || '').toLowerCase().includes(q))
+    : allApps;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div style="padding: 0.75rem; color: var(--text-muted); font-size: 0.82rem;">No matching apps found.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(app => {
+    const checked = selectedSet.has(app.path) ? 'checked' : '';
+    return `
+      <label class="session-app-check-item">
+        <input type="checkbox" class="session-app-checkbox" value="${escapeHtml(app.path)}" ${checked}>
+        <span class="session-app-check-name">${escapeHtml(app.name)}</span>
+        <span class="session-app-check-cat">${escapeHtml(app.categoryName)}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+function getCurrentlyCheckedSessionPaths() {
+  const checked = [];
+  document.querySelectorAll('#sessionAppsChecklist .session-app-checkbox:checked').forEach(cb => {
+    checked.push(cb.value);
+  });
+  return checked;
+}
+
+function openNewSessionModal() {
+  state.editingSessionSelectedPaths = new Set();
+  document.getElementById('sessionModalTitle').textContent = 'New Studio Session';
+  document.getElementById('sessionEditId').value = '';
+  document.getElementById('sessionNameInput').value = '';
+  document.getElementById('sessionIconInput').value = '🚀';
+  const filterIn = document.getElementById('sessionAppFilterInput');
+  if (filterIn) filterIn.value = '';
+  document.getElementById('deleteSessionModalBtn').style.display = 'none';
+  populateSessionChecklist([], '');
+  document.getElementById('sessionModal').classList.add('active');
+}
+
+function openEditSessionModal(sessionId) {
+  const s = (state.appData.sessions || []).find(x => x.id === sessionId);
+  if (!s) return;
+  state.editingSessionSelectedPaths = new Set(s.appPaths || []);
+  document.getElementById('sessionModalTitle').textContent = 'Edit Studio Session';
+  document.getElementById('sessionEditId').value = s.id;
+  document.getElementById('sessionNameInput').value = s.name || '';
+  document.getElementById('sessionIconInput').value = s.icon || '🚀';
+  const filterIn = document.getElementById('sessionAppFilterInput');
+  if (filterIn) filterIn.value = '';
+  document.getElementById('deleteSessionModalBtn').style.display = 'inline-block';
+  populateSessionChecklist(Array.from(state.editingSessionSelectedPaths), '');
+  document.getElementById('sessionModal').classList.add('active');
+}
+
+async function saveSessionFromModal() {
+  const editId = document.getElementById('sessionEditId').value.trim();
+  const name = document.getElementById('sessionNameInput').value.trim();
+  const icon = document.getElementById('sessionIconInput').value.trim() || '🚀';
+  const appPaths = Array.from(state.editingSessionSelectedPaths || []);
+
+  if (!name) {
+    showError('Please enter a Session Name (e.g., Guitar Jam Rig).');
+    return;
+  }
+  if (appPaths.length === 0) {
+    showError('Please select at least one app to include in this Studio Session.');
+    return;
+  }
+
+  if (!Array.isArray(state.appData.sessions)) state.appData.sessions = [];
+
+  if (editId) {
+    const idx = state.appData.sessions.findIndex(x => x.id === editId);
+    if (idx !== -1) {
+      state.appData.sessions[idx] = { id: editId, name, icon, appPaths };
+    }
+  } else {
+    state.appData.sessions.push({
+      id: 'session_' + Date.now(),
+      name,
+      icon,
+      appPaths
+    });
+  }
+
+  await saveConfig();
+  closeModal('sessionModal');
+  renderStudioSessionsBar();
+  showNotification('🚀 Session Saved', `"${name}" (${appPaths.length} apps) ready to launch`);
+}
+
+async function deleteSessionById(sessionId) {
+  const s = (state.appData.sessions || []).find(x => x.id === sessionId);
+  if (!s) return;
+  if (!confirm(`Delete Studio Session "${s.name}"?`)) return;
+  state.appData.sessions = state.appData.sessions.filter(x => x.id !== sessionId);
+  await saveConfig();
+  closeModal('sessionModal');
+  renderStudioSessionsBar();
+  showNotification('🗑️ Session Deleted', `Removed "${s.name}"`);
+}
+
+async function launchStudioSession(sessionId) {
+  const s = (state.appData.sessions || []).find(x => x.id === sessionId);
+  if (!s || !Array.isArray(s.appPaths) || s.appPaths.length === 0) return;
+
+  let launched = 0;
+  for (const appPath of s.appPaths) {
+    const found = findAppByPath(appPath);
+    const appName = found ? found.app.name : appPath.split(/[/\\]/).pop().replace(/\.(app|exe)$/i, '');
+    await launchApp(appPath, appName);
+    launched++;
+  }
+  showNotification(`${s.icon || '🚀'} Session Launched`, `Opened ${launched} application(s) for "${s.name}"`);
 }
 
 // Identify Vendor Update, Product, and License Managers
@@ -1808,8 +1976,21 @@ function bindAllEvents() {
     });
   });
 
+  document.getElementById('newSessionBtn')?.addEventListener('click', openNewSessionModal);
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
+
+  document.getElementById('studioSessionsBar')?.addEventListener('click', (e) => {
+    const launchBtn = e.target.closest('[data-action="launch-session"]');
+    if (launchBtn) {
+      launchStudioSession(launchBtn.dataset.sessionId);
+      return;
+    }
+    const editBtn = e.target.closest('[data-action="edit-session"]');
+    if (editBtn) {
+      openEditSessionModal(editBtn.dataset.sessionId);
+    }
+  });
 
   // Update & License Centers Quick-Launch Hub delegation on Settings tab
   document.getElementById('settingsUpdateCentersBar')?.addEventListener('click', (e) => {
@@ -2209,6 +2390,34 @@ function bindAllEvents() {
     });
   });
 
+  // Studio Session Modal
+  document.getElementById('sessionModalCloseBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeModal('sessionModal');
+  });
+  document.getElementById('sessionModalCancelBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeModal('sessionModal');
+  });
+  document.getElementById('sessionModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'sessionModal') closeModal('sessionModal');
+  });
+  document.getElementById('saveSessionBtn')?.addEventListener('click', saveSessionFromModal);
+  document.getElementById('deleteSessionModalBtn')?.addEventListener('click', () => {
+    const id = document.getElementById('sessionEditId').value;
+    if (id) deleteSessionById(id);
+  });
+  document.getElementById('sessionAppsChecklist')?.addEventListener('change', (e) => {
+    if (e.target.classList.contains('session-app-checkbox')) {
+      if (!state.editingSessionSelectedPaths) state.editingSessionSelectedPaths = new Set();
+      if (e.target.checked) state.editingSessionSelectedPaths.add(e.target.value);
+      else state.editingSessionSelectedPaths.delete(e.target.value);
+    }
+  });
+  document.getElementById('sessionAppFilterInput')?.addEventListener('input', (e) => {
+    populateSessionChecklist(Array.from(state.editingSessionSelectedPaths || []), e.target.value);
+  });
+
   // Welcome Modal
   document.getElementById('welcomeStartBtn')?.addEventListener('click', () => {
     hideWelcomeModal();
@@ -2418,6 +2627,7 @@ function bindAllEvents() {
     if (e.key === 'Escape') {
       closeModal('appModal');
       closeModal('pluginModal');
+      closeModal('sessionModal');
       hideWelcomeModal();
       document.getElementById('shortcutsOverlay').style.display = 'none';
       const ctx = document.getElementById('appContextMenu');
