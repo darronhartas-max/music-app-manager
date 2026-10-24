@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Get platform info
     getPlatform: () => ipcRenderer.invoke('get-platform'),
 
+    // Calculate on-disk sizes for a list of paths
+    getPathsSizes: (pathsList) => ipcRenderer.invoke('get-paths-sizes', pathsList),
+
     // Open the User Guide window
     openUserGuide: () => ipcRenderer.invoke('open-user-guide'),
 

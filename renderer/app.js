@@ -54,7 +54,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindAllEvents();
   renderAll();
   checkFirstRun();
+  backfillMissingDiskSizes();
 });
+
+function formatBytes(bytes) {
+  const b = Number(bytes) || 0;
+  if (b <= 0) return '-';
+  if (b < 1024) return `${b} B`;
+  const kb = b / 1024;
+  if (kb < 1024) return `${kb.toFixed(0)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+}
+
+async function backfillMissingDiskSizes() {
+  if (!state.isElectron || !window.electronAPI.getPathsSizes || !state.appData) return;
+  const missingPaths = [];
+  (state.appData.plugins || []).forEach(p => {
+    if (p.path && typeof p.sizeBytes !== 'number') missingPaths.push(p.path);
+  });
+  (state.appData.categories || []).forEach(cat => {
+    (cat.apps || []).forEach(a => {
+      if (a.path && typeof a.sizeBytes !== 'number') missingPaths.push(a.path);
+    });
+  });
+
+  if (missingPaths.length === 0) return;
+
+  try {
+    const sizeMap = await window.electronAPI.getPathsSizes(missingPaths);
+    let updated = false;
+    (state.appData.plugins || []).forEach(p => {
+      if (p.path && typeof sizeMap[p.path] === 'number') {
+        p.sizeBytes = sizeMap[p.path];
+        updated = true;
+      }
+    });
+    (state.appData.categories || []).forEach(cat => {
+      (cat.apps || []).forEach(a => {
+        if (a.path && typeof sizeMap[a.path] === 'number') {
+          a.sizeBytes = sizeMap[a.path];
+          updated = true;
+        }
+      });
+    });
+    if (updated) {
+      await saveConfig();
+      renderPlugins();
+      updateStatistics();
+    }
+  } catch (e) {
+    console.warn('Could not backfill disk sizes:', e);
+  }
+}
 
 async function loadConfig() {
   try {
@@ -876,6 +930,7 @@ function buildDisplayPlugins() {
         formats: [p.format || 'VST'],
         manufacturer: p.manufacturer || 'Unknown',
         version: p.version || '-',
+        sizeBytes: p.sizeBytes || 0,
         arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
         rating: p.rating || 0,
         favorite: Boolean(p.favorite),
@@ -905,6 +960,7 @@ function buildDisplayPlugins() {
         formats: [],
         manufacturer: p.manufacturer || 'Unknown',
         version: p.version || '',
+        sizeBytes: 0,
         arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
         rating: p.rating || 0,
         favorite: Boolean(p.favorite),
@@ -922,7 +978,10 @@ function buildDisplayPlugins() {
     const g = groups.get(groupKey);
     const fmt = p.format || 'VST';
     if (!g.formats.includes(fmt)) g.formats.push(fmt);
-    if (!g.paths.includes(p.path)) g.paths.push(p.path);
+    if (!g.paths.includes(p.path)) {
+      g.paths.push(p.path);
+      g.sizeBytes += (p.sizeBytes || 0);
+    }
     if (p.type && p.type !== 'unknown' && g.type === 'unknown') g.type = p.type;
     if (p.version && !g.version) g.version = p.version;
     if (p.favorite) g.favorite = true;
@@ -1083,6 +1142,8 @@ function renderPlugins() {
     let cmp = 0;
     if (field === 'rating') {
       cmp = (a.rating || 0) - (b.rating || 0);
+    } else if (field === 'sizeBytes') {
+      cmp = (a.sizeBytes || 0) - (b.sizeBytes || 0);
     } else if (field === 'favorite') {
       cmp = (a.favorite === b.favorite) ? 0 : (a.favorite ? -1 : 1);
     } else if (field === 'format') {
@@ -1115,7 +1176,7 @@ function renderPlugins() {
   if (items.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+        <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
           No plugins match the current filter. Go to <strong>⚙️ Tools → Scan for Plugins</strong> to populate your catalog.
         </td>
@@ -1137,6 +1198,7 @@ function renderPlugins() {
     const licenseBadge = hasLicense
       ? `<span class="plugin-diag-badge license" title="License: ${escapeHtml(item.licenseType || 'Saved')}${item.licenseAccount ? ' (' + escapeHtml(item.licenseAccount) + ')' : ''}">🔑 ${escapeHtml(item.licenseType || 'Key')}</span>`
       : '';
+    const sizeText = formatBytes(item.sizeBytes);
 
     return `
       <tr class="plugin-row ${item.favorite ? 'favorite' : ''}" data-idx="${idx}">
@@ -1153,6 +1215,7 @@ function renderPlugins() {
             ${mismatchBadge}
           </div>
         </td>
+        <td style="font-size: 0.8rem; color: var(--text-secondary); font-family: monospace; white-space: nowrap;">${escapeHtml(sizeText)}</td>
         <td>${archHtml}</td>
         <td class="rating-cell" style="text-align: center;">${stars}</td>
         <td class="plugin-notes">${escapeHtml(item.notes || '-')}</td>
@@ -1210,6 +1273,7 @@ function openPluginModal(item) {
         ${getFormatBadgeHtml(entry.format || 'VST')}
         <span class="plugin-format-path-text" title="${escapeHtml(entry.path)}">${escapeHtml(entry.path)}</span>
         ${entry.version ? `<span class="plugin-format-path-ver">v${escapeHtml(String(entry.version).replace(/^v/i, ''))}</span>` : ''}
+        ${entry.sizeBytes ? `<span class="plugin-format-path-ver">${escapeHtml(formatBytes(entry.sizeBytes))}</span>` : ''}
         <button type="button" class="reorder-btn" data-action="modal-reveal-plugin-path" data-path="${escapeHtml(entry.path)}" title="Reveal in Finder / Explorer">📂 Reveal</button>
       </div>
     `).join('');
@@ -1322,11 +1386,20 @@ function updateStatistics() {
   const elUniquePlugins = document.getElementById('statPlugins');
   const elPluginFiles = document.getElementById('statTotalPluginFiles');
   const elCats = document.getElementById('statCategories');
+  const elPluginDisk = document.getElementById('statPluginsDiskSize');
+  const elAppDisk = document.getElementById('statAppsDiskSize');
+
+  const totalPluginBytes = (state.appData.plugins || []).reduce((sum, p) => sum + (p.sizeBytes || 0), 0);
+  const totalAppBytes = (state.appData.categories || []).reduce((sum, c) => {
+    return sum + (c.apps || []).reduce((s, a) => s + (a.sizeBytes || 0), 0);
+  }, 0);
 
   if (elApps) elApps.textContent = totalApps;
   if (elUniquePlugins) elUniquePlugins.textContent = uniqueKeys.size;
   if (elPluginFiles) elPluginFiles.textContent = totalPluginFiles;
   if (elCats) elCats.textContent = totalCategories;
+  if (elPluginDisk) elPluginDisk.textContent = formatBytes(totalPluginBytes) === '-' ? '0 MB' : formatBytes(totalPluginBytes);
+  if (elAppDisk) elAppDisk.textContent = formatBytes(totalAppBytes) === '-' ? '0 MB' : formatBytes(totalAppBytes);
 }
 
 function updatePlatformDisplay() {
@@ -1623,6 +1696,7 @@ async function mergeScannedPlugins() {
       const ex = existingByPath.get(sp.path);
       ex.version = sp.version || ex.version || '';
       ex.arch = sp.arch || ex.arch || 'Universal';
+      if (typeof sp.sizeBytes === 'number') ex.sizeBytes = sp.sizeBytes;
       if ((!ex.manufacturer || ex.manufacturer === 'Unknown') && sp.manufacturer !== 'Unknown') {
         ex.manufacturer = sp.manufacturer;
       }

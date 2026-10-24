@@ -252,6 +252,8 @@ class PluginScanner {
             type = detectPluginType(haystack);
         }
 
+        const sizeBytes = await this.calculatePathSize(fullPath);
+
         return {
             name: pluginName,
             path: fullPath,
@@ -260,11 +262,39 @@ class PluginScanner {
             manufacturer: manufacturer,
             version: version || '',
             arch: arch,
+            sizeBytes: sizeBytes,
             rating: 0,
             favorite: false,
             notes: '',
             dateScanned: new Date().toISOString()
         };
+    }
+
+    async calculatePathSize(targetPath, depth = 0) {
+        if (!targetPath || depth > 6) return 0;
+        try {
+            const st = await fs.promises.lstat(targetPath);
+            if (st.isSymbolicLink()) return 0;
+            if (st.isFile()) return st.size || 0;
+            if (st.isDirectory()) {
+                const entries = await fs.promises.readdir(targetPath, { withFileTypes: true });
+                let total = 0;
+                for (const entry of entries) {
+                    if (entry.isSymbolicLink()) continue;
+                    const childPath = path.join(targetPath, entry.name);
+                    if (entry.isFile()) {
+                        try {
+                            const cst = await fs.promises.stat(childPath);
+                            total += cst.size || 0;
+                        } catch (e) { }
+                    } else if (entry.isDirectory()) {
+                        total += await this.calculatePathSize(childPath, depth + 1);
+                    }
+                }
+                return total;
+            }
+        } catch (e) { }
+        return 0;
     }
 }
 

@@ -132,6 +132,7 @@
               <th data-sort="format" class="sortable" title="Sort by Plugin Format">Format <span class="sort-arrow"></span></th>
               <th data-sort="manufacturer" class="sortable" title="Sort by Manufacturer">Manufacturer <span class="sort-arrow"></span></th>
               <th data-sort="version" class="sortable" title="Sort by Version">Version <span class="sort-arrow"></span></th>
+              <th data-sort="sizeBytes" class="sortable" title="Sort by Disk Space Size">Size <span class="sort-arrow"></span></th>
               <th data-sort="arch" class="sortable" title="Sort by CPU Architecture">Architecture <span class="sort-arrow"></span></th>
               <th data-sort="rating" class="sortable" style="text-align: center;" title="Sort by Rating">Rating <span class="sort-arrow"></span></th>
               <th data-sort="notes" class="sortable" title="Sort by Notes">Notes <span class="sort-arrow"></span></th>
@@ -168,6 +169,14 @@
             <div class="stat-card">
               <div class="stat-number" id="statCategories">0</div>
               <div class="stat-label">Categories</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statPluginsDiskSize">0 MB</div>
+              <div class="stat-label">Plugins Disk Space</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statAppsDiskSize">0 GB</div>
+              <div class="stat-label">Apps Disk Space</div>
             </div>
           </div>
         </div>
@@ -293,7 +302,7 @@
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.9</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.0.10</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">

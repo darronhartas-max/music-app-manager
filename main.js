@@ -274,3 +274,15 @@ ipcMain.handle('get-platform', async () => {
         appVersion: app.getVersion()
     };
 });
+
+// 10. Batch Disk Space Calculation for Existing Library Paths
+ipcMain.handle('get-paths-sizes', async (event, pathsList) => {
+    if (!Array.isArray(pathsList)) return {};
+    const sizes = {};
+    for (const p of pathsList) {
+        if (p && typeof p === 'string' && !sizes[p]) {
+            sizes[p] = await pluginScanner.calculatePathSize(p);
+        }
+    }
+    return sizes;
+});
