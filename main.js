@@ -434,6 +434,16 @@ ipcMain.handle('get-paths-sizes', async (event, pathsList) => {
     return sizes;
 });
 
+// 10b. Crash & Blacklist / Validation Inspector
+ipcMain.handle('scan-plugin-diagnostics', async (event, installedPlugins) => {
+    try {
+        return await pluginScanner.scanCrashAndValidationLogs(installedPlugins || []);
+    } catch (err) {
+        console.error('[Main] Error scanning plugin crash/blacklist logs:', err);
+        return { crashes: [], blacklisted: [], scannedLogCount: 0, error: err.message };
+    }
+});
+
 // 11. Plugin Freezer / Vault (Disable & Restore Plugins without deleting)
 function copyOrMoveEntryRecursiveSync(src, dest) {
     fs.cpSync(src, dest, { recursive: true, preserveTimestamps: true });

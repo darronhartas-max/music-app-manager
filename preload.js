@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Calculate on-disk sizes for a list of paths
     getPathsSizes: (pathsList) => ipcRenderer.invoke('get-paths-sizes', pathsList),
 
+    // Scan OS crash logs & DAW blacklists for plugin issues
+    scanPluginDiagnostics: (installedPlugins) => ipcRenderer.invoke('scan-plugin-diagnostics', installedPlugins),
+
     // Freeze / Unfreeze a plugin file into or out of the Plugin Vault
     setPluginFrozen: (payload) => ipcRenderer.invoke('set-plugin-frozen', payload),
 

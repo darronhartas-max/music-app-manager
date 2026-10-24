@@ -2929,3 +2929,19 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   color: #a5b4fc;
   border-color: var(--accent-primary);
 }
+
+/* ============================================
+   v2.1.6: Crash & Blacklist Inspector Badges
+   ============================================ */
+
+.plugin-diag-badge.crash {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+.plugin-modal-diag-alert.crash-alert {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}

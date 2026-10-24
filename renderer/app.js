@@ -17,6 +17,7 @@ const state = {
   draggedAppPath: null,
   contextMenuAppPath: null,
   editingPluginGroup: null,
+  pluginCrashDiag: { byKey: new Map(), scannedLogCount: 0, auCachePath: null, scannedAt: null },
   isElectron: Boolean(window.electronAPI && window.electronAPI.isElectron),
   platformInfo: { platform: 'darwin', arch: 'arm64' }
 };
@@ -56,7 +57,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderAll();
   checkFirstRun();
   backfillMissingDiskSizes();
+  runPluginCrashDiagnostics(true);
 });
+
+async function runPluginCrashDiagnostics(silent = true) {
+  if (!state.isElectron || !window.electronAPI.scanPluginDiagnostics || !state.appData) return;
+  try {
+    const res = await window.electronAPI.scanPluginDiagnostics(state.appData.plugins || []);
+    const byKey = new Map();
+    (res.crashes || []).forEach(c => {
+      if (!byKey.has(c.pluginKey)) byKey.set(c.pluginKey, { crashes: [], blacklisted: [] });
+      byKey.get(c.pluginKey).crashes.push(c);
+    });
+    (res.blacklisted || []).forEach(b => {
+      if (!byKey.has(b.pluginKey)) byKey.set(b.pluginKey, { crashes: [], blacklisted: [] });
+      byKey.get(b.pluginKey).blacklisted.push(b);
+    });
+    state.pluginCrashDiag = {
+      byKey,
+      scannedLogCount: res.scannedLogCount || 0,
+      auCachePath: res.auCachePath || null,
+      scannedAt: res.scannedAt || new Date().toISOString()
+    };
+    renderPlugins();
+    if (!silent) {
+      const flaggedCount = byKey.size;
+      showNotification(
+        '🛡️ Crash & Blacklist Scan Complete',
+        flaggedCount > 0
+          ? `Found ${flaggedCount} plugin(s) implicated in ${res.scannedLogCount} inspected logs.`
+          : `All clear! 0 plugin crashes found across ${res.scannedLogCount} recent logs.`
+      );
+    }
+  } catch (e) {
+    console.warn('Could not scan plugin crash diagnostics:', e);
+  }
+}
 
 function formatBytes(bytes) {
   const b = Number(bytes) || 0;
@@ -964,6 +1000,12 @@ function buildDisplayPlugins() {
   if (frozenBtn) {
     frozenBtn.textContent = frozenRawCount > 0 ? `🧊 Frozen Vault (${frozenRawCount})` : '🧊 Frozen Vault';
   }
+  const crashKeyMap = (state.pluginCrashDiag && state.pluginCrashDiag.byKey) || new Map();
+  const crashGroupCount = crashKeyMap.size;
+  const crashBtn = document.querySelector('.filter-btn[data-filter="crashes"]');
+  if (crashBtn) {
+    crashBtn.textContent = crashGroupCount > 0 ? `🛡️ Crash / Blacklist (${crashGroupCount})` : '🛡️ Crash / Blacklist';
+  }
 
   // Filter raw plugins first
   const activeTagKey = (state.currentPluginTag || '').trim().toLowerCase();
@@ -993,6 +1035,7 @@ function buildDisplayPlugins() {
     if (f === 'instrument' || f === 'effect') return type === f;
     if (f === 'rosetta') return arch.includes('intel') || arch.includes('rosetta');
     if (f === 'frozen') return Boolean(p.frozen);
+    if (f === 'crashes') return crashKeyMap.has(getPluginGroupKey(p));
     if (f === 'mismatch') return diag.hasVersionMismatch;
     if (f === 'redundant-vst2') {
       return state.pluginViewMode === 'flat'
@@ -1005,9 +1048,12 @@ function buildDisplayPlugins() {
 
   if (state.pluginViewMode === 'flat') {
     return filteredRaw.map(p => {
-      const diag = diagMap.get(getPluginGroupKey(p)) || {};
+      const gKey = getPluginGroupKey(p);
+      const diag = diagMap.get(gKey) || {};
+      const crashInfo = crashKeyMap.get(gKey) || { crashes: [], blacklisted: [] };
       return {
         key: p.path,
+        groupKey: gKey,
         name: p.name || 'Unknown',
         type: p.type || 'unknown',
         formats: [p.format || 'VST'],
@@ -1028,7 +1074,9 @@ function buildDisplayPlugins() {
         primaryPath: p.path,
         hasVersionMismatch: Boolean(diag.hasVersionMismatch),
         hasRedundantVst2: Boolean(diag.hasRedundantVst2 && (p.format || '').toUpperCase() === 'VST'),
-        versionBreakdown: diag.versionBreakdown || ''
+        versionBreakdown: diag.versionBreakdown || '',
+        crashes: crashInfo.crashes,
+        blacklisted: crashInfo.blacklisted
       };
     });
   }
@@ -1038,9 +1086,11 @@ function buildDisplayPlugins() {
   filteredRaw.forEach(p => {
     const groupKey = getPluginGroupKey(p);
     const diag = diagMap.get(groupKey) || {};
+    const crashInfo = crashKeyMap.get(groupKey) || { crashes: [], blacklisted: [] };
     if (!groups.has(groupKey)) {
       groups.set(groupKey, {
         key: groupKey,
+        groupKey: groupKey,
         name: p.name || 'Unknown',
         type: p.type || 'unknown',
         formats: [],
@@ -1061,7 +1111,9 @@ function buildDisplayPlugins() {
         primaryPath: p.path,
         hasVersionMismatch: Boolean(diag.hasVersionMismatch),
         hasRedundantVst2: Boolean(diag.hasRedundantVst2),
-        versionBreakdown: diag.versionBreakdown || ''
+        versionBreakdown: diag.versionBreakdown || '',
+        crashes: crashInfo.crashes,
+        blacklisted: crashInfo.blacklisted
       });
     }
     const g = groups.get(groupKey);
@@ -1202,6 +1254,39 @@ function renderPluginDiagnosticsBanner(items) {
     return;
   }
 
+  if (f === 'crashes') {
+    if (state.hidePluginDiagBannerForFilter === 'crashes') {
+      banner.style.display = 'none';
+      return;
+    }
+    const diagState = state.pluginCrashDiag || { byKey: new Map(), scannedLogCount: 0, auCachePath: null };
+    const flaggedCount = diagState.byKey ? diagState.byKey.size : 0;
+    const auCacheBtn = diagState.auCachePath
+      ? `<button type="button" class="category-save-btn" data-action="reveal-au-cache" data-path="${escapeHtml(diagState.auCachePath)}">📂 Reveal macOS AudioUnit Cache</button>`
+      : '';
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="diag-banner-header">
+        <div class="diag-banner-title">🛡️ Crash &amp; Blacklist / Validation Inspector (${diagState.scannedLogCount || 0} recent logs inspected)</div>
+        <button type="button" class="diag-banner-close-btn" data-action="close-diag-banner" title="Dismiss Guide">✕</button>
+      </div>
+      <div class="diag-banner-body">
+        ${flaggedCount === 0
+          ? `<p style="color: #6ee7b7; font-weight: 600;">✅ All clear! Zero plugins in your library were implicated in recent OS crash reports or DAW blacklist files.</p>`
+          : `<p>Found <strong>${flaggedCount} plugin(s)</strong> referenced inside recent DAW/host crash logs or DAW blacklist files.</p>`
+        }
+        <ul>
+          <li><strong>How this works:</strong> Music App Manager inspects recent macOS <code>DiagnosticReports</code> (<code>.ips</code> / <code>.crash</code>), Windows <code>CrashDumps</code>, and DAW plugin blacklist files to spot plugins that may have crashed a DAW or failed validation.</li>
+          <li><strong>How to resolve a crashing plugin:</strong> Click any flagged plugin row below to view the exact crash date and host DAW, click <strong>📂 Reveal Crash Log</strong> to inspect the report, update the plugin via its manufacturer's Update Center, or click <strong>🧊 Freeze</strong> to quarantine it in the Plugin Vault so it stops crashing your DAW.</li>
+        </ul>
+        <div class="diag-banner-pills" style="margin-top: 0.65rem;">
+          <button type="button" class="category-save-btn" data-action="rescan-crash-logs">🔍 Re-Scan Crash &amp; Blacklist Logs</button>
+          ${auCacheBtn}
+        </div>
+      </div>`;
+    return;
+  }
+
   if (f === 'frozen') {
     if (state.hidePluginDiagBannerForFilter === 'frozen') {
       banner.style.display = 'none';
@@ -1318,6 +1403,10 @@ function renderPlugins() {
     const frozenBadge = item.frozenCount > 0
       ? `<span class="plugin-diag-badge frozen" title="Moved to Disabled Plugin Vault (${item.frozenCount}/${item.paths.length} format files frozen)">🧊 ${item.frozen ? 'Frozen' : `${item.frozenCount} Frozen`}</span>`
       : '';
+    const crashCount = (item.crashes ? item.crashes.length : 0) + (item.blacklisted ? item.blacklisted.length : 0);
+    const crashBadge = crashCount > 0
+      ? `<span class="plugin-diag-badge crash" title="Implicated in ${crashCount} recent DAW crash report(s) or blacklist entry — click row for details">💥 ${item.blacklisted && item.blacklisted.length > 0 ? 'Blacklisted' : `Crash (${crashCount})`}</span>`
+      : '';
     const tagsHtml = (item.tags && item.tags.length > 0)
       ? `<div class="plugin-row-tags">${item.tags.map(t => `<button type="button" class="plugin-tag-badge" data-action="row-filter-tag" data-tag="${escapeHtml(t)}" title="Filter by collection/tag: ${escapeHtml(t)}">🏷️ ${escapeHtml(t)}</button>`).join('')}</div>`
       : '';
@@ -1328,7 +1417,7 @@ function renderPlugins() {
         <td class="favorite-cell ${item.favorite ? 'active' : ''}" data-action="toggle-plugin-fav" style="text-align: center; cursor: pointer;">
           ${item.favorite ? '⭐' : '☆'}
         </td>
-        <td><strong>${escapeHtml(item.name)}</strong> ${licenseBadge} ${frozenBadge}${tagsHtml}</td>
+        <td><strong>${escapeHtml(item.name)}</strong> ${crashBadge} ${licenseBadge} ${frozenBadge}${tagsHtml}</td>
         <td><span class="plugin-type ${escapeHtml(item.type)}">${escapeHtml(item.type)}</span></td>
         <td>${formatsHtml}</td>
         <td>${escapeHtml(item.manufacturer)}</td>
@@ -1379,6 +1468,30 @@ function openPluginModal(item) {
         <div style="margin-top: 0.25rem; color: var(--text-secondary); font-weight: 400;">
           You already have the modern <strong>VST3</strong> format installed. If your DAWs don't require the legacy <strong>VST</strong> format for older projects, click <strong>📂 Reveal</strong> next to the <strong>VST</strong> entry below to remove it.
         </div>
+      </div>`;
+  }
+  if ((item.crashes && item.crashes.length > 0) || (item.blacklisted && item.blacklisted.length > 0)) {
+    const crashRowsHtml = (item.crashes || []).slice(0, 4).map(c => {
+      const dateStr = c.date ? c.date.split('T')[0] : '';
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.35rem; font-size: 0.78rem;">
+          <span>💥 Host: <strong>${escapeHtml(c.hostProcess)}</strong> (${escapeHtml(dateStr)}) — <code>${escapeHtml(c.logFileName)}</code></span>
+          <button type="button" class="reorder-btn" data-action="modal-reveal-crash-log" data-path="${escapeHtml(c.logPath)}">📂 Reveal Crash Log</button>
+        </div>`;
+    }).join('');
+    const blRowsHtml = (item.blacklisted || []).map(b => `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.35rem; font-size: 0.78rem;">
+        <span>🚫 Blacklisted in <strong>${escapeHtml(b.source)}</strong></span>
+        <button type="button" class="reorder-btn" data-action="modal-reveal-crash-log" data-path="${escapeHtml(b.logPath)}">📂 Reveal Blacklist File</button>
+      </div>`).join('');
+    diagHtml += `
+      <div class="plugin-modal-diag-alert crash-alert">
+        <div><strong>🛡️ Crash / Blacklist Inspector Alert</strong></div>
+        <div style="margin-top: 0.25rem; color: var(--text-secondary); font-weight: 400;">
+          This plugin was referenced in recent crash reports or DAW blacklist files. You can inspect the log below or click <strong>🧊 Freeze</strong> below to temporarily move it to the Plugin Vault.
+        </div>
+        ${crashRowsHtml}
+        ${blRowsHtml}
       </div>`;
   }
 
@@ -2572,6 +2685,16 @@ function bindAllEvents() {
     const pill = e.target.closest('[data-action="launch-updater"]');
     if (pill) {
       launchApp(pill.dataset.path, pill.dataset.name);
+      return;
+    }
+    const rescanCrashBtn = e.target.closest('[data-action="rescan-crash-logs"]');
+    if (rescanCrashBtn) {
+      runPluginCrashDiagnostics(false);
+      return;
+    }
+    const revealAuCacheBtn = e.target.closest('[data-action="reveal-au-cache"]');
+    if (revealAuCacheBtn && state.isElectron && revealAuCacheBtn.dataset.path) {
+      window.electronAPI.showItemInFolder(revealAuCacheBtn.dataset.path);
     }
   });
 
@@ -2850,6 +2973,16 @@ function bindAllEvents() {
     const pill = e.target.closest('[data-action="launch-updater"]');
     if (pill) {
       launchApp(pill.dataset.path, pill.dataset.name);
+      return;
+    }
+    const rescanCrashBtn = e.target.closest('[data-action="rescan-crash-logs"]');
+    if (rescanCrashBtn) {
+      runPluginCrashDiagnostics(false);
+      return;
+    }
+    const revealAuCacheBtn = e.target.closest('[data-action="reveal-au-cache"]');
+    if (revealAuCacheBtn && state.isElectron && revealAuCacheBtn.dataset.path) {
+      window.electronAPI.showItemInFolder(revealAuCacheBtn.dataset.path);
     }
   });
 
@@ -2994,6 +3127,11 @@ function bindAllEvents() {
     const updaterBtn = e.target.closest('[data-action="modal-launch-updater"]');
     if (updaterBtn && updaterBtn.dataset.path) {
       launchApp(updaterBtn.dataset.path, updaterBtn.dataset.name);
+      return;
+    }
+    const crashLogBtn = e.target.closest('[data-action="modal-reveal-crash-log"]');
+    if (crashLogBtn && state.isElectron && crashLogBtn.dataset.path) {
+      window.electronAPI.showItemInFolder(crashLogBtn.dataset.path);
     }
   });
   document.getElementById('pluginFormatPathsList')?.addEventListener('click', async (e) => {

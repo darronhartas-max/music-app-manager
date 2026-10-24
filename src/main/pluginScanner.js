@@ -296,6 +296,170 @@ class PluginScanner {
         } catch (e) { }
         return 0;
     }
+
+    async scanCrashAndValidationLogs(installedPlugins = []) {
+        const crashes = [];
+        const blacklisted = [];
+        let scannedLogCount = 0;
+
+        // Build lookup tokens for installed plugins (minimum 4 chars to avoid false positives)
+        const pluginLookup = [];
+        const seenNames = new Set();
+        for (const p of (installedPlugins || [])) {
+            const name = String(p.name || '').trim();
+            if (!name || name.length < 4) continue;
+            const key = `${name.toLowerCase()}::${String(p.manufacturer || 'unknown').toLowerCase().trim()}`;
+            if (seenNames.has(key)) continue;
+            seenNames.add(key);
+            const baseFile = p.path ? path.basename(p.path) : '';
+            pluginLookup.push({
+                key,
+                name,
+                manufacturer: p.manufacturer || 'Unknown',
+                nameLower: name.toLowerCase(),
+                baseFileLower: baseFile.toLowerCase(),
+                path: p.path || ''
+            });
+        }
+
+        // 1. Scan OS Crash / Diagnostic Reports
+        const logDirs = [];
+        if (process.platform === 'darwin') {
+            logDirs.push(
+                path.join(os.homedir(), 'Library', 'Logs', 'DiagnosticReports'),
+                '/Library/Logs/DiagnosticReports'
+            );
+        } else if (process.platform === 'win32') {
+            const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+            logDirs.push(path.join(localAppData, 'CrashDumps'));
+        }
+
+        const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+        const candidateLogs = [];
+
+        for (const dir of logDirs) {
+            if (!fs.existsSync(dir)) continue;
+            try {
+                const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (!entry.isFile()) continue;
+                    const lower = entry.name.toLowerCase();
+                    if (lower.endsWith('.ips') || lower.endsWith('.crash') || lower.endsWith('.dmp')) {
+                        const fullPath = path.join(dir, entry.name);
+                        try {
+                            const st = await fs.promises.stat(fullPath);
+                            if (st.mtimeMs >= ninetyDaysAgo) {
+                                candidateLogs.push({ fullPath, name: entry.name, mtimeMs: st.mtimeMs });
+                            }
+                        } catch (e) { }
+                    }
+                }
+            } catch (e) { }
+        }
+
+        // Sort newest first, inspect up to 60 recent reports
+        candidateLogs.sort((a, b) => b.mtimeMs - a.mtimeMs);
+        const logsToInspect = candidateLogs.slice(0, 60);
+
+        for (const logFile of logsToInspect) {
+            scannedLogCount++;
+            try {
+                // For .dmp on Windows we inspect filename; for .ips/.crash on macOS we inspect content up to 180KB
+                let textLower = logFile.name.toLowerCase();
+                if (!textLower.endsWith('.dmp')) {
+                    const fd = await fs.promises.open(logFile.fullPath, 'r');
+                    try {
+                        const buf = Buffer.alloc(180 * 1024);
+                        const { bytesRead } = await fd.read(buf, 0, buf.length, 0);
+                        textLower += '\n' + buf.toString('utf8', 0, bytesRead).toLowerCase();
+                    } finally {
+                        await fd.close();
+                    }
+                }
+
+                // Check if any installed plugin bundle filename or plugin path appears in the crash report
+                for (const plug of pluginLookup) {
+                    const matchedByBundle = plug.baseFileLower && textLower.includes(plug.baseFileLower);
+                    const matchedByComponent = textLower.includes(`/${plug.nameLower}.vst3`) ||
+                                               textLower.includes(`/${plug.nameLower}.component`) ||
+                                               textLower.includes(`/${plug.nameLower}.clap`) ||
+                                               textLower.includes(`/${plug.nameLower}.aaxplugin`) ||
+                                               textLower.includes(`/${plug.nameLower}.vst`);
+                    if (matchedByBundle || matchedByComponent) {
+                        const hostApp = logFile.name.split(/[-_2]/)[0] || 'DAW / Audio Host';
+                        crashes.push({
+                            pluginKey: plug.key,
+                            pluginName: plug.name,
+                            manufacturer: plug.manufacturer,
+                            hostProcess: hostApp,
+                            date: new Date(logFile.mtimeMs).toISOString(),
+                            logPath: logFile.fullPath,
+                            logFileName: logFile.name
+                        });
+                    }
+                }
+            } catch (e) { }
+        }
+
+        // 2. Check DAW Blacklist / Failed Validation Files (Cubase/Nuendo XML & REAPER INI)
+        const blacklistCandidates = [];
+        if (process.platform === 'darwin') {
+            const prefDir = path.join(os.homedir(), 'Library', 'Preferences');
+            if (fs.existsSync(prefDir)) {
+                try {
+                    const prefs = await fs.promises.readdir(prefDir);
+                    for (const p of prefs) {
+                        if (/^(Cubase|Nuendo)/i.test(p)) {
+                            blacklistCandidates.push(path.join(prefDir, p, 'Vst2xPlugin Blacklist Cubase.xml'));
+                            blacklistCandidates.push(path.join(prefDir, p, 'VstPlugInfoV4.xml'));
+                        }
+                    }
+                } catch (e) { }
+            }
+        } else if (process.platform === 'win32') {
+            const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+            const steinbergDir = path.join(appData, 'Steinberg');
+            if (fs.existsSync(steinbergDir)) {
+                try {
+                    const subs = await fs.promises.readdir(steinbergDir);
+                    for (const s of subs) {
+                        blacklistCandidates.push(path.join(steinbergDir, s, 'Vst2xPlugin Blacklist Cubase.xml'));
+                    }
+                } catch (e) { }
+            }
+        }
+
+        for (const blPath of blacklistCandidates) {
+            if (!fs.existsSync(blPath)) continue;
+            scannedLogCount++;
+            try {
+                const rawXml = (await fs.promises.readFile(blPath, 'utf8')).toLowerCase();
+                for (const plug of pluginLookup) {
+                    if (plug.baseFileLower && rawXml.includes(plug.baseFileLower)) {
+                        blacklisted.push({
+                            pluginKey: plug.key,
+                            pluginName: plug.name,
+                            manufacturer: plug.manufacturer,
+                            source: path.basename(path.dirname(blPath)),
+                            logPath: blPath
+                        });
+                    }
+                }
+            } catch (e) { }
+        }
+
+        const auCachePath = process.platform === 'darwin'
+            ? path.join(os.homedir(), 'Library', 'Caches', 'AudioUnitCache', 'com.apple.audiounits.cache')
+            : null;
+
+        return {
+            crashes,
+            blacklisted,
+            scannedLogCount,
+            auCachePath: (auCachePath && fs.existsSync(auCachePath)) ? auCachePath : null,
+            scannedAt: new Date().toISOString()
+        };
+    }
 }
 
 module.exports = new PluginScanner();
