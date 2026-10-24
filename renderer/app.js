@@ -1346,34 +1346,30 @@ async function handleExportConfig() {
   showNotification('📤 Config Exported', 'Configuration JSON downloaded');
 }
 
-async function handleStartFresh() {
-  if (!confirm('Clear your current library and start fresh?\n\nThis resets your dashboard categories, apps, and plugin catalog. No files on your computer will be deleted.')) {
-    return;
-  }
-  state.appData = {
-    categories: [
-      { name: 'DAWs', apps: [] },
-      { name: 'Synths', apps: [] },
-      { name: 'Guitar & Bass', apps: [] },
-      { name: 'Audio Tools', apps: [] },
-      { name: 'Utilities', apps: [] }
-    ],
-    plugins: [],
-    recentApps: [],
-    settings: {
-      defaultView: 'category',
-      pluginViewMode: 'grouped',
-      showRecentApps: true,
-      maxRecentApps: 10,
-      customPluginPaths: [],
-      customAppPaths: []
+async function handleImportConfigFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.categories)) {
+      showError('Invalid configuration file: missing categories list.');
+      return;
     }
-  };
-  await saveConfig();
-  localStorage.removeItem('mam-welcome-shown');
-  renderAll();
-  checkFirstRun();
-  showNotification('✨ Library Reset', 'Ready for a fresh scan');
+
+    const appCount = parsed.categories.reduce((sum, c) => sum + ((c.apps || []).length), 0);
+    const pluginCount = Array.isArray(parsed.plugins) ? parsed.plugins.length : 0;
+
+    if (!confirm(`Import configuration from "${file.name}"?\n\n• ${parsed.categories.length} categories (${appCount} apps)\n• ${pluginCount} plugin files\n\nThis will replace your current active library with the imported backup.`)) {
+      return;
+    }
+
+    state.appData = normalizeConfig(parsed);
+    await saveConfig();
+    renderAll();
+    showNotification('📥 Config Imported', `Restored ${appCount} apps and ${pluginCount} plugins from backup`);
+  } catch (err) {
+    showError('Failed to import configuration JSON: ' + err.message);
+  }
 }
 
 // ============================================
@@ -1868,12 +1864,24 @@ function bindAllEvents() {
   document.getElementById('cleanupAppsBtn')?.addEventListener('click', handleCleanupApps);
   document.getElementById('cleanupPluginsBtn')?.addEventListener('click', handleCleanupPlugins);
   document.getElementById('exportConfigBtn')?.addEventListener('click', handleExportConfig);
+  document.getElementById('importConfigBtn')?.addEventListener('click', () => {
+    const fileInput = document.getElementById('importConfigFileInput');
+    if (fileInput) {
+      fileInput.value = '';
+      fileInput.click();
+    }
+  });
+  document.getElementById('importConfigFileInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      await handleImportConfigFile(file);
+    }
+  });
   document.getElementById('reloadConfigBtn')?.addEventListener('click', async () => {
     await loadConfig();
     renderAll();
     showNotification('🔄 Config Reloaded', 'Configuration refreshed from disk');
   });
-  document.getElementById('startFreshBtn')?.addEventListener('click', handleStartFresh);
   document.getElementById('openUserGuideBtn')?.addEventListener('click', async () => {
     if (state.isElectron && window.electronAPI.openUserGuide) {
       const res = await window.electronAPI.openUserGuide();
