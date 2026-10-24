@@ -2025,16 +2025,50 @@ async function handleCleanupPlugins() {
   resultsEl.style.display = 'block';
 }
 
-async function handleExportConfig() {
-  const json = JSON.stringify(state.appData, null, 2);
+function buildExportPayload(stripLicenseKeys = false) {
+  const clone = JSON.parse(JSON.stringify(state.appData || {}));
+  if (!stripLicenseKeys) return clone;
+
+  if (Array.isArray(clone.categories)) {
+    clone.categories.forEach(c => {
+      if (Array.isArray(c.apps)) {
+        c.apps.forEach(a => {
+          delete a.serialKey;
+          delete a.licenseAccount;
+        });
+      }
+    });
+  }
+  if (Array.isArray(clone.plugins)) {
+    clone.plugins.forEach(p => {
+      delete p.serialKey;
+      delete p.licenseAccount;
+    });
+  }
+  return clone;
+}
+
+async function handleExportConfig(forceSanitized = false) {
+  const cb = document.getElementById('exportSanitizedCheckbox');
+  const stripKeys = Boolean(forceSanitized === true || (cb && cb.checked));
+  const payload = buildExportPayload(stripKeys);
+  const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `music-app-manager-config-${new Date().toISOString().split('T')[0]}.json`;
+  const datePart = new Date().toISOString().split('T')[0];
+  a.download = stripKeys
+    ? `music-app-manager-rig-profile-safe-${datePart}.json`
+    : `music-app-manager-config-${datePart}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showNotification('📤 Config Exported', 'Configuration JSON downloaded');
+  showNotification(
+    stripKeys ? '🔒 Safe Rig Profile Exported' : '📤 Config Exported',
+    stripKeys
+      ? 'Exported JSON with all serial keys & account emails stripped out'
+      : 'Full configuration JSON backup downloaded'
+  );
 }
 
 function normalizeConfig(raw) {
@@ -2901,7 +2935,8 @@ function bindAllEvents() {
   document.getElementById('refreshIconsBtn')?.addEventListener('click', handleRefreshIcons);
   document.getElementById('cleanupAppsBtn')?.addEventListener('click', handleCleanupApps);
   document.getElementById('cleanupPluginsBtn')?.addEventListener('click', handleCleanupPlugins);
-  document.getElementById('exportConfigBtn')?.addEventListener('click', handleExportConfig);
+  document.getElementById('exportConfigBtn')?.addEventListener('click', () => handleExportConfig(false));
+  document.getElementById('exportSanitizedRigBtn')?.addEventListener('click', () => handleExportConfig(true));
   document.getElementById('importConfigBtn')?.addEventListener('click', () => {
     const fileInput = document.getElementById('importConfigFileInput');
     if (fileInput) {

@@ -2788,3 +2788,26 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   background: rgba(99, 102, 241, 0.18);
   color: #ffffff;
 }
+
+/* ============================================
+   v2.1.4: Sanitized Export Toggle
+   ============================================ */
+
+.sanitized-export-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sanitized-export-toggle input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}

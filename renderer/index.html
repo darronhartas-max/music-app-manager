@@ -289,6 +289,10 @@
               <span class="btn-icon">📤</span>
               Export Config JSON
             </button>
+            <label class="sanitized-export-toggle" title="When checked, serial numbers and account emails in your License Vault are omitted from the exported JSON file">
+              <input type="checkbox" id="exportSanitizedCheckbox">
+              <span>🔒 Strip Serial Keys &amp; Accounts</span>
+            </label>
             <button id="importConfigBtn" class="action-btn">
               <span class="btn-icon">📥</span>
               Import Config
@@ -309,6 +313,10 @@
               <span class="btn-icon">💻</span>
               Load Other Rig Config JSON to Compare...
             </button>
+            <button id="exportSanitizedRigBtn" class="action-btn" title="Export this computer's profile with all License Vault serial keys and account emails stripped out">
+              <span class="btn-icon">🔒</span>
+              Export Safe Rig Profile JSON (No Keys)
+            </button>
             <input type="file" id="compareRigFileInput" accept=".json,application/json" style="display: none;">
           </div>
 
@@ -323,7 +331,7 @@
       <div class="footer-left">
         <strong>Music App Manager</strong> — App &amp; Plugin Command Center
         <span class="footer-sep">•</span>
-        <span id="appVersionInfo">Version: <strong>2.1.3</strong></span>
+        <span id="appVersionInfo">Version: <strong>2.1.4</strong></span>
         <span class="footer-sep">•</span>
         <span id="platformInfo">Platform: Loading...</span>
       </div>
