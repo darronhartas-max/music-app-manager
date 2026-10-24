@@ -286,3 +286,93 @@ ipcMain.handle('get-paths-sizes', async (event, pathsList) => {
     }
     return sizes;
 });
+
+// 11. Plugin Freezer / Vault (Disable & Restore Plugins without deleting)
+function copyOrMoveEntryRecursiveSync(src, dest) {
+    fs.cpSync(src, dest, { recursive: true, preserveTimestamps: true });
+    fs.rmSync(src, { recursive: true, force: true });
+}
+
+function moveFileOrBundleWithPrivilegeFallback(srcPath, destPath) {
+    const destDir = path.dirname(destPath);
+    if (!fs.existsSync(destDir)) {
+        try {
+            fs.mkdirSync(destDir, { recursive: true });
+        } catch (e) { }
+    }
+
+    try {
+        fs.renameSync(srcPath, destPath);
+        return { success: true };
+    } catch (err) {
+        if (err.code === 'EXDEV') {
+            try {
+                copyOrMoveEntryRecursiveSync(srcPath, destPath);
+                return { success: true };
+            } catch (copyErr) {
+                err = copyErr;
+            }
+        }
+        // On macOS, /Library/Audio/Plug-Ins may require administrator privileges
+        if (process.platform === 'darwin' && (err.code === 'EACCES' || err.code === 'EPERM')) {
+            const escSrc = srcPath.replace(/(["\\$`])/g, '\\$1');
+            const escDest = destPath.replace(/(["\\$`])/g, '\\$1');
+            const escDestDir = destDir.replace(/(["\\$`])/g, '\\$1');
+            const shellCmd = `mkdir -p "${escDestDir}" && mv -f "${escSrc}" "${escDest}"`;
+            const osaScript = `do shell script "${shellCmd.replace(/"/g, '\\"')}" with administrator privileges`;
+            return new Promise((resolve) => {
+                execFile('/usr/bin/osascript', ['-e', osaScript], (osaErr) => {
+                    if (osaErr) {
+                        resolve({ success: false, error: osaErr.message });
+                    } else {
+                        resolve({ success: true });
+                    }
+                });
+            });
+        }
+        return { success: false, error: err.message };
+    }
+}
+
+ipcMain.handle('set-plugin-frozen', async (event, payload) => {
+    try {
+        const { currentPath, originalPath, format, freeze } = payload || {};
+        const vaultRoot = path.join(app.getPath('userData'), 'PluginVault');
+
+        if (freeze) {
+            const srcPath = currentPath || originalPath;
+            if (!srcPath || !fs.existsSync(srcPath)) {
+                return { success: false, error: 'Plugin file not found on disk: ' + (srcPath || '') };
+            }
+            const fmtFolder = (format || 'Other').toUpperCase();
+            const destPath = path.join(vaultRoot, fmtFolder, path.basename(srcPath));
+            const res = await moveFileOrBundleWithPrivilegeFallback(srcPath, destPath);
+            if (!res.success) return res;
+            return {
+                success: true,
+                frozen: true,
+                path: destPath,
+                originalPath: originalPath || srcPath
+            };
+        } else {
+            const srcVaultPath = currentPath;
+            const restoreTargetPath = originalPath;
+            if (!srcVaultPath || !fs.existsSync(srcVaultPath)) {
+                return { success: false, error: 'Frozen plugin file not found in Vault: ' + (srcVaultPath || '') };
+            }
+            if (!restoreTargetPath) {
+                return { success: false, error: 'Original plugin destination path is missing.' };
+            }
+            const res = await moveFileOrBundleWithPrivilegeFallback(srcVaultPath, restoreTargetPath);
+            if (!res.success) return res;
+            return {
+                success: true,
+                frozen: false,
+                path: restoreTargetPath,
+                originalPath: restoreTargetPath
+            };
+        }
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});

@@ -891,6 +891,11 @@ function buildDisplayPlugins() {
   if (redundantBtn) {
     redundantBtn.textContent = redundantVst2GroupCount > 0 ? `📦 Redundant VST2 (${redundantVst2GroupCount})` : '📦 Redundant VST2';
   }
+  const frozenRawCount = rawPlugins.filter(p => Boolean(p.frozen)).length;
+  const frozenBtn = document.querySelector('.filter-btn[data-filter="frozen"]');
+  if (frozenBtn) {
+    frozenBtn.textContent = frozenRawCount > 0 ? `🧊 Frozen Vault (${frozenRawCount})` : '🧊 Frozen Vault';
+  }
 
   // Filter raw plugins first
   const filteredRaw = rawPlugins.filter(p => {
@@ -910,6 +915,7 @@ function buildDisplayPlugins() {
     if (f === 'favorites') return Boolean(p.favorite);
     if (f === 'instrument' || f === 'effect') return type === f;
     if (f === 'rosetta') return arch.includes('intel') || arch.includes('rosetta');
+    if (f === 'frozen') return Boolean(p.frozen);
     if (f === 'mismatch') return diag.hasVersionMismatch;
     if (f === 'redundant-vst2') {
       return state.pluginViewMode === 'flat'
@@ -934,6 +940,8 @@ function buildDisplayPlugins() {
         arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
         rating: p.rating || 0,
         favorite: Boolean(p.favorite),
+        frozen: Boolean(p.frozen),
+        frozenCount: p.frozen ? 1 : 0,
         notes: p.notes || '',
         licenseType: p.licenseType || '',
         licenseAccount: p.licenseAccount || '',
@@ -964,6 +972,8 @@ function buildDisplayPlugins() {
         arch: p.arch || (state.platformInfo.platform === 'win32' ? 'x64' : 'Universal'),
         rating: p.rating || 0,
         favorite: Boolean(p.favorite),
+        frozen: true,
+        frozenCount: 0,
         notes: p.notes || '',
         licenseType: p.licenseType || '',
         licenseAccount: p.licenseAccount || '',
@@ -981,6 +991,8 @@ function buildDisplayPlugins() {
     if (!g.paths.includes(p.path)) {
       g.paths.push(p.path);
       g.sizeBytes += (p.sizeBytes || 0);
+      if (p.frozen) g.frozenCount++;
+      else g.frozen = false;
     }
     if (p.type && p.type !== 'unknown' && g.type === 'unknown') g.type = p.type;
     if (p.version && !g.version) g.version = p.version;
@@ -1106,6 +1118,26 @@ function renderPluginDiagnosticsBanner(items) {
     return;
   }
 
+  if (f === 'frozen') {
+    if (state.hidePluginDiagBannerForFilter === 'frozen') {
+      banner.style.display = 'none';
+      return;
+    }
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="diag-banner-header">
+        <div class="diag-banner-title">🧊 Plugin Freezer / Vault — Disabled Plugins</div>
+        <button type="button" class="diag-banner-close-btn" data-action="close-diag-banner" title="Dismiss Guide">✕</button>
+      </div>
+      <div class="diag-banner-body">
+        <p>Plugins in the <strong>Frozen Vault</strong> have been safely moved out of your active system plugin folders so your DAW boots faster and your plugin menus stay clutter-free—without uninstalling them.</p>
+        <ul>
+          <li><strong>How to restore:</strong> Click the <strong>🔥</strong> button in the Actions column (or open any plugin row and click <strong>🔥 Restore</strong> next to a format) to move the plugin right back to its original system folder in one click.</li>
+        </ul>
+      </div>`;
+    return;
+  }
+
   // In "All" or other views, show a subtle one-line summary helper if any mismatches exist and the user hasn't dismissed it
   if (mismatchItems.length > 0 && localStorage.getItem('mam-hide-mismatch-hint') !== '1') {
     banner.style.display = 'block';
@@ -1198,14 +1230,17 @@ function renderPlugins() {
     const licenseBadge = hasLicense
       ? `<span class="plugin-diag-badge license" title="License: ${escapeHtml(item.licenseType || 'Saved')}${item.licenseAccount ? ' (' + escapeHtml(item.licenseAccount) + ')' : ''}">🔑 ${escapeHtml(item.licenseType || 'Key')}</span>`
       : '';
+    const frozenBadge = item.frozenCount > 0
+      ? `<span class="plugin-diag-badge frozen" title="Moved to Disabled Plugin Vault (${item.frozenCount}/${item.paths.length} format files frozen)">🧊 ${item.frozen ? 'Frozen' : `${item.frozenCount} Frozen`}</span>`
+      : '';
     const sizeText = formatBytes(item.sizeBytes);
 
     return `
-      <tr class="plugin-row ${item.favorite ? 'favorite' : ''}" data-idx="${idx}">
+      <tr class="plugin-row ${item.favorite ? 'favorite' : ''} ${item.frozen ? 'plugin-row-frozen' : ''}" data-idx="${idx}">
         <td class="favorite-cell ${item.favorite ? 'active' : ''}" data-action="toggle-plugin-fav" style="text-align: center; cursor: pointer;">
           ${item.favorite ? '⭐' : '☆'}
         </td>
-        <td><strong>${escapeHtml(item.name)}</strong> ${licenseBadge}</td>
+        <td><strong>${escapeHtml(item.name)}</strong> ${licenseBadge} ${frozenBadge}</td>
         <td><span class="plugin-type ${escapeHtml(item.type)}">${escapeHtml(item.type)}</span></td>
         <td>${formatsHtml}</td>
         <td>${escapeHtml(item.manufacturer)}</td>
@@ -1219,7 +1254,8 @@ function renderPlugins() {
         <td>${archHtml}</td>
         <td class="rating-cell" style="text-align: center;">${stars}</td>
         <td class="plugin-notes">${escapeHtml(item.notes || '-')}</td>
-        <td style="text-align: center;">
+        <td style="text-align: center; white-space: nowrap;">
+          <button type="button" class="reorder-btn" data-action="toggle-freeze-group" title="${item.frozen ? 'Restore Plugin from Frozen Vault' : 'Freeze / Disable Plugin (Move to Vault)'}">${item.frozen ? '🔥' : '🧊'}</button>
           <button type="button" class="reorder-btn" data-action="reveal-plugin" title="Show in Finder / Explorer">📂</button>
         </td>
       </tr>`;
@@ -1268,15 +1304,20 @@ function openPluginModal(item) {
       ? matchedFiles
       : (item.paths || []).map((p, i) => ({ format: item.formats[i] || item.formats[0] || 'VST', path: p, version: item.version || '' }));
 
-    pathsListEl.innerHTML = entries.map(entry => `
-      <div class="plugin-format-path-row">
-        ${getFormatBadgeHtml(entry.format || 'VST')}
-        <span class="plugin-format-path-text" title="${escapeHtml(entry.path)}">${escapeHtml(entry.path)}</span>
-        ${entry.version ? `<span class="plugin-format-path-ver">v${escapeHtml(String(entry.version).replace(/^v/i, ''))}</span>` : ''}
-        ${entry.sizeBytes ? `<span class="plugin-format-path-ver">${escapeHtml(formatBytes(entry.sizeBytes))}</span>` : ''}
-        <button type="button" class="reorder-btn" data-action="modal-reveal-plugin-path" data-path="${escapeHtml(entry.path)}" title="Reveal in Finder / Explorer">📂 Reveal</button>
-      </div>
-    `).join('');
+    pathsListEl.innerHTML = entries.map(entry => {
+      const isFrozen = Boolean(entry.frozen);
+      return `
+        <div class="plugin-format-path-row ${isFrozen ? 'frozen-path-row' : ''}">
+          ${getFormatBadgeHtml(entry.format || 'VST')}
+          ${isFrozen ? `<span class="plugin-diag-badge frozen">🧊 Frozen</span>` : ''}
+          <span class="plugin-format-path-text" title="${escapeHtml(entry.path)}">${escapeHtml(entry.path)}</span>
+          ${entry.version ? `<span class="plugin-format-path-ver">v${escapeHtml(String(entry.version).replace(/^v/i, ''))}</span>` : ''}
+          ${entry.sizeBytes ? `<span class="plugin-format-path-ver">${escapeHtml(formatBytes(entry.sizeBytes))}</span>` : ''}
+          <button type="button" class="reorder-btn" data-action="modal-toggle-freeze-path" data-path="${escapeHtml(entry.path)}" title="${isFrozen ? 'Restore to active plugin folder' : 'Freeze into Disabled Plugin Vault'}">${isFrozen ? '🔥 Restore' : '🧊 Freeze'}</button>
+          <button type="button" class="reorder-btn" data-action="modal-reveal-plugin-path" data-path="${escapeHtml(entry.path)}" title="Reveal in Finder / Explorer">📂 Reveal</button>
+        </div>
+      `;
+    }).join('');
   }
 
   document.getElementById('pluginNotes').value = item.notes || '';
@@ -1327,6 +1368,57 @@ async function savePluginFromModal() {
   closeModal('pluginModal');
   renderPlugins();
   showNotification('✅ Plugin Updated', `Saved details for ${group.name}`);
+}
+
+async function toggleFreezeSinglePluginEntry(pluginEntry, targetFreezeState) {
+  if (!state.isElectron || !window.electronAPI.setPluginFrozen || !pluginEntry) return false;
+  const freeze = typeof targetFreezeState === 'boolean' ? targetFreezeState : !pluginEntry.frozen;
+  const res = await window.electronAPI.setPluginFrozen({
+    currentPath: pluginEntry.path,
+    originalPath: pluginEntry.originalPath || pluginEntry.path,
+    format: pluginEntry.format || 'VST3',
+    freeze
+  });
+
+  if (!res || !res.success) {
+    showError(`Could not ${freeze ? 'freeze' : 'restore'} ${pluginEntry.name}: ${(res && res.error) || 'Operation failed'}`);
+    return false;
+  }
+
+  pluginEntry.frozen = Boolean(res.frozen);
+  pluginEntry.originalPath = res.originalPath;
+  pluginEntry.path = res.path;
+  return true;
+}
+
+async function toggleFreezePluginGroup(groupItem) {
+  if (!groupItem) return;
+  const targetFreeze = !groupItem.frozen;
+  const actionWord = targetFreeze ? 'Freeze (disable)' : 'Restore (enable)';
+  if (!confirm(`${actionWord} "${groupItem.name}" (${groupItem.paths.length} format file(s))?\n\n${targetFreeze ? 'This moves the plugin bundle(s) into the Music App Manager Vault so your DAW skips them on startup.' : 'This moves the plugin bundle(s) back to their original system plugin folders.'}`)) {
+    return;
+  }
+
+  const pathSet = new Set(groupItem.paths);
+  const targets = (state.appData.plugins || []).filter(p => pathSet.has(p.path));
+  let changed = 0;
+
+  for (const p of targets) {
+    if (Boolean(p.frozen) !== targetFreeze) {
+      const ok = await toggleFreezeSinglePluginEntry(p, targetFreeze);
+      if (ok) changed++;
+    }
+  }
+
+  if (changed > 0) {
+    await saveConfig();
+    renderPlugins();
+    updateStatistics();
+    showNotification(
+      targetFreeze ? '🧊 Plugin Frozen' : '🔥 Plugin Restored',
+      `${targetFreeze ? 'Moved' : 'Restored'} ${changed} format file(s) for ${groupItem.name}`
+    );
+  }
 }
 
 function exportPluginsCsv() {
@@ -2330,6 +2422,12 @@ function bindAllEvents() {
       const item = (state.currentDisplayedPlugins || [])[idx];
       if (!item) return;
 
+      if (e.target.closest('[data-action="toggle-freeze-group"]')) {
+        e.stopPropagation();
+        await toggleFreezePluginGroup(item);
+        return;
+      }
+
       if (e.target.closest('[data-action="reveal-plugin"]')) {
         e.stopPropagation();
         if (state.isElectron && item.primaryPath) {
@@ -2450,6 +2548,28 @@ function bindAllEvents() {
     }
   });
   document.getElementById('pluginFormatPathsList')?.addEventListener('click', async (e) => {
+    const freezeBtn = e.target.closest('[data-action="modal-toggle-freeze-path"]');
+    if (freezeBtn && freezeBtn.dataset.path) {
+      const targetPath = freezeBtn.dataset.path;
+      const entry = (state.appData.plugins || []).find(p => p.path === targetPath);
+      if (entry) {
+        const oldPath = entry.path;
+        const ok = await toggleFreezeSinglePluginEntry(entry, !entry.frozen);
+        if (ok) {
+          if (state.editingPluginGroup && Array.isArray(state.editingPluginGroup.paths)) {
+            state.editingPluginGroup.paths = state.editingPluginGroup.paths.map(x => x === oldPath ? entry.path : x);
+          }
+          await saveConfig();
+          renderPlugins();
+          openPluginModal(state.editingPluginGroup);
+          showNotification(
+            entry.frozen ? '🧊 Format Frozen' : '🔥 Format Restored',
+            `${entry.name} (${entry.format}) ${entry.frozen ? 'moved to Vault' : 'restored to system folder'}`
+          );
+        }
+      }
+      return;
+    }
     const revealBtn = e.target.closest('[data-action="modal-reveal-plugin-path"]');
     if (revealBtn && state.isElectron && revealBtn.dataset.path) {
       await window.electronAPI.showItemInFolder(revealBtn.dataset.path);

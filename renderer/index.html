@@ -101,6 +101,7 @@
           <button class="filter-btn" data-filter="rosetta" title="Intel-only plugins running under Rosetta on Apple Silicon">⚠️ Intel Only</button>
           <button class="filter-btn" data-filter="mismatch" title="Plugins where installed formats (e.g. AU vs VST3) have different version numbers on disk">🔀 Version Mismatch</button>
           <button class="filter-btn" data-filter="redundant-vst2" title="Legacy VST2 plugins where the modern VST3 version is also installed">📦 Redundant VST2</button>
+          <button class="filter-btn" data-filter="frozen" title="Plugins temporarily moved into the Disabled Plugin Vault so DAWs skip them at startup">🧊 Frozen Vault</button>
         </div>
 
         <div class="plugin-view-actions">
@@ -136,7 +137,7 @@
               <th data-sort="arch" class="sortable" title="Sort by CPU Architecture">Architecture <span class="sort-arrow"></span></th>
               <th data-sort="rating" class="sortable" style="text-align: center;" title="Sort by Rating">Rating <span class="sort-arrow"></span></th>
               <th data-sort="notes" class="sortable" title="Sort by Notes">Notes <span class="sort-arrow"></span></th>
-              <th style="width: 70px; text-align: center;">Actions</th>
+              <th style="width: 96px; text-align: center;">Actions</th>
             </tr>
           </thead>
           <tbody id="pluginTableBody">
@@ -302,7 +303,7 @@
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.10</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.0.11</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">

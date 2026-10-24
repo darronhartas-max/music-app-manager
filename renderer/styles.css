@@ -2649,3 +2649,23 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   font-size: 0.72rem;
   color: var(--text-muted);
 }
+
+/* ============================================
+   v2.0.11: Plugin Freezer / Vault Styling
+   ============================================ */
+
+.plugin-diag-badge.frozen {
+  background: rgba(14, 165, 233, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+  margin-left: 0.35rem;
+}
+
+.plugin-row.plugin-row-frozen {
+  opacity: 0.72;
+}
+
+.plugin-format-path-row.frozen-path-row {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(14, 165, 233, 0.08);
+}
