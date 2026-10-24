@@ -270,6 +270,10 @@ class PluginScanner {
         };
     }
 
+    constructor() {
+        this._sizeCache = new Map(); // targetPath -> { mtimeMs, sizeBytes }
+    }
+
     async calculatePathSize(targetPath, depth = 0, maxDepth = 6) {
         if (!targetPath || depth > maxDepth) return 0;
         try {
@@ -277,6 +281,12 @@ class PluginScanner {
             if (st.isSymbolicLink()) return 0;
             if (st.isFile()) return st.size || 0;
             if (st.isDirectory()) {
+                if (depth === 0) {
+                    const cached = this._sizeCache.get(targetPath);
+                    if (cached && cached.mtimeMs === st.mtimeMs) {
+                        return cached.sizeBytes;
+                    }
+                }
                 const entries = await fs.promises.readdir(targetPath, { withFileTypes: true });
                 let total = 0;
                 for (const entry of entries) {
@@ -290,6 +300,9 @@ class PluginScanner {
                     } else if (entry.isDirectory()) {
                         total += await this.calculatePathSize(childPath, depth + 1, maxDepth);
                     }
+                }
+                if (depth === 0) {
+                    this._sizeCache.set(targetPath, { mtimeMs: st.mtimeMs, sizeBytes: total });
                 }
                 return total;
             }

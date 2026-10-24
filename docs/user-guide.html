@@ -201,7 +201,7 @@
   <div class="layout">
     <nav>
       <div class="nav-brand">🎵 Music App Manager</div>
-      <div class="nav-version">User Guide • v2.1.8</div>
+      <div class="nav-version">User Guide • v2.1.9</div>
       <ul class="nav-links">
         <li><a href="#getting-started">1. Getting Started</a></li>
         <li><a href="#apps-dashboard">2. Apps &amp; Studio Sessions</a></li>
@@ -256,7 +256,9 @@
         <h2>🔌 4. Plugins Catalog, Sorting &amp; Disk Space Size</h2>
         <ul>
           <li><strong>Sort by Any Column Header:</strong> Click any column title (<strong>⭐, Name, Type, Format, Manufacturer, Version, Size, Architecture, Rating, or Notes</strong>) to sort the table alphabetically or numerically. Clicking the same column header again toggles between ascending (<span class="badge">▲</span>) and descending (<span class="badge">▼</span>). By default, plugins are ordered alphabetically by <strong>Name (A–Z)</strong>.</li>
-          <li><strong>💾 Disk Space Size Column:</strong> Shows the exact on-disk footprint (<code>KB</code>, <code>MB</code>, or <code>GB</code>) of every plugin. Sort by <strong>Size</strong> to immediately see which plugins consume the most storage.</li>
+          <li><strong>⚡ Table Pagination &amp; High-Performance Rendering:</strong> Built-in fast pagination ensures silky smooth 60fps scrolling and instant filtering even with massive libraries of 2,000–5,000+ plugins. Use the pagination bar below the table to switch between <strong>50</strong>, <strong>100</strong>, <strong>250</strong>, or <strong>All</strong> items per page, jump directly to any page, or step through with Previous/Next controls.</li>
+          <li><strong>🔍 Debounced Real-Time Search:</strong> The global search input employs an optimized 100ms debounce buffer, providing snappy, stutter-free real-time searching without DOM thrashing on every keystroke.</li>
+          <li><strong>💾 Disk Space Size Column &amp; Cached Traversal:</strong> Shows the exact on-disk footprint (<code>KB</code>, <code>MB</code>, or <code>GB</code>) of every plugin. Background directory sizing uses an intelligent <code>mtime</code>-aware cache to avoid redundant filesystem walks when files have not changed. Sort by <strong>Size</strong> to immediately see which plugins consume the most storage.</li>
           <li><strong>Grouped vs. Flat List View:</strong>
             <ul>
               <li><strong>Grouped (Default):</strong> Combines identical plugins installed in multiple formats (e.g., <em>VST3 + AU + AAX</em>) into a single clean row with format badges and combined disk size.</li>
@@ -332,7 +334,7 @@
       </section>
 
       <footer>
-        <div><strong>Music App Manager v2.1.8</strong> • © Unforgettable Management Ltd 2026. All rights reserved.</div>
+        <div><strong>Music App Manager v2.1.9</strong> • © Unforgettable Management Ltd 2026. All rights reserved.</div>
         <div>
           <a href="terms.html">Terms &amp; Conditions</a> &nbsp;•&nbsp;
           <a href="privacy.html">Privacy &amp; Sponsorship Policy</a>

@@ -12,6 +12,8 @@ const state = {
   pluginViewMode: 'grouped',  // 'grouped' | 'flat'
   pluginSortField: 'name',
   pluginSortAsc: true,
+  pluginPage: 1,
+  pluginPageSize: 100,
   searchQuery: '',
   searchHistory: [],
   draggedAppPath: null,
@@ -271,6 +273,9 @@ async function loadConfig() {
 
   if (state.appData.settings.pluginViewMode) {
     state.pluginViewMode = state.appData.settings.pluginViewMode;
+  }
+  if (state.appData.settings.pluginPageSize !== undefined) {
+    state.pluginPageSize = state.appData.settings.pluginPageSize;
   }
 }
 
@@ -1534,7 +1539,10 @@ function renderPlugins() {
 
   state.currentDisplayedPlugins = items;
 
-  if (items.length === 0) {
+  const totalCount = items.length;
+  const paginationBar = document.getElementById('pluginPaginationBar');
+
+  if (totalCount === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
@@ -1542,10 +1550,31 @@ function renderPlugins() {
           No plugins match the current filter. Go to <strong>⚙️ Tools → Scan for Plugins</strong> to populate your catalog.
         </td>
       </tr>`;
+    if (paginationBar) {
+      paginationBar.style.display = 'none';
+      paginationBar.innerHTML = '';
+    }
     return;
   }
 
-  tbody.innerHTML = items.map((item, idx) => {
+  const rawSize = state.pluginPageSize;
+  const isAll = rawSize === -1 || rawSize === 'all' || rawSize === Infinity;
+  const pageSize = isAll ? totalCount : (parseInt(rawSize, 10) || 100);
+
+  const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalCount / pageSize));
+  if (state.pluginPage > totalPages) {
+    state.pluginPage = totalPages;
+  }
+  if (state.pluginPage < 1) {
+    state.pluginPage = 1;
+  }
+
+  const startIdx = isAll ? 0 : (state.pluginPage - 1) * pageSize;
+  const endIdx = isAll ? totalCount : Math.min(startIdx + pageSize, totalCount);
+  const pagedItems = isAll ? items : items.slice(startIdx, endIdx);
+
+  tbody.innerHTML = pagedItems.map((item, localIdx) => {
+    const idx = startIdx + localIdx;
     const stars = item.rating ? '★'.repeat(item.rating) : '-';
     const redundantBadge = item.hasRedundantVst2
       ? `<span class="plugin-diag-badge redundant" title="Legacy VST2 is installed alongside modern VST3">📦 VST2+VST3</span>`
@@ -1596,6 +1625,80 @@ function renderPlugins() {
         </td>
       </tr>`;
   }).join('');
+
+  renderPluginPaginationBar(totalCount, pageSize, totalPages, startIdx, endIdx, isAll);
+}
+
+function renderPluginPaginationBar(totalCount, pageSize, totalPages, startIdx, endIdx, isAll) {
+  const container = document.getElementById('pluginPaginationBar');
+  if (!container) return;
+
+  container.style.display = 'flex';
+
+  let infoText = '';
+  if (isAll || totalCount <= pageSize) {
+    infoText = `Showing all <strong>${totalCount}</strong> plugin${totalCount === 1 ? '' : 's'}`;
+  } else {
+    infoText = `Showing <strong>${startIdx + 1}–${endIdx}</strong> of <strong>${totalCount}</strong> plugins`;
+  }
+
+  let navHtml = '';
+  if (totalPages > 1 && !isAll) {
+    const curr = state.pluginPage;
+    const prevDisabled = curr <= 1 ? 'disabled' : '';
+    const nextDisabled = curr >= totalPages ? 'disabled' : '';
+
+    let pagesHtml = '';
+    if (totalPages <= 7) {
+      for (let p = 1; p <= totalPages; p++) {
+        pagesHtml += `<button type="button" class="pagination-page-btn ${p === curr ? 'active' : ''}" data-page-action="goto" data-page="${p}">${p}</button>`;
+      }
+    } else {
+      const showPages = new Set([1, totalPages, curr]);
+      if (curr - 1 >= 1) showPages.add(curr - 1);
+      if (curr + 1 <= totalPages) showPages.add(curr + 1);
+      if (curr === 1) { showPages.add(2); showPages.add(3); }
+      if (curr === totalPages) { showPages.add(totalPages - 1); showPages.add(totalPages - 2); }
+
+      const sorted = Array.from(showPages).sort((a, b) => a - b);
+      let lastP = 0;
+      for (const p of sorted) {
+        if (lastP && p - lastP > 1) {
+          pagesHtml += `<span class="pagination-ellipsis">…</span>`;
+        }
+        pagesHtml += `<button type="button" class="pagination-page-btn ${p === curr ? 'active' : ''}" data-page-action="goto" data-page="${p}">${p}</button>`;
+        lastP = p;
+      }
+    }
+
+    navHtml = `
+      <div class="pagination-controls">
+        <button type="button" class="pagination-nav-btn" data-page-action="goto" data-page="1" ${prevDisabled} title="First Page">⏮</button>
+        <button type="button" class="pagination-nav-btn" data-page-action="goto" data-page="${curr - 1}" ${prevDisabled} title="Previous Page">◀ Prev</button>
+        <div class="pagination-pages">${pagesHtml}</div>
+        <button type="button" class="pagination-nav-btn" data-page-action="goto" data-page="${curr + 1}" ${nextDisabled} title="Next Page">Next ▶</button>
+        <button type="button" class="pagination-nav-btn" data-page-action="goto" data-page="${totalPages}" ${nextDisabled} title="Last Page">⏭</button>
+      </div>`;
+  }
+
+  const curVal = isAll ? -1 : pageSize;
+  const sizeSelectHtml = `
+    <div class="pagination-size-wrap">
+      <label for="pluginPageSizeSelect" class="pagination-size-label">Per page:</label>
+      <select id="pluginPageSizeSelect" class="pagination-select" aria-label="Plugins per page">
+        <option value="50" ${curVal === 50 ? 'selected' : ''}>50</option>
+        <option value="100" ${curVal === 100 ? 'selected' : ''}>100</option>
+        <option value="250" ${curVal === 250 ? 'selected' : ''}>250</option>
+        <option value="-1" ${curVal === -1 ? 'selected' : ''}>All</option>
+      </select>
+    </div>
+  `;
+
+  container.innerHTML = `
+    <div class="pagination-info">${infoText}</div>
+    ${navHtml}
+    ${sizeSelectHtml}
+  `;
 }
 
 function openPluginModal(item) {
@@ -2899,19 +3002,45 @@ function bindAllEvents() {
     clearBtn.style.display = 'none';
     searchInput.parentElement.appendChild(clearBtn);
 
+    let searchDebounceTimer = null;
+
     clearBtn.addEventListener('click', () => {
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = null;
+      }
       searchInput.value = '';
       state.searchQuery = '';
+      state.pluginPage = 1;
       clearBtn.style.display = 'none';
       if (state.currentTab === 'apps') renderApps();
       else if (state.currentTab === 'plugins') renderPlugins();
     });
 
     searchInput.addEventListener('input', (e) => {
-      state.searchQuery = e.target.value;
-      clearBtn.style.display = state.searchQuery ? 'flex' : 'none';
-      if (state.currentTab === 'apps') renderApps();
-      else if (state.currentTab === 'plugins') renderPlugins();
+      const val = e.target.value;
+      clearBtn.style.display = val ? 'flex' : 'none';
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        state.searchQuery = val;
+        state.pluginPage = 1;
+        if (state.currentTab === 'apps') renderApps();
+        else if (state.currentTab === 'plugins') renderPlugins();
+      }, 100);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (searchDebounceTimer) {
+          clearTimeout(searchDebounceTimer);
+          searchDebounceTimer = null;
+        }
+        state.searchQuery = searchInput.value;
+        state.pluginPage = 1;
+        if (state.currentTab === 'apps') renderApps();
+        else if (state.currentTab === 'plugins') renderPlugins();
+        addToSearchHistory(searchInput.value.trim());
+      }
     });
 
     searchInput.addEventListener('change', (e) => {
@@ -3182,6 +3311,7 @@ function bindAllEvents() {
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       state.currentPluginFilter = btn.dataset.filter;
+      state.pluginPage = 1;
       state.hidePluginDiagBannerForFilter = null;
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
       renderPlugins();
@@ -3191,6 +3321,7 @@ function bindAllEvents() {
   document.querySelectorAll('.segment-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       state.pluginViewMode = btn.dataset.mode;
+      state.pluginPage = 1;
       state.appData.settings.pluginViewMode = state.pluginViewMode;
       await saveConfig();
       renderPlugins();
@@ -3206,6 +3337,7 @@ function bindAllEvents() {
         state.pluginSortField = sortKey;
         state.pluginSortAsc = true;
       }
+      state.pluginPage = 1;
       renderPlugins();
     });
   });
@@ -3222,8 +3354,37 @@ function bindAllEvents() {
     } else {
       state.currentPluginTag = clickedTag;
     }
+    state.pluginPage = 1;
     renderPlugins();
   });
+
+  const paginationBar = document.getElementById('pluginPaginationBar');
+  if (paginationBar) {
+    paginationBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-page-action]');
+      if (!btn || btn.disabled) return;
+      const targetPage = parseInt(btn.dataset.page, 10);
+      if (!isNaN(targetPage) && targetPage >= 1 && targetPage !== state.pluginPage) {
+        state.pluginPage = targetPage;
+        renderPlugins();
+        document.querySelector('.plugin-table-container')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+
+    paginationBar.addEventListener('change', async (e) => {
+      if (e.target.id === 'pluginPageSizeSelect') {
+        const val = e.target.value === '-1' ? -1 : parseInt(e.target.value, 10);
+        state.pluginPageSize = val;
+        state.pluginPage = 1;
+        if (state.appData) {
+          if (!state.appData.settings) state.appData.settings = {};
+          state.appData.settings.pluginPageSize = val;
+          await saveConfig();
+        }
+        renderPlugins();
+      }
+    });
+  }
 
   document.getElementById('pluginTagsInput')?.addEventListener('input', syncQuickTagChipsUI);
   document.getElementById('pluginQuickTags')?.addEventListener('click', (e) => {
@@ -3287,6 +3448,7 @@ function bindAllEvents() {
         e.stopPropagation();
         const tag = tagBadge.dataset.tag || '';
         state.currentPluginTag = state.currentPluginTag.toLowerCase() === tag.toLowerCase() ? '' : tag;
+        state.pluginPage = 1;
         renderPlugins();
         return;
       }
