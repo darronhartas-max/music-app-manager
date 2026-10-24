@@ -463,6 +463,100 @@ ipcMain.handle('inspect-sample-folder', async (event, folderPath, customName, cu
     }
 });
 
+// 10d. Studio Pre-Flight Check: Audio Interfaces & USB/MIDI Hardware Detection
+const USB_MUSIC_GEAR_REGEX = /arturia|native instruments|novation|akai|roland|korg|yamaha|m-audio|nektar|roli|elektron|moog|sequential|focusrite|universal audio|apollo|volt|scarlett|clarett|ssl|solid state logic|rme|motu|audient|presonus|steinberg|behringer|zoom|line 6|helix|pod go|kemper|neural|quad cortex|fractal|axe-fx|boss|iconnectivity|midi|keylab|minilab|microlab|komplete kontrol|maschine|launchkey|launchpad|mpk|apc|oxygen|keystep|beatstep|push|ableton|traktor|pioneeer|dj|synth|pedal/i;
+
+function collectUsbMusicGearFromTree(items, outList, seenSet) {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+        if (!item || typeof item !== 'object') continue;
+        const name = String(item._name || '').trim();
+        const mfr = String(item.manufacturer || '').trim();
+        const combined = `${name} ${mfr}`;
+        if (name && USB_MUSIC_GEAR_REGEX.test(combined) && !/hub|bluetooth|built-in|internal|apple T2|host controller/i.test(name)) {
+            const key = name.toLowerCase();
+            if (!seenSet.has(key)) {
+                seenSet.add(key);
+                outList.push({ name, manufacturer: mfr || 'USB Audio/MIDI' });
+            }
+        }
+        if (Array.isArray(item._items)) {
+            collectUsbMusicGearFromTree(item._items, outList, seenSet);
+        }
+    }
+}
+
+ipcMain.handle('get-audio-midi-gear', async () => {
+    const audioDevices = [];
+    const usbMusicGear = [];
+
+    if (process.platform === 'darwin') {
+        await new Promise((resolve) => {
+            execFile('/usr/sbin/system_profiler', ['SPAudioDataType', 'SPUSBDataType', '-json'], { timeout: 4500, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+                if (!err && stdout) {
+                    try {
+                        const parsed = JSON.parse(stdout);
+                        const audioRoot = parsed.SPAudioDataType || [];
+                        for (const group of audioRoot) {
+                            for (const dev of (group._items || [])) {
+                                const transportRaw = String(dev.coreaudio_device_transport || '').replace('coreaudio_device_type_', '');
+                                audioDevices.push({
+                                    name: dev._name || 'Audio Device',
+                                    manufacturer: dev.coreaudio_device_manufacturer || '',
+                                    isDefaultOutput: dev.coreaudio_default_audio_output_device === 'spaudio_yes',
+                                    isDefaultInput: dev.coreaudio_default_audio_input_device === 'spaudio_yes',
+                                    inputs: Number(dev.coreaudio_device_input) || 0,
+                                    outputs: Number(dev.coreaudio_device_output) || 0,
+                                    sampleRate: Number(dev.coreaudio_device_srate) || 0,
+                                    transport: transportRaw || 'unknown',
+                                    isExternal: !['builtin', 'virtual'].includes(transportRaw.toLowerCase())
+                                });
+                            }
+                        }
+                        const seenUsb = new Set();
+                        collectUsbMusicGearFromTree(parsed.SPUSBDataType || [], usbMusicGear, seenUsb);
+                    } catch (e) { }
+                }
+                resolve();
+            });
+        });
+    } else if (process.platform === 'win32') {
+        await new Promise((resolve) => {
+            execFile('powershell.exe', ['-NoProfile', '-Command', 'Get-CimInstance Win32_SoundDevice | Select-Object Name,Manufacturer,Status | ConvertTo-Json'], { timeout: 4000 }, (err, stdout) => {
+                if (!err && stdout) {
+                    try {
+                        const parsed = JSON.parse(stdout);
+                        const arr = Array.isArray(parsed) ? parsed : [parsed];
+                        arr.forEach((d, idx) => {
+                            if (d && d.Name) {
+                                const isBuiltIn = /realtek|high definition audio|nvidia|amd|intel|microsoft/i.test(`${d.Name} ${d.Manufacturer || ''}`);
+                                audioDevices.push({
+                                    name: d.Name,
+                                    manufacturer: d.Manufacturer || '',
+                                    isDefaultOutput: idx === 0,
+                                    isDefaultInput: false,
+                                    inputs: 0,
+                                    outputs: 2,
+                                    sampleRate: 48000,
+                                    transport: isBuiltIn ? 'builtin' : 'usb',
+                                    isExternal: !isBuiltIn
+                                });
+                            }
+                        });
+                    } catch (e) { }
+                }
+                resolve();
+            });
+        });
+    }
+
+    return {
+        audioDevices,
+        usbMusicGear,
+        checkedAt: new Date().toISOString()
+    };
+});
+
 // 11. Plugin Freezer / Vault (Disable & Restore Plugins without deleting)
 function copyOrMoveEntryRecursiveSync(src, dest) {
     fs.cpSync(src, dest, { recursive: true, preserveTimestamps: true });

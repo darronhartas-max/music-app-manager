@@ -18,6 +18,7 @@ const state = {
   contextMenuAppPath: null,
   editingPluginGroup: null,
   pluginCrashDiag: { byKey: new Map(), scannedLogCount: 0, auCachePath: null, scannedAt: null },
+  studioGear: { audioDevices: [], midiDevices: [], usbMusicGear: [], checkedAt: null },
   isElectron: Boolean(window.electronAPI && window.electronAPI.isElectron),
   platformInfo: { platform: 'darwin', arch: 'arm64' }
 };
@@ -58,7 +59,106 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkFirstRun();
   backfillMissingDiskSizes();
   runPluginCrashDiagnostics(true);
+  refreshStudioPreFlightGear(true);
 });
+
+async function refreshStudioPreFlightGear(silent = true) {
+  let audioDevices = [];
+  let usbMusicGear = [];
+  const midiNamesSet = new Set();
+
+  if (state.isElectron && window.electronAPI.getAudioMidiGear) {
+    try {
+      const res = await window.electronAPI.getAudioMidiGear();
+      audioDevices = res.audioDevices || [];
+      usbMusicGear = res.usbMusicGear || [];
+      usbMusicGear.forEach(g => {
+        if (g && g.name) midiNamesSet.add(g.name);
+      });
+    } catch (e) { }
+  }
+
+  // Also query Web MIDI API for active CoreMIDI / Windows MIDI ports
+  if (navigator && typeof navigator.requestMIDIAccess === 'function') {
+    try {
+      const midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+      for (const input of midiAccess.inputs.values()) {
+        if (input && input.name && !/iac driver|virtual|network/i.test(input.name)) {
+          midiNamesSet.add(input.name);
+        }
+      }
+      if (!state.midiStateListenerAttached) {
+        state.midiStateListenerAttached = true;
+        midiAccess.onstatechange = () => {
+          refreshStudioPreFlightGear(true);
+        };
+      }
+    } catch (e) { }
+  }
+
+  state.studioGear = {
+    audioDevices,
+    usbMusicGear,
+    midiDevices: Array.from(midiNamesSet),
+    checkedAt: new Date().toISOString()
+  };
+
+  renderStudioPreFlightBar();
+
+  if (!silent) {
+    const outDev = audioDevices.find(d => d.isDefaultOutput) || audioDevices[0];
+    const midiCount = state.studioGear.midiDevices.length;
+    showNotification(
+      '🎧 Studio Pre-Flight Checked',
+      `Audio Out: ${outDev ? outDev.name : 'Default'} • MIDI/USB Gear: ${midiCount} connected`
+    );
+  }
+}
+
+function renderStudioPreFlightBar() {
+  const bar = document.getElementById('studioPreFlightBar');
+  if (!bar) return;
+
+  const { audioDevices = [], midiDevices = [] } = state.studioGear || {};
+  const defaultOut = audioDevices.find(d => d.isDefaultOutput) || audioDevices.find(d => d.outputs > 0) || null;
+  const defaultIn = audioDevices.find(d => d.isDefaultInput) || audioDevices.find(d => d.inputs > 0) || null;
+
+  const outRateStr = defaultOut && defaultOut.sampleRate ? ` (${(defaultOut.sampleRate / 1000).toFixed(1).replace(/\.0$/, '')} kHz)` : '';
+  const outLabel = defaultOut ? `${defaultOut.name}${outRateStr}` : 'System Default';
+  const isExtAudio = Boolean(defaultOut && defaultOut.isExternal);
+
+  const inLabel = defaultIn ? defaultIn.name : 'System Default';
+  const midiLabel = midiDevices.length > 0
+    ? midiDevices.slice(0, 3).join(', ') + (midiDevices.length > 3 ? ` +${midiDevices.length - 3}` : '')
+    : 'None detected';
+
+  const sampleLibs = (state.appData && state.appData.sampleLibraries) || [];
+  const offlineDrives = sampleLibs.filter(l => l.online === false);
+  const sampleStatusHtml = sampleLibs.length > 0
+    ? `<span class="preflight-chip ${offlineDrives.length > 0 ? 'warn' : 'ok'}" title="${offlineDrives.length > 0 ? offlineDrives.map(d => d.name).join(', ') + ' offline' : 'All tracked sample library folders are online'}">
+         💽 Samples: <strong>${offlineDrives.length > 0 ? `⚠️ ${offlineDrives.length} Offline` : `${sampleLibs.length} Online`}</strong>
+       </span>`
+    : '';
+
+  bar.innerHTML = `
+    <div class="preflight-left">
+      <span class="preflight-title">🎧 Studio Pre-Flight:</span>
+      <span class="preflight-chip ${isExtAudio ? 'ok' : ''}" title="Active CoreAudio / System Audio Output Device">
+        🔊 Out: <strong>${escapeHtml(outLabel)}</strong>
+      </span>
+      <span class="preflight-chip" title="Active Audio Input Device">
+        🎙️ In: <strong>${escapeHtml(inLabel)}</strong>
+      </span>
+      <span class="preflight-chip ${midiDevices.length > 0 ? 'ok' : ''}" title="Connected MIDI Controllers &amp; USB Music Gear">
+        🎹 MIDI / Gear: <strong>${escapeHtml(midiLabel)}</strong>
+      </span>
+      ${sampleStatusHtml}
+    </div>
+    <button type="button" class="preflight-refresh-btn" data-action="refresh-preflight-gear" title="Re-check connected Audio Interfaces, MIDI Controllers &amp; Sample Drives">
+      🔄 Check Gear
+    </button>
+  `;
+}
 
 async function runPluginCrashDiagnostics(silent = true) {
   if (!state.isElectron || !window.electronAPI.scanPluginDiagnostics || !state.appData) return;
@@ -182,6 +282,7 @@ async function saveConfig() {
 
 function renderAll() {
   renderApps();
+  renderStudioPreFlightBar();
   renderStudioSessionsBar();
   renderPlugins();
   updateStatistics();
@@ -274,6 +375,12 @@ function openNewSessionModal() {
   document.getElementById('sessionEditId').value = '';
   document.getElementById('sessionNameInput').value = '';
   document.getElementById('sessionIconInput').value = '🚀';
+  const reqAudioEl = document.getElementById('sessionReqAudioInput');
+  const reqMidiEl = document.getElementById('sessionReqMidiCheckbox');
+  const reqSampleEl = document.getElementById('sessionReqSampleDrivesCheckbox');
+  if (reqAudioEl) reqAudioEl.value = '';
+  if (reqMidiEl) reqMidiEl.checked = false;
+  if (reqSampleEl) reqSampleEl.checked = true;
   const filterIn = document.getElementById('sessionAppFilterInput');
   if (filterIn) filterIn.value = '';
   document.getElementById('deleteSessionModalBtn').style.display = 'none';
@@ -289,6 +396,12 @@ function openEditSessionModal(sessionId) {
   document.getElementById('sessionEditId').value = s.id;
   document.getElementById('sessionNameInput').value = s.name || '';
   document.getElementById('sessionIconInput').value = s.icon || '🚀';
+  const reqAudioEl = document.getElementById('sessionReqAudioInput');
+  const reqMidiEl = document.getElementById('sessionReqMidiCheckbox');
+  const reqSampleEl = document.getElementById('sessionReqSampleDrivesCheckbox');
+  if (reqAudioEl) reqAudioEl.value = s.reqAudioDevice || '';
+  if (reqMidiEl) reqMidiEl.checked = Boolean(s.reqMidiConnected);
+  if (reqSampleEl) reqSampleEl.checked = s.reqSampleDrivesOnline !== false;
   const filterIn = document.getElementById('sessionAppFilterInput');
   if (filterIn) filterIn.value = '';
   document.getElementById('deleteSessionModalBtn').style.display = 'inline-block';
@@ -300,6 +413,11 @@ async function saveSessionFromModal() {
   const editId = document.getElementById('sessionEditId').value.trim();
   const name = document.getElementById('sessionNameInput').value.trim();
   const icon = document.getElementById('sessionIconInput').value.trim() || '🚀';
+  const reqAudioDevice = (document.getElementById('sessionReqAudioInput')?.value || '').trim();
+  const reqMidiConnected = Boolean(document.getElementById('sessionReqMidiCheckbox')?.checked);
+  const reqSampleDrivesOnline = document.getElementById('sessionReqSampleDrivesCheckbox')
+    ? Boolean(document.getElementById('sessionReqSampleDrivesCheckbox').checked)
+    : true;
   const appPaths = Array.from(state.editingSessionSelectedPaths || []);
 
   if (!name) {
@@ -313,18 +431,23 @@ async function saveSessionFromModal() {
 
   if (!Array.isArray(state.appData.sessions)) state.appData.sessions = [];
 
+  const sessionObj = {
+    id: editId || ('session_' + Date.now()),
+    name,
+    icon,
+    appPaths,
+    reqAudioDevice,
+    reqMidiConnected,
+    reqSampleDrivesOnline
+  };
+
   if (editId) {
     const idx = state.appData.sessions.findIndex(x => x.id === editId);
     if (idx !== -1) {
-      state.appData.sessions[idx] = { id: editId, name, icon, appPaths };
+      state.appData.sessions[idx] = sessionObj;
     }
   } else {
-    state.appData.sessions.push({
-      id: 'session_' + Date.now(),
-      name,
-      icon,
-      appPaths
-    });
+    state.appData.sessions.push(sessionObj);
   }
 
   await saveConfig();
@@ -347,6 +470,40 @@ async function deleteSessionById(sessionId) {
 async function launchStudioSession(sessionId) {
   const s = (state.appData.sessions || []).find(x => x.id === sessionId);
   if (!s || !Array.isArray(s.appPaths) || s.appPaths.length === 0) return;
+
+  // Run live Studio Pre-Flight Check before launching session apps
+  await refreshStudioPreFlightGear(true);
+  const warnings = [];
+  const { audioDevices = [], midiDevices = [] } = state.studioGear || {};
+
+  if (s.reqAudioDevice) {
+    const reqLower = s.reqAudioDevice.toLowerCase();
+    const matchedAudio = audioDevices.some(d => (d.name || '').toLowerCase().includes(reqLower));
+    if (!matchedAudio) {
+      const currentOut = audioDevices.find(d => d.isDefaultOutput);
+      warnings.push(`• Required Audio Interface "${s.reqAudioDevice}" is not detected (current output: ${currentOut ? currentOut.name : 'Built-in'}).`);
+    }
+  }
+
+  if (s.reqMidiConnected && midiDevices.length === 0) {
+    warnings.push(`• No MIDI controller or USB music hardware is currently connected/powered on.`);
+  }
+
+  if (s.reqSampleDrivesOnline !== false) {
+    const offlineLibs = (state.appData.sampleLibraries || []).filter(l => l.online === false);
+    if (offlineLibs.length > 0) {
+      warnings.push(`• ${offlineLibs.length} tracked Sample Library folder(s) are offline (${offlineLibs.map(l => l.name).slice(0, 2).join(', ')}).`);
+    }
+  }
+
+  if (warnings.length > 0) {
+    const proceed = confirm(
+      `🎧 Studio Pre-Flight Check Warning for "${s.name}":\n\n` +
+      warnings.join('\n') +
+      `\n\nTip: Power on your audio interface / MIDI controller BEFORE launching your DAW so it initializes the right drivers.\n\nClick OK to launch "${s.name}" anyway, or Cancel to turn on your gear first.`
+    );
+    if (!proceed) return;
+  }
 
   let launched = 0;
   for (const appPath of s.appPaths) {
@@ -2436,7 +2593,10 @@ function normalizeConfig(raw) {
         id: String(s.id || ('session_' + Date.now())),
         name: String(s.name || 'Session').slice(0, 120),
         icon: String(s.icon || '🚀').slice(0, 16),
-        appPaths: Array.isArray(s.appPaths) ? s.appPaths.filter(p => typeof p === 'string') : []
+        appPaths: Array.isArray(s.appPaths) ? s.appPaths.filter(p => typeof p === 'string') : [],
+        reqAudioDevice: String(s.reqAudioDevice || '').slice(0, 120),
+        reqMidiConnected: Boolean(s.reqMidiConnected),
+        reqSampleDrivesOnline: s.reqSampleDrivesOnline !== false
       }))
     : [];
 
@@ -2779,6 +2939,21 @@ function bindAllEvents() {
   document.getElementById('newSessionBtn')?.addEventListener('click', openNewSessionModal);
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
+
+  document.getElementById('studioPreFlightBar')?.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="refresh-preflight-gear"]')) {
+      refreshStudioPreFlightGear(false);
+    }
+  });
+
+  document.getElementById('useCurrentAudioDeviceBtn')?.addEventListener('click', () => {
+    const audioDevices = (state.studioGear && state.studioGear.audioDevices) || [];
+    const currentOut = audioDevices.find(d => d.isDefaultOutput) || audioDevices[0];
+    const input = document.getElementById('sessionReqAudioInput');
+    if (input && currentOut && currentOut.name) {
+      input.value = currentOut.name;
+    }
+  });
 
   document.getElementById('studioSessionsBar')?.addEventListener('click', (e) => {
     const launchBtn = e.target.closest('[data-action="launch-session"]');

@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     scanSampleLibraries: (existingLibraries) => ipcRenderer.invoke('scan-sample-libraries', existingLibraries),
     inspectSampleFolder: (folderPath, name, manufacturer) => ipcRenderer.invoke('inspect-sample-folder', folderPath, name, manufacturer),
 
+    // Studio Pre-Flight Check: Connected Audio Interfaces & MIDI/USB Gear
+    getAudioMidiGear: () => ipcRenderer.invoke('get-audio-midi-gear'),
+
     // Freeze / Unfreeze a plugin file into or out of the Plugin Vault
     setPluginFrozen: (payload) => ipcRenderer.invoke('set-plugin-frozen', payload),
 

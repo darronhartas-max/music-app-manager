@@ -3058,3 +3058,83 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   color: #a5b4fc;
   margin-right: 0.25rem;
 }
+
+/* ============================================
+   v2.1.8: Studio Pre-Flight Check Bar
+   ============================================ */
+
+.studio-preflight-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  margin-bottom: var(--spacing-md);
+  background: rgba(99, 102, 241, 0.07);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+}
+
+.preflight-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.preflight-title {
+  font-weight: 700;
+  color: #a5b4fc;
+  white-space: nowrap;
+}
+
+.preflight-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preflight-chip strong {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preflight-chip.ok {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.preflight-chip.warn {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.preflight-refresh-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.preflight-refresh-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
