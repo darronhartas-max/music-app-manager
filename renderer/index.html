@@ -46,6 +46,7 @@
           <button class="quick-filter-btn active" data-filter="all">All Apps</button>
           <button class="quick-filter-btn" data-filter="favorites">⭐ Favorites</button>
           <button class="quick-filter-btn" data-filter="recent">🕐 Recent</button>
+          <button class="quick-filter-btn" data-filter="updaters" title="Filter to Vendor Update &amp; License Managers">🔄 Update Centers</button>
         </div>
         <div class="view-toggle">
           <button class="view-btn active" data-view="category">📂 By Category</button>
@@ -69,6 +70,11 @@
           <strong>✏️ Edit &amp; Reorder Mode Active:</strong>
           <span>Drag <strong>Category headers (⠿)</strong> to reorder categories • Drag <strong>App cards</strong> to reorder apps • Click any card to <strong>Edit</strong> its name, category, or icon • Click <strong>✅ Done Editing</strong> when finished to resume launching apps.</span>
         </div>
+      </div>
+
+      <!-- Update & License Centers Quick-Launch Bar -->
+      <div id="updateCentersQuickBar" class="update-centers-bar" style="display: none;">
+        <!-- Dynamically populated with vendor update & license manager pills -->
       </div>
 
       <div id="appsContainer">
@@ -151,6 +157,15 @@
               <div class="stat-number" id="statCategories">0</div>
               <div class="stat-label">Categories</div>
             </div>
+          </div>
+        </div>
+
+        <!-- 1b. Update & License Centers Quick-Launch Hub -->
+        <div class="settings-section">
+          <h2 class="settings-title">🔄 Update &amp; License Centers</h2>
+          <p class="settings-description">Quick-launch your installed vendor software centers and license managers to check for plugin and instrument updates.</p>
+          <div id="settingsUpdateCentersBar" class="update-centers-pills">
+            <!-- Dynamically populated with vendor update & license manager pills -->
           </div>
         </div>
 
@@ -269,7 +284,7 @@
           <h2 class="settings-title">ℹ️ About</h2>
           <div class="about-info">
             <p><strong>Music App Manager</strong> — App &amp; Plugin Command Center</p>
-            <p id="appVersionInfo">Version: <strong>2.0.2</strong></p>
+            <p id="appVersionInfo">Version: <strong>2.0.3</strong></p>
             <p id="platformInfo">Platform: Loading...</p>
           </div>
           <div class="settings-actions" style="margin-top: 1rem;">

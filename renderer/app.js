@@ -91,9 +91,88 @@ function renderAll() {
   renderApps();
   renderPlugins();
   updateStatistics();
+  renderUpdateCentersBars();
   renderCategoryManager();
   renderCustomPaths();
   updatePlatformDisplay();
+}
+
+// Identify Vendor Update, Product, and License Managers
+const UPDATE_CENTER_REGEX = /software center|cherry audio sync|ua connect|product manager|software pass|gforce installer|reason companion|muse hub|ilok license manager|native access|waves central|splice|avid link|download assistant|activation manager|pulse|roland cloud|spitfire audio|installation manager|installation center|softube central|output hub|xln online installer|slate digital connect/i;
+
+function isUpdateOrLicenseCenter(app) {
+  if (!app) return false;
+  const hay = `${app.name || ''} ${app.path || ''}`;
+  return UPDATE_CENTER_REGEX.test(hay);
+}
+
+function getDetectedUpdateCenters() {
+  if (!state.appData || !Array.isArray(state.appData.categories)) return [];
+  const centers = [];
+  const seen = new Set();
+  state.appData.categories.forEach(cat => {
+    (cat.apps || []).forEach(app => {
+      if (isUpdateOrLicenseCenter(app) && !seen.has(app.path)) {
+        seen.add(app.path);
+        centers.push(app);
+      }
+    });
+  });
+  return centers.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+function createUpdateCenterPillHtml(app) {
+  const iconVal = app.icon || '🔄';
+  const iconHtml = isValidImageIcon(iconVal)
+    ? `<img src="${escapeHtml(iconVal)}" alt="${escapeHtml(app.name)}">`
+    : `<span class="pill-emoji">${escapeHtml(iconVal.startsWith('data:') ? '🔄' : iconVal)}</span>`;
+
+  return `
+    <button type="button" class="update-center-pill" data-action="launch-updater" data-path="${escapeHtml(app.path)}" data-name="${escapeHtml(app.name)}" title="Launch ${escapeHtml(app.name)}">
+      ${iconHtml}
+      <span>${escapeHtml(app.name)}</span>
+    </button>`;
+}
+
+function renderUpdateCentersBars() {
+  const centers = getDetectedUpdateCenters();
+
+  // 1. Apps Dashboard Quick-Launch Bar
+  const quickBar = document.getElementById('updateCentersQuickBar');
+  if (quickBar) {
+    if (centers.length === 0) {
+      quickBar.style.display = 'none';
+    } else {
+      const collapsed = localStorage.getItem('mam-updaters-collapsed') === '1';
+      quickBar.style.display = 'block';
+      quickBar.innerHTML = `
+        <div class="update-centers-header" style="${collapsed ? 'margin-bottom: 0;' : ''}">
+          <div class="update-centers-title">
+            <span>🔄 Update &amp; License Centers (${centers.length})</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="category-save-btn" data-action="toggle-updaters-collapse" title="Show or hide quick-launch pills">
+              ${collapsed ? '▼ Show Bar' : '▲ Hide'}
+            </button>
+          </div>
+        </div>
+        ${collapsed ? '' : `
+          <div class="update-centers-pills">
+            ${centers.map(createUpdateCenterPillHtml).join('')}
+          </div>
+        `}`;
+    }
+  }
+
+  // 2. Settings Tab Quick-Launch Hub
+  const settingsBar = document.getElementById('settingsUpdateCentersBar');
+  if (settingsBar) {
+    if (centers.length === 0) {
+      settingsBar.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem;">No vendor update or license managers detected in your library yet.</div>`;
+    } else {
+      settingsBar.innerHTML = centers.map(createUpdateCenterPillHtml).join('');
+    }
+  }
 }
 
 // ============================================
@@ -172,7 +251,11 @@ function renderApps() {
     allApps = allApps
       .filter(a => recentPaths.includes(a.path))
       .sort((a, b) => recentPaths.indexOf(a.path) - recentPaths.indexOf(b.path));
+  } else if (state.currentAppFilter === 'updaters') {
+    allApps = allApps.filter(a => isUpdateOrLicenseCenter(a));
   }
+
+  renderUpdateCentersBars();
 
   // Apply search query (with fuzzy scoring)
   if (query) {
@@ -1430,6 +1513,29 @@ function bindAllEvents() {
 
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
+
+  // Update & License Centers Quick-Launch Bar delegation on Apps tab
+  document.getElementById('updateCentersQuickBar')?.addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('[data-action="toggle-updaters-collapse"]');
+    if (toggleBtn) {
+      const curr = localStorage.getItem('mam-updaters-collapsed') === '1';
+      localStorage.setItem('mam-updaters-collapsed', curr ? '0' : '1');
+      renderUpdateCentersBars();
+      return;
+    }
+    const pill = e.target.closest('[data-action="launch-updater"]');
+    if (pill) {
+      launchApp(pill.dataset.path, pill.dataset.name);
+    }
+  });
+
+  // Update & License Centers Quick-Launch Hub delegation on Settings tab
+  document.getElementById('settingsUpdateCentersBar')?.addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-action="launch-updater"]');
+    if (pill) {
+      launchApp(pill.dataset.path, pill.dataset.name);
+    }
+  });
 
   // 4. Apps Container Event Delegation (Click, Category & Card Drag-and-Drop, Right-Click Context Menu)
   const appsContainer = document.getElementById('appsContainer');
