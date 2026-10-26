@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none';">
   <title>Music App Manager — User Guide</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="shortcut icon" href="../assets/favicon-32x32.png">
   <style>
     :root {
       --bg-primary: #0a0a0f;
@@ -55,10 +57,19 @@
     .nav-brand {
       font-size: 1.1rem;
       font-weight: 700;
-      background: var(--accent-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-primary);
       margin-bottom: 0.25rem;
+    }
+
+    .nav-brand-img {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      object-fit: cover;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
     }
 
     .nav-version {
@@ -200,7 +211,7 @@
 <body>
   <div class="layout">
     <nav>
-      <div class="nav-brand">🎵 Music App Manager</div>
+      <div class="nav-brand"><img src="../assets/favicon-32x32.png" alt="" class="nav-brand-img"> Music App Manager</div>
       <div class="nav-version">User Guide • v2.1.9</div>
       <ul class="nav-links">
         <li><a href="#getting-started">1. Getting Started</a></li>

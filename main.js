@@ -73,6 +73,7 @@ function createWindow() {
         minWidth: 1040,
         minHeight: 640,
         backgroundColor: '#0a0a0f',
+        icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -184,6 +185,11 @@ function createWindow() {
 
 // App lifecycle
 app.whenReady().then(() => {
+    if (process.platform === 'darwin' && app.dock) {
+        try {
+            app.dock.setIcon(path.join(__dirname, 'assets', 'icon.png'));
+        } catch (e) { }
+    }
     createWindow();
 
     app.on('activate', () => {
@@ -365,6 +371,7 @@ async function openDocWindow(docFileName, titleSuffix) {
                 minWidth: 800,
                 minHeight: 600,
                 backgroundColor: '#0a0a0f',
+                icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
                 title: `Music App Manager v${app.getVersion()} — ${titleSuffix}`,
                 webPreferences: {
                     contextIsolation: true,
