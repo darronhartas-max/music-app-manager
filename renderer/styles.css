@@ -3721,6 +3721,7 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   height: 100%;
   z-index: 1;
   display: block;
+  cursor: crosshair;
 }
 
 .visualizer-hud {
