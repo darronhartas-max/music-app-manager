@@ -80,24 +80,6 @@ async function refreshStudioPreFlightGear(silent = true) {
     } catch (e) { }
   }
 
-  // Also query Web MIDI API for active CoreMIDI / Windows MIDI ports
-  if (navigator && typeof navigator.requestMIDIAccess === 'function') {
-    try {
-      const midiAccess = await navigator.requestMIDIAccess({ sysex: false });
-      for (const input of midiAccess.inputs.values()) {
-        if (input && input.name && !/iac driver|virtual|network/i.test(input.name)) {
-          midiNamesSet.add(input.name);
-        }
-      }
-      if (!state.midiStateListenerAttached) {
-        state.midiStateListenerAttached = true;
-        midiAccess.onstatechange = () => {
-          refreshStudioPreFlightGear(true);
-        };
-      }
-    } catch (e) { }
-  }
-
   state.studioGear = {
     audioDevices,
     usbMusicGear,
