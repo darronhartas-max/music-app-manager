@@ -5,6 +5,7 @@ const state = {
   appData: null,
   currentTab: 'apps',
   currentAppView: 'category', // 'category' | 'manufacturer'
+  appLayoutMode: 'grid',      // 'grid' (icons) | 'list' (compact list)
   currentAppFilter: 'all',    // 'all' | 'favorites' | 'recent'
   editMode: false,
   currentPluginFilter: 'all',
@@ -284,6 +285,9 @@ async function loadConfig() {
   if (state.appData.settings.pluginPageSize !== undefined) {
     state.pluginPageSize = state.appData.settings.pluginPageSize;
   }
+  if (state.appData.settings.appLayoutMode) {
+    state.appLayoutMode = state.appData.settings.appLayoutMode;
+  }
 }
 
 async function saveConfig() {
@@ -292,7 +296,19 @@ async function saveConfig() {
   }
 }
 
+function updateAppLayoutToggleUI() {
+  document.querySelectorAll('[data-app-layout]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.appLayout === state.appLayoutMode);
+  });
+  const container = document.getElementById('appsContainer');
+  if (container) {
+    container.classList.toggle('layout-list', state.appLayoutMode === 'list');
+    container.classList.toggle('layout-grid', state.appLayoutMode !== 'list');
+  }
+}
+
 function renderAll() {
+  updateAppLayoutToggleUI();
   renderApps();
   renderStudioPreFlightBar();
   renderStudioSessionsBar();
@@ -634,7 +650,10 @@ function renderApps() {
   const container = document.getElementById('appsContainer');
   if (!container) return;
 
+  const isList = state.appLayoutMode === 'list';
   container.classList.toggle('edit-mode', state.editMode);
+  container.classList.toggle('layout-list', isList);
+  container.classList.toggle('layout-grid', !isList);
 
   const query = state.searchQuery.trim();
   const recentPaths = state.appData.recentApps || [];
@@ -685,8 +704,8 @@ function renderApps() {
           <h2 class="category-title">Search Results</h2>
           <span class="category-count">${scored.length}</span>
         </div>
-        <div class="app-grid">
-          ${scored.map(s => createAppCardHtml(s.app)).join('')}
+        <div class="app-grid ${isList ? 'app-list-view' : ''}">
+          ${scored.map(s => createAppCardHtml(s.app, isList)).join('')}
         </div>
       </div>`;
     return;
@@ -719,8 +738,8 @@ function renderApps() {
             <h2 class="category-title">${escapeHtml(mfr)}</h2>
             <span class="category-count">${list.length}</span>
           </div>
-          <div class="app-grid">
-            ${list.map(app => createAppCardHtml(app)).join('')}
+          <div class="app-grid ${isList ? 'app-list-view' : ''}">
+            ${list.map(app => createAppCardHtml(app, isList)).join('')}
           </div>
         </div>`;
     });
@@ -741,9 +760,9 @@ function renderApps() {
               <button type="button" class="reorder-btn" data-action="dash-cat-down" data-cat-index="${catIdx}" ${catIdx === totalCatCount - 1 ? 'disabled' : ''} title="Move Category Down">⬇️</button>
             </div>
           </div>
-          <div class="app-grid">
+          <div class="app-grid ${isList ? 'app-list-view' : ''}">
             ${list.length > 0
-              ? list.map(app => createAppCardHtml(app)).join('')
+              ? list.map(app => createAppCardHtml(app, isList)).join('')
               : `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 0.75rem;">Empty category — drag apps here or add apps</div>`}
           </div>
         </div>`;
@@ -759,7 +778,7 @@ function isValidImageIcon(iconVal) {
   return /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,/i.test(iconVal) && iconVal.length > 100;
 }
 
-function createAppCardHtml(app) {
+function createAppCardHtml(app, isListMode = false) {
   const isRecent = (state.appData.recentApps || []).includes(app.path);
   const isFav = Boolean(app.favorite);
   const iconVal = app.icon || '🎵';
@@ -779,6 +798,31 @@ function createAppCardHtml(app) {
   const licenseBadgeHtml = hasLicenseVault
     ? `<span class="app-card-key-badge" title="License / Serial saved in Vault (${escapeHtml(app.licenseType || 'Saved')})">🔑</span>`
     : '';
+
+  if (isListMode) {
+    return `
+      <div class="app-card app-card-row ${isRecent ? 'recent' : ''}"
+           data-path="${escapeHtml(app.path)}"
+           data-name="${escapeHtml(app.name)}"
+           draggable="${state.editMode ? 'true' : 'false'}">
+        <div class="app-row-leading">
+          ${state.editMode ? '<span class="app-drag-grip" title="Drag to reorder">⠿</span>' : ''}
+          ${iconHtml}
+          <div class="app-row-info">
+            <div class="app-name">${escapeHtml(app.name)}</div>
+            <div class="app-path">${escapeHtml(subtitle)}</div>
+          </div>
+        </div>
+        <div class="app-row-trailing">
+          ${licenseBadgeHtml}
+          ${editBadge}
+          <button type="button" class="favorite-btn ${isFav ? 'active' : ''}" data-action="favorite-app" title="Toggle Favorite">
+            ${isFav ? '⭐' : '☆'}
+          </button>
+          <span class="app-row-launch-icon" title="Launch ${escapeHtml(app.name)}">▶</span>
+        </div>
+      </div>`;
+  }
 
   return `
     <div class="app-card ${isRecent ? 'recent' : ''}"
@@ -3072,6 +3116,19 @@ function bindAllEvents() {
     });
   });
 
+  document.querySelectorAll('[data-app-layout]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const layout = btn.dataset.appLayout;
+      if (!layout || layout === state.appLayoutMode) return;
+      state.appLayoutMode = layout;
+      if (!state.appData.settings) state.appData.settings = {};
+      state.appData.settings.appLayoutMode = layout;
+      await saveConfig();
+      updateAppLayoutToggleUI();
+      renderApps();
+    });
+  });
+
   document.getElementById('newSessionBtn')?.addEventListener('click', openNewSessionModal);
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
@@ -3209,7 +3266,7 @@ function bindAllEvents() {
 
     appsContainer.addEventListener('dragend', () => {
       document.querySelectorAll('.app-card').forEach(c => {
-        c.classList.remove('dragging', 'drag-over-left', 'drag-over-right');
+        c.classList.remove('dragging', 'drag-over-left', 'drag-over-right', 'drag-over-top', 'drag-over-bottom');
       });
       document.querySelectorAll('.category').forEach(cat => {
         cat.classList.remove('category-dragging', 'category-drag-over-top', 'category-drag-over-bottom');
@@ -3239,9 +3296,17 @@ function bindAllEvents() {
         if (card && card.dataset.path !== state.draggedAppPath) {
           e.preventDefault();
           const rect = card.getBoundingClientRect();
-          const isLeft = e.clientX < rect.left + rect.width / 2;
-          document.querySelectorAll('.app-card').forEach(c => c.classList.remove('drag-over-left', 'drag-over-right'));
-          card.classList.add(isLeft ? 'drag-over-left' : 'drag-over-right');
+          const isBefore = state.appLayoutMode === 'list'
+            ? e.clientY < rect.top + rect.height / 2
+            : e.clientX < rect.left + rect.width / 2;
+          document.querySelectorAll('.app-card').forEach(c =>
+            c.classList.remove('drag-over-left', 'drag-over-right', 'drag-over-top', 'drag-over-bottom')
+          );
+          if (state.appLayoutMode === 'list') {
+            card.classList.add(isBefore ? 'drag-over-top' : 'drag-over-bottom');
+          } else {
+            card.classList.add(isBefore ? 'drag-over-left' : 'drag-over-right');
+          }
           return;
         }
         const catSection = e.target.closest('.category[data-category]');
@@ -3269,8 +3334,10 @@ function bindAllEvents() {
         if (card && card.dataset.path !== state.draggedAppPath) {
           e.preventDefault();
           const rect = card.getBoundingClientRect();
-          const isLeft = e.clientX < rect.left + rect.width / 2;
-          await reorderApp(state.draggedAppPath, card.dataset.path, isLeft);
+          const isBefore = state.appLayoutMode === 'list'
+            ? e.clientY < rect.top + rect.height / 2
+            : e.clientX < rect.left + rect.width / 2;
+          await reorderApp(state.draggedAppPath, card.dataset.path, isBefore);
           return;
         }
         // Dropping onto a Category section (moves app to that category)

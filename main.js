@@ -80,8 +80,8 @@ function createWindow() {
     const windowOptions = {
         width: savedState.width || 1440,
         height: savedState.height || 920,
-        minWidth: 1040,
-        minHeight: 640,
+        minWidth: 460,
+        minHeight: 400,
         backgroundColor: '#0a0a0f',
         icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
         webPreferences: {
@@ -154,7 +154,7 @@ function createWindow() {
         const isFullScreen = mainWindow.isFullScreen();
         if (!isMaximized && !isFullScreen && !mainWindow.isMinimized()) {
             const b = mainWindow.getBounds();
-            if (b.width >= 1040 && b.height >= 640) {
+            if (b.width >= 460 && b.height >= 400) {
                 lastNormalBounds = { width: b.width, height: b.height, x: b.x, y: b.y };
             }
         }

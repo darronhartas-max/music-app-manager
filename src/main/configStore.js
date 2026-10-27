@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = {
     sampleLibraries: [],
     settings: {
         defaultView: 'category', // 'category' | 'manufacturer'
+        appLayoutMode: 'grid', // 'grid' (icons) | 'list' (compact list)
         pluginViewMode: 'grouped', // 'grouped' | 'flat'
         showRecentApps: true,
         maxRecentApps: 10,
@@ -131,8 +132,8 @@ class ConfigStore {
             if (!raw.trim()) return defaultState;
             const parsed = JSON.parse(raw);
             return {
-                width: Number.isFinite(parsed.width) && parsed.width >= 1040 ? parsed.width : 1440,
-                height: Number.isFinite(parsed.height) && parsed.height >= 640 ? parsed.height : 920,
+                width: Number.isFinite(parsed.width) && parsed.width >= 460 ? parsed.width : 1440,
+                height: Number.isFinite(parsed.height) && parsed.height >= 400 ? parsed.height : 920,
                 x: Number.isFinite(parsed.x) ? parsed.x : undefined,
                 y: Number.isFinite(parsed.y) ? parsed.y : undefined,
                 isMaximized: Boolean(parsed.isMaximized),
