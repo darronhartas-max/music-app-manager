@@ -3258,10 +3258,10 @@ async function initVisualizerAudio(targetDeviceId = null) {
     }
 
     vizState.analyser = vizState.audioCtx.createAnalyser();
-    vizState.analyser.fftSize = 2048;
-    vizState.analyser.smoothingTimeConstant = 0.65;
-    vizState.analyser.minDecibels = -90;
-    vizState.analyser.maxDecibels = -10;
+    vizState.analyser.fftSize = 1024;
+    vizState.analyser.smoothingTimeConstant = 0.55;
+    vizState.analyser.minDecibels = -85;
+    vizState.analyser.maxDecibels = -25;
 
     const bufferLength = vizState.analyser.frequencyBinCount;
     vizState.dataArray = new Uint8Array(bufferLength);
@@ -3374,91 +3374,96 @@ function getVizGradient(ctx, x0, y0, x1, y1) {
 
 function getSpectrumBands(count) {
   const bands = new Float32Array(count);
-  if (!vizState.micActive || !vizState.dataArray || !vizState.analyser) {
-    // Generative procedural motion when mic is muted or idle
-    const t = vizState.phase;
-    for (let i = 0; i < count; i++) {
-      const norm = i / (count - 1);
-      const s1 = Math.sin(t * 2.2 + norm * 6.28 * 2) * 0.5 + 0.5;
-      const s2 = Math.cos(t * 1.6 - norm * 6.28 * 3) * 0.3;
-      const bell = Math.sin(norm * Math.PI);
-      bands[i] = Math.max(0.08, Math.min(1.0, (s1 + s2 * bell) * 0.65));
+  const tPhase = vizState.phase;
+
+  // 1. High-Sensitivity Sound Intake across Time-Domain & Frequency Bands
+  let boostedBass = 0;
+  let boostedMid = 0;
+  let boostedHigh = 0;
+  let totalSound = 0;
+
+  if (vizState.micActive && vizState.analyser && vizState.dataArray && vizState.timeArray) {
+    vizState.analyser.getByteFrequencyData(vizState.dataArray);
+    vizState.analyser.getByteTimeDomainData(vizState.timeArray);
+
+    const freqLen = vizState.dataArray.length; // 512
+    const timeLen = vizState.timeArray.length;
+
+    // Time-domain raw waveform excursion (captures overall beat, transients, speech, room sound)
+    let sumExcursion = 0;
+    for (let i = 0; i < timeLen; i += 4) {
+      sumExcursion += Math.abs(vizState.timeArray[i] - 128);
     }
-    return bands;
-  }
+    const avgExcursion = sumExcursion / (timeLen / 4); // 0 to 128
+    // High-sensitivity boost: even quiet room sound starts lighting up the visualizer!
+    const timeReactivity = Math.min(1.0, Math.pow(avgExcursion / 16.0, 0.40) * 1.6);
 
-  const sampleRate = vizState.audioCtx ? vizState.audioCtx.sampleRate : 48000;
-  const fftSize = vizState.analyser.fftSize || 2048;
-  const binSize = sampleRate / fftSize; // ~21.5 Hz to ~23.4 Hz per bin
-  const totalBins = vizState.dataArray.length; // 1024
+    // BASS band (bins 1 to 14): Sub kick, bass guitar, lower octave
+    let bSum = 0;
+    const bEnd = Math.min(freqLen - 1, 14);
+    for (let i = 1; i <= bEnd; i++) bSum += vizState.dataArray[i];
+    const bAvg = bSum / bEnd;
+    boostedBass = Math.min(1.0, Math.pow(bAvg / 80.0, 0.44) * 2.2);
 
-  // Full musical frequency range: 40 Hz (low bass) to 12,500 Hz (treble / air)
-  const minFreq = 40;
-  const maxFreq = 12500;
+    // MID band (bins 15 to 75): Vocals, keys, guitars, snare body, chords
+    let mSum = 0;
+    const mEnd = Math.min(freqLen - 1, 75);
+    for (let i = 15; i <= mEnd; i++) mSum += vizState.dataArray[i];
+    const mAvg = mSum / (mEnd - 14);
+    boostedMid = Math.min(1.0, Math.pow(mAvg / 48.0, 0.38) * 2.8);
 
-  const rawBands = new Float32Array(count);
-  let maxBandVal = 0;
+    // HIGH band (bins 76 to 250): High keys, cymbals, hi-hats, vocal air, harmonics
+    let hSum = 0;
+    const hEnd = Math.min(freqLen - 1, 250);
+    for (let i = 76; i <= hEnd; i++) hSum += vizState.dataArray[i];
+    const hAvg = hSum / (hEnd - 75);
+    boostedHigh = Math.min(1.0, Math.pow(hAvg / 28.0, 0.34) * 3.4);
 
-  for (let i = 0; i < count; i++) {
-    const norm = i / (count - 1);
-    // Logarithmic frequency bounds across full musical spectrum
-    const fLow = minFreq * Math.pow(maxFreq / minFreq, i / count);
-    const fHigh = minFreq * Math.pow(maxFreq / minFreq, (i + 1) / count);
-    const fCenter = (fLow + fHigh) / 2;
-
-    // Discard DC offset and < 35 Hz ambient sub-rumble
-    const binStart = Math.max(2, Math.floor(fLow / binSize));
-    const binEnd = Math.min(totalBins - 1, Math.max(binStart, Math.ceil(fHigh / binSize)));
-
-    let maxBin = 0;
-    let sumBin = 0;
-    let nBins = 0;
-
-    for (let b = binStart; b <= binEnd; b++) {
-      const val = vizState.dataArray[b];
-      if (val > maxBin) maxBin = val;
-      sumBin += val;
-      nBins++;
-    }
-
-    const avgBin = nBins > 0 ? (sumBin / nBins) : 0;
-    // Combine peak (for pitch harmonics & keyboard notes) and average (for musical body)
-    const rawVal = (maxBin * 0.72 + avgBin * 0.28) / 255.0;
-
-    // Acoustic Equal-Loudness & Pink-Noise Compensation:
-    // Natural sound drops ~3-4.5 dB/octave. High frequencies require progressive compensation
-    // so keys, guitars, vocals, and hi-hats have equal visual excursion to bass.
-    const eqBoost = 1.0 + Math.pow(norm, 0.65) * 3.4;
-
-    // Sub-rumble / 50Hz/60Hz mains hum protection on lowest frequencies
-    const rumbleFilter = fCenter < 65 ? Math.max(0.25, (fCenter - 32) / 33) : 1.0;
-
-    const val = rawVal * eqBoost * rumbleFilter;
-    rawBands[i] = val;
-    if (val > maxBandVal) maxBandVal = val;
-  }
-
-  // Automatic Gain Control (AGC): Instant attack on loud transients, smooth 1.5s decay on quiet
-  if (maxBandVal > vizState.agc.rollingPeak) {
-    vizState.agc.rollingPeak = maxBandVal;
+    // Combined audio pulse / beat energy
+    totalSound = Math.max(timeReactivity, (boostedBass * 0.45 + boostedMid * 0.45 + boostedHigh * 0.35));
   } else {
-    vizState.agc.rollingPeak = vizState.agc.rollingPeak * 0.982 + maxBandVal * 0.018;
+    // Generative procedural motion when mic is muted or not yet granted
+    const t = tPhase;
+    boostedBass = (Math.sin(t * 1.8) * 0.5 + 0.5) * 0.75;
+    boostedMid = (Math.sin(t * 2.4 + 1.2) * 0.5 + 0.5) * 0.70;
+    boostedHigh = (Math.sin(t * 3.6 + 2.4) * 0.5 + 0.5) * 0.65;
+    totalSound = 0.55;
   }
 
-  let targetGain = 2.4;
-  if (vizState.agc.rollingPeak > 0.025) {
-    targetGain = 0.82 / Math.max(0.04, vizState.agc.rollingPeak);
-    targetGain = Math.max(1.0, Math.min(6.5, targetGain));
-  }
-  vizState.agc.currentGain += (targetGain - vizState.agc.currentGain) * 0.05;
+  // Update footer smoothed energies
+  vizState.smoothedBass += (boostedBass - vizState.smoothedBass) * 0.25;
+  vizState.smoothedMid += (boostedMid - vizState.smoothedMid) * 0.28;
+  vizState.smoothedHigh += (boostedHigh - vizState.smoothedHigh) * 0.30;
 
-  // Apply AGC gain and 3-tap neighbor smoothing for organic, fluid motion
+  // 2. Multi-Zone Full-Width Simulation Distribution across all 48 bands
+  // (Left = Bass/Kick, Center = Melodic/Vocals/Keys, Right = Treble/Cymbals/Shimmer)
   for (let i = 0; i < count; i++) {
-    const left = i > 0 ? rawBands[i - 1] : rawBands[i];
-    const curr = rawBands[i];
-    const right = i < count - 1 ? rawBands[i + 1] : rawBands[i];
-    const smoothed = (left * 0.2 + curr * 0.6 + right * 0.2) * vizState.agc.currentGain;
-    bands[i] = Math.max(0.0, Math.min(1.0, smoothed));
+    const norm = i / (count - 1); // 0.0 (left) to 1.0 (right)
+
+    // Zone weights across screen:
+    // Left Zone (Bass & Kick): Heavy presence on left third
+    const wBass = Math.pow(Math.max(0, 1.0 - norm * 1.35), 1.2);
+
+    // Center Zone (Melodic Vocals & Keys): Strong presence in middle
+    const wMid = Math.max(0, 1.0 - Math.pow(Math.abs(norm - 0.50) / 0.34, 1.8));
+
+    // Right Zone (Treble & Cymbals): Strong presence on right third
+    const wHigh = Math.pow(Math.max(0, (norm - 0.38) / 0.62), 1.15);
+
+    // Cross-Spectrum Traveling Rhythm Ripple: on every beat, energy sweeps across the width!
+    const travelingWave = Math.sin(tPhase * 3.6 - norm * 6.28) * (totalSound * 0.25);
+
+    // Individual bar harmonic dance (adds organic texture so each bar has lively personality)
+    const harmonicA = Math.sin(tPhase * 2.8 + i * 0.38) * 0.16;
+    const harmonicB = Math.cos(tPhase * 1.9 - i * 0.52) * 0.12;
+    const barTexture = (harmonicA + harmonicB) * (totalSound > 0.04 ? 1.0 : 0.4);
+
+    // Combine into balanced, vibrant motion across the entire screen
+    const coreZone = (boostedBass * wBass * 1.15) + (boostedMid * wMid * 1.25) + (boostedHigh * wHigh * 1.35);
+    const combined = coreZone * 0.72 + (totalSound * 0.24) + travelingWave + barTexture;
+
+    // Minimum breathing floor so it looks silky and alive even between beats
+    bands[i] = Math.max(0.08, Math.min(1.0, combined));
   }
 
   return bands;
@@ -3468,38 +3473,16 @@ function renderVisualizerFrame(ctx) {
   const width = window.innerWidth;
   const height = window.innerHeight;
 
-  vizState.phase += 0.02;
+  vizState.phase += 0.024;
 
   // 1. Strictly Pure Solid Black Backdrop (100% Static, zero distraction)
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, width, height);
 
-  // Read latest audio buffer from analyser
-  if (vizState.micActive && vizState.analyser && vizState.dataArray && vizState.timeArray) {
-    vizState.analyser.getByteFrequencyData(vizState.dataArray);
-    vizState.analyser.getByteTimeDomainData(vizState.timeArray);
-  }
-
-  // 2. Extract balanced 48-band spectrum across full 40 Hz - 12.5 kHz range
+  // 2. Extract balanced, full-width, high-sensitivity simulation spectrum
   const spectrum48 = getSpectrumBands(48);
 
-  // 3. Compute BASS, MID, HIGH for the bottom meters from the balanced spectrum
-  let bSum = 0;
-  for (let i = 0; i < 12; i++) bSum += spectrum48[i];
-  const bassVal = bSum / 12;
-
-  let mSum = 0;
-  for (let i = 12; i < 32; i++) mSum += spectrum48[i];
-  const midVal = mSum / 20;
-
-  let hSum = 0;
-  for (let i = 32; i < 48; i++) hSum += spectrum48[i];
-  const highVal = hSum / 16;
-
-  vizState.smoothedBass += (bassVal - vizState.smoothedBass) * 0.24;
-  vizState.smoothedMid += (midVal - vizState.smoothedMid) * 0.26;
-  vizState.smoothedHigh += (highVal - vizState.smoothedHigh) * 0.28;
-
+  // 3. Update footer meters (BASS, MID, HIGH) with lively response
   const bBar = document.getElementById('vizMeterBass');
   const mBar = document.getElementById('vizMeterMid');
   const hBar = document.getElementById('vizMeterHigh');
@@ -3507,7 +3490,7 @@ function renderVisualizerFrame(ctx) {
   if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 115))}%`;
   if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 115))}%`;
 
-  // 4. Render active style across full width
+  // 4. Render active visualizer style across full width
   if (vizState.style === 'terrain') {
     drawVizTerrain(ctx, width, height, spectrum48);
   } else if (vizState.style === 'bars') {
