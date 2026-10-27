@@ -3046,11 +3046,13 @@ const vizState = {
   active: false,
   theme: 'eclipse',        // 'eclipse' | 'prism'
   background: 'vignette',   // 'black' | 'vignette' | 'ambient' | 'dynamic'
-  style: 'waves',          // 'waves' | 'bars' | 'terrain' | 'nebula' | 'vector'
+  style: 'waves',          // 'waves' | 'bars' | 'terrain'
   micActive: false,
   audioCtx: null,
   analyser: null,
   micStream: null,
+  selectedDeviceId: 'default',
+  sensitivity: 1.0,        // 1.0, 2.0, 4.0
   animationId: null,
   dataArray: null,
   timeArray: null,
@@ -3066,8 +3068,87 @@ const vizState = {
     isHovering: false,
     activeClicks: []
   },
-  particles: []
+  particles: [],
+  pitchState: {
+    active: false,
+    note: '--',
+    freq: 0,
+    midi: 60,
+    rawPos: 0.5,
+    smoothedPos: 0.5,
+    energy: 0
+  }
 };
+
+async function populateVizAudioDevices() {
+  const select = document.getElementById('vizDeviceSelect');
+  if (!select) return;
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+
+    select.innerHTML = '';
+    if (audioInputs.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = 'default';
+      opt.textContent = 'Default Input Device';
+      select.appendChild(opt);
+      return;
+    }
+
+    audioInputs.forEach((dev, idx) => {
+      const opt = document.createElement('option');
+      opt.value = dev.deviceId;
+      let rawLabel = dev.label || `Input ${idx + 1}`;
+      let displayLabel = rawLabel;
+      if (/built-in|internal|macbook/i.test(rawLabel)) {
+        displayLabel = `🎙️ ${rawLabel} (Room / Speakers)`;
+      } else if (/scarlett|focusrite|interface/i.test(rawLabel)) {
+        displayLabel = `🎛️ ${rawLabel} (Interface Line/Mic)`;
+      } else {
+        displayLabel = `🎤 ${rawLabel}`;
+      }
+      opt.textContent = displayLabel;
+      select.appendChild(opt);
+    });
+
+    const savedDevId = localStorage.getItem('viz_audio_device');
+    if (savedDevId && Array.from(select.options).some(o => o.value === savedDevId)) {
+      select.value = savedDevId;
+      vizState.selectedDeviceId = savedDevId;
+    } else if (select.options.length > 0) {
+      vizState.selectedDeviceId = select.value;
+    }
+  } catch (err) {
+    console.warn('[Visualizer] Could not enumerate audio devices:', err);
+  }
+}
+
+async function changeVizAudioDevice(deviceId) {
+  vizState.selectedDeviceId = deviceId || 'default';
+  try {
+    localStorage.setItem('viz_audio_device', vizState.selectedDeviceId);
+  } catch (e) {}
+
+  if (vizState.active && vizState.micActive) {
+    stopVisualizerAudio();
+    await initVisualizerAudio(vizState.selectedDeviceId);
+  }
+}
+
+function cycleVizGain() {
+  if (vizState.sensitivity === 1.0) vizState.sensitivity = 2.0;
+  else if (vizState.sensitivity === 2.0) vizState.sensitivity = 4.0;
+  else vizState.sensitivity = 1.0;
+
+  try {
+    localStorage.setItem('viz_sensitivity', vizState.sensitivity.toString());
+  } catch (e) {}
+
+  const label = document.getElementById('vizGainLabel');
+  if (label) label.textContent = `Gain: ${vizState.sensitivity}x`;
+}
 
 function initVizParticles() {
   vizState.particles = [];
@@ -3189,7 +3270,7 @@ function resizeVisualizerCanvas() {
   if (ctx) ctx.scale(dpr, dpr);
 }
 
-async function initVisualizerAudio() {
+async function initVisualizerAudio(targetDeviceId = null) {
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
@@ -3202,20 +3283,27 @@ async function initVisualizerAudio() {
     }
 
     vizState.analyser = vizState.audioCtx.createAnalyser();
-    vizState.analyser.fftSize = 512;
+    vizState.analyser.fftSize = 2048; // High FFT size for musical note & pitch resolution
     vizState.analyser.smoothingTimeConstant = 0.8;
 
     const bufferLength = vizState.analyser.frequencyBinCount;
     vizState.dataArray = new Uint8Array(bufferLength);
     vizState.timeArray = new Uint8Array(bufferLength);
 
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const devId = targetDeviceId || vizState.selectedDeviceId;
+    const constraints = {
       audio: {
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false
       }
-    });
+    };
+
+    if (devId && devId !== 'default') {
+      constraints.audio.deviceId = { exact: devId };
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
     vizState.micStream = stream;
     const source = vizState.audioCtx.createMediaStreamSource(stream);
@@ -3225,11 +3313,14 @@ async function initVisualizerAudio() {
     vizState.micActive = true;
     updateVizMicButtonUI(true);
     setVizStatus('Listening to live sound...');
+
+    await populateVizAudioDevices();
   } catch (err) {
-    console.warn('[Visualizer] Microphone not granted or unavailable, operating in generative ambient mode:', err);
+    console.warn('[Visualizer] Microphone/Device not granted or unavailable, operating in generative ambient mode:', err);
     vizState.micActive = false;
     updateVizMicButtonUI(false);
     setVizStatus('Generative Ambient Wave (Mic Idle)');
+    await populateVizAudioDevices();
   }
 }
 
@@ -3256,7 +3347,7 @@ async function toggleVizMic() {
     stopVisualizerAudio();
     setVizStatus('Generative Ambient Wave (Mic Muted)');
   } else {
-    await initVisualizerAudio();
+    await initVisualizerAudio(vizState.selectedDeviceId);
   }
 }
 
@@ -3287,6 +3378,86 @@ function startVisualizerLoop() {
   vizState.animationId = requestAnimationFrame(renderFrame);
 }
 
+function detectMusicalPitch(dataArray, sampleRate) {
+  const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
+  const binSize = sampleRate / fftSize;
+
+  // Search musical range: A0 (~27.5 Hz) to C8 (~4186 Hz)
+  const minBin = Math.max(2, Math.floor(27 / binSize));
+  const maxBin = Math.min(dataArray.length - 2, Math.ceil(4200 / binSize));
+
+  let maxVal = 0;
+  let peakBin = -1;
+
+  for (let b = minBin; b <= maxBin; b++) {
+    if (dataArray[b] > maxVal) {
+      maxVal = dataArray[b];
+      peakBin = b;
+    }
+  }
+
+  const effectiveEnergy = (maxVal / 255) * vizState.sensitivity;
+
+  if (peakBin > 0 && effectiveEnergy > 0.12) {
+    // Check for fundamental subharmonic
+    const halfBin = Math.round(peakBin / 2);
+    if (halfBin >= minBin && dataArray[halfBin] > maxVal * 0.38) {
+      peakBin = halfBin;
+    }
+
+    // Parabolic interpolation around peak
+    const alpha = dataArray[peakBin - 1] || 0;
+    const beta = dataArray[peakBin];
+    const gamma = dataArray[peakBin + 1] || 0;
+    const denom = (alpha - 2 * beta + gamma);
+    let delta = 0;
+    if (denom !== 0) {
+      delta = 0.5 * (alpha - gamma) / denom;
+    }
+
+    const freq = (peakBin + delta) * binSize;
+
+    if (freq >= 25 && freq <= 4500) {
+      const midi = Math.max(21, Math.min(108, Math.round(69 + 12 * Math.log2(freq / 440))));
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const noteName = noteNames[midi % 12];
+      const octave = Math.floor(midi / 12) - 1;
+      const noteStr = `${noteName}${octave}`;
+      const pos = (midi - 21) / 87; // 0.0 (A0) to 1.0 (C8)
+
+      vizState.pitchState.active = true;
+      vizState.pitchState.note = noteStr;
+      vizState.pitchState.freq = Math.round(freq);
+      vizState.pitchState.rawPos = pos;
+      vizState.pitchState.smoothedPos += (pos - vizState.pitchState.smoothedPos) * 0.32;
+      vizState.pitchState.energy = effectiveEnergy;
+      return;
+    }
+  }
+
+  // Decay when quiet
+  if (vizState.pitchState.active) {
+    vizState.pitchState.energy *= 0.88;
+    if (vizState.pitchState.energy < 0.05) {
+      vizState.pitchState.active = false;
+    }
+  }
+}
+
+function simulateGenerativePitch() {
+  const notes = ['C2', 'E2', 'G2', 'A2', 'C3', 'E3', 'G3', 'A3', 'C4', 'E4', 'G4', 'A4', 'C5', 'E5', 'G5', 'A5'];
+  const freqs = [65, 82, 98, 110, 131, 165, 196, 220, 261, 330, 392, 440, 523, 659, 784, 880];
+  const idx = Math.floor((Math.sin(vizState.phase * 0.8) * 0.5 + 0.5) * (notes.length - 1));
+  const pos = idx / (notes.length - 1);
+
+  vizState.pitchState.active = true;
+  vizState.pitchState.note = notes[idx];
+  vizState.pitchState.freq = freqs[idx];
+  vizState.pitchState.rawPos = pos;
+  vizState.pitchState.smoothedPos += (pos - vizState.pitchState.smoothedPos) * 0.18;
+  vizState.pitchState.energy = 0.4 + vizState.smoothedBass * 0.5;
+}
+
 function renderVisualizerFrame(ctx) {
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -3304,9 +3475,15 @@ function renderVisualizerFrame(ctx) {
     for (let i = 8; i < 35; i++) mSum += vizState.dataArray[i];
     for (let i = 35; i < 110; i++) hSum += vizState.dataArray[i];
 
-    bass = (bSum / 8) / 255;
-    mid = (mSum / 27) / 255;
-    high = (hSum / 75) / 255;
+    // Scale with Sensitivity Boost
+    const sens = vizState.sensitivity;
+    bass = Math.min(1, ((bSum / 8) / 255) * sens);
+    mid = Math.min(1, ((mSum / 27) / 255) * sens);
+    high = Math.min(1, ((hSum / 75) / 255) * sens);
+
+    // Detect musical keyboard pitch & note
+    const sampleRate = vizState.audioCtx ? vizState.audioCtx.sampleRate : 44100;
+    detectMusicalPitch(vizState.dataArray, sampleRate);
   } else {
     // Generative procedural motion
     const t = vizState.phase;
@@ -3316,6 +3493,8 @@ function renderVisualizerFrame(ctx) {
     bass = Math.max(0, Math.min(1, bass));
     mid = Math.max(0, Math.min(1, mid));
     high = Math.max(0, Math.min(1, high));
+
+    simulateGenerativePitch();
   }
 
   // Smooth lerp
@@ -3331,22 +3510,42 @@ function renderVisualizerFrame(ctx) {
   if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 110))}%`;
   if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 110))}%`;
 
+  // Musical Note & Keyboard Pitch HUD updates
+  const noteBadge = document.getElementById('vizPitchNote');
+  const freqBadge = document.getElementById('vizPitchFreq');
+  const keyInd = document.getElementById('vizKeyboardIndicator');
+  if (noteBadge) {
+    noteBadge.textContent = vizState.pitchState.active ? vizState.pitchState.note : '--';
+  }
+  if (freqBadge) {
+    freqBadge.textContent = vizState.pitchState.active ? `(${vizState.pitchState.freq} Hz)` : '';
+  }
+  if (keyInd) {
+    keyInd.style.left = `${(vizState.pitchState.smoothedPos * 100).toFixed(1)}%`;
+    keyInd.classList.toggle('active', vizState.pitchState.active);
+  }
+
   // Background Backdrop Rendering
   const bg = vizState.background;
 
   if (bg === 'black') {
-    // 1. SOLID PURE BLACK (100% Static - zero motion, zero particles, zero distractions)
-    ctx.fillStyle = '#060608';
+    // 1. SOLID PURE BLACK (100% Static - pitch-black void, zero movement, zero distraction)
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
   } else if (bg === 'vignette') {
-    // 2. STUDIO VIGNETTE (100% Static - elegant acoustic studio charcoal room, no movement)
+    // 2. STUDIO VIGNETTE (100% Static - distinct acoustic room spotlight, noticeable contrast difference)
+    ctx.fillStyle = '#06070a';
+    ctx.fillRect(0, 0, width, height);
+
+    const vigRadius = Math.max(width, height) * 0.68;
     const vigGrad = ctx.createRadialGradient(
-      width / 2, height / 2, 0,
-      width / 2, height / 2, Math.max(width, height) * 0.72
+      width / 2, height * 0.48, 0,
+      width / 2, height * 0.48, vigRadius
     );
-    vigGrad.addColorStop(0, '#15161f'); // soft warm charcoal center
-    vigGrad.addColorStop(0.5, '#0b0c11');
-    vigGrad.addColorStop(1, '#040406'); // deep dark border
+    vigGrad.addColorStop(0, 'rgba(42, 48, 68, 0.75)');   // Clearly visible rich studio slate spotlight
+    vigGrad.addColorStop(0.35, 'rgba(28, 32, 46, 0.55)');
+    vigGrad.addColorStop(0.7, 'rgba(14, 16, 24, 0.35)');
+    vigGrad.addColorStop(1, 'rgba(4, 5, 8, 0)');          // Deep dark borders
     ctx.fillStyle = vigGrad;
     ctx.fillRect(0, 0, width, height);
   } else if (bg === 'ambient') {
@@ -3392,15 +3591,11 @@ function renderVisualizerFrame(ctx) {
     ctx.fillRect(0, 0, width, height);
   }
 
-  // Draw current visualization style
+  // Draw current visualization style (Waves, Bars, Terrain)
   if (vizState.style === 'terrain') {
     drawVizTerrain(ctx, width, height);
   } else if (vizState.style === 'bars') {
     drawVizBars(ctx, width, height);
-  } else if (vizState.style === 'nebula') {
-    drawVizNebula(ctx, width, height);
-  } else if (vizState.style === 'vector') {
-    drawVizVector(ctx, width, height);
   } else {
     drawVizWaves(ctx, width, height);
   }
@@ -3448,6 +3643,44 @@ function drawVizWaves(ctx, width, height) {
   const sliceWidth = width / (points - 1);
   const theme = vizState.theme;
 
+  // 1. Musical Key Halo / Aura column at played keyboard pitch position
+  if (vizState.pitchState.active) {
+    const keyX = vizState.pitchState.smoothedPos * width;
+    const auraRadius = 140;
+    const auraGrad = ctx.createRadialGradient(keyX, centerY, 0, keyX, centerY, auraRadius);
+    if (theme === 'prism') {
+      const hue = (vizState.pitchState.smoothedPos * 360);
+      auraGrad.addColorStop(0, `hsla(${hue}, 100%, 65%, 0.3)`);
+      auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    } else {
+      auraGrad.addColorStop(0, 'rgba(0, 255, 135, 0.3)');
+      auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    }
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(keyX, centerY, auraRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Vertical note beam
+    ctx.beginPath();
+    ctx.moveTo(keyX, centerY - 110);
+    ctx.lineTo(keyX, centerY + 110);
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.shadowColor = '#00ff87';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+
+    // Floating note badge above wave
+    ctx.font = 'bold 13px "SF Mono", Monaco, monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#00ff87';
+    ctx.shadowBlur = 8;
+    ctx.textAlign = 'center';
+    ctx.fillText(`🎹 ${vizState.pitchState.note}`, keyX, centerY - 120);
+  }
+
+  // 2. Oscilloscope wave ribbons
   for (let w = 0; w < numWaves; w++) {
     const wavePhase = vizState.phase * (1 + w * 0.3) + w * 1.5;
     const amplitude = (50 + w * 30 + vizState.smoothedBass * 130 + vizState.smoothedMid * 70);
@@ -3476,9 +3709,19 @@ function drawVizWaves(ctx, width, height) {
         audioMod = sample * (amplitude * 1.4);
       }
 
+      // Pitch keyboard localized resonance
+      let pitchMod = 0;
+      if (vizState.pitchState.active) {
+        const normX = i / (points - 1);
+        const dist = Math.abs(normX - vizState.pitchState.smoothedPos);
+        if (dist < 0.15) {
+          pitchMod = Math.sin((normX - vizState.pitchState.smoothedPos) * Math.PI / 0.15 + vizState.phase * 6) * (amplitude * 0.5);
+        }
+      }
+
       const sin1 = Math.sin((i * 0.05) + wavePhase) * amplitude;
       const sin2 = Math.cos((i * 0.02) - wavePhase * 0.7) * (amplitude * 0.5);
-      const y = centerY + sin1 + sin2 + audioMod;
+      const y = centerY + sin1 + sin2 + audioMod + pitchMod;
 
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -3501,6 +3744,7 @@ function drawVizBars(ctx, width, height) {
 
   ctx.save();
 
+  // Draw spectrum frequency bars
   for (let i = 0; i < barCount; i++) {
     let barVal = 0;
     if (vizState.dataArray) {
@@ -3511,7 +3755,7 @@ function drawVizBars(ctx, width, height) {
       barVal = (Math.sin(t) * 0.5 + 0.5) * (0.3 + vizState.smoothedBass * 0.6);
     }
 
-    const barH = Math.max(6, barVal * maxHeight);
+    const barH = Math.max(6, barVal * maxHeight * vizState.sensitivity);
     const x = startX + i * (barWidth + gap);
     const y = baseHeight - barH;
 
@@ -3549,6 +3793,37 @@ function drawVizBars(ctx, width, height) {
     ctx.fillRect(x, peakY, barWidth, 2);
   }
 
+  // Musical Key Note Highlight above corresponding bar
+  if (vizState.pitchState.active) {
+    const activeBarIdx = Math.min(barCount - 1, Math.max(0, Math.floor(vizState.pitchState.smoothedPos * barCount)));
+    const activeX = startX + activeBarIdx * (barWidth + gap);
+    const activeBarH = vizState.barsPeaks[activeBarIdx] || (maxHeight * 0.5);
+    const activeY = baseHeight - activeBarH;
+
+    // Glowing vertical spotlight beam
+    const beamGrad = ctx.createLinearGradient(activeX, activeY, activeX, activeY - 80);
+    beamGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+    beamGrad.addColorStop(1, 'rgba(0, 255, 135, 0)');
+    ctx.fillStyle = beamGrad;
+    ctx.fillRect(activeX - 2, activeY - 80, barWidth + 4, 80);
+
+    // Glowing white crown
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#00ff87';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(activeX + barWidth / 2, activeY - 6, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Note name badge
+    ctx.font = 'bold 12px "SF Mono", Monaco, monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 6;
+    ctx.textAlign = 'center';
+    ctx.fillText(vizState.pitchState.note, activeX + barWidth / 2, activeY - 88);
+  }
+
   ctx.restore();
 }
 
@@ -3563,7 +3838,7 @@ function drawVizTerrain(ctx, width, height) {
     for (let c = 0; c < numCols; c++) {
       const norm = c / (numCols - 1);
       const binIdx = Math.min(dataLen - 1, Math.floor(Math.pow(norm, 1.7) * (dataLen * 0.75)));
-      slice[c] = (vizState.dataArray[binIdx] || 0) / 255;
+      slice[c] = Math.min(1, ((vizState.dataArray[binIdx] || 0) / 255) * vizState.sensitivity);
     }
   } else {
     // Generative synth landscape
@@ -3688,325 +3963,45 @@ function drawVizTerrain(ctx, width, height) {
     ctx.stroke();
   }
 
-  ctx.restore();
-}
+  // Musical Summit Laser & Note Beacon on the 3D Mountain
+  if (vizState.pitchState.active && gridPoints.length > 0) {
+    const activeCol = Math.min(numCols - 1, Math.max(0, Math.floor(vizState.pitchState.smoothedPos * numCols)));
+    const frontRow = gridPoints[gridPoints.length - 1];
+    const peakPt = frontRow[activeCol];
 
-function drawVizNebula(ctx, width, height) {
-  const cx = width / 2;
-  const cy = height / 2;
-  const bass = vizState.smoothedBass;
-  const mid = vizState.smoothedMid;
-  const high = vizState.smoothedHigh;
-  const theme = vizState.theme;
-
-  ctx.save();
-
-  // Target center of gravity (moves towards mouse cursor when hovering)
-  const targetX = vizState.mouse.isHovering ? vizState.mouse.x * width : cx;
-  const targetY = vizState.mouse.isHovering ? vizState.mouse.y * height : cy;
-
-  // Central vortex singularity
-  const coreR = 20 + bass * 55;
-  const coreGrad = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, coreR);
-  coreGrad.addColorStop(0, '#ffffff');
-  if (theme === 'prism') {
-    const coreHue = (vizState.phase * 70) % 360;
-    coreGrad.addColorStop(0.35, `hsl(${coreHue}, 100%, 65%)`);
-  } else {
-    coreGrad.addColorStop(0.35, '#00ff87');
-  }
-  coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = coreGrad;
-  ctx.beginPath();
-  ctx.arc(targetX, targetY, coreR, 0, Math.PI * 2);
-  ctx.fill();
-
-  const particleCount = vizState.particles.length;
-  const glowColor = getVizThemeGlowColor();
-
-  // Constellation laser interconnect lines
-  ctx.lineWidth = 0.9;
-  for (let i = 0; i < particleCount; i += 2) {
-    const p1 = vizState.particles[i];
-    const x1 = p1.x * width;
-    const y1 = p1.y * height;
-
-    for (let j = i + 1; j < Math.min(particleCount, i + 8); j++) {
-      const p2 = vizState.particles[j];
-      const x2 = p2.x * width;
-      const y2 = p2.y * height;
-      const dx = x1 - x2;
-      const dy = y1 - y2;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < 85) {
-        const alpha = (1 - dist / 85) * (0.18 + mid * 0.5);
-        if (theme === 'prism') {
-          ctx.strokeStyle = `hsla(${p1.hue}, 100%, 65%, ${alpha})`;
-        } else {
-          ctx.strokeStyle = glowColor;
-          ctx.globalAlpha = alpha;
-        }
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      }
-    }
-  }
-
-  // Process & draw cosmic stardust
-  ctx.globalAlpha = 1;
-  vizState.particles.forEach(p => {
-    let px = p.x * width;
-    let py = p.y * height;
-
-    // 1. Mouse/center vortex gravity pull
-    const dx = targetX - px;
-    const dy = targetY - py;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx);
-
-    // Gravitational acceleration towards center + orbital spin
-    const pull = vizState.mouse.isHovering ? 0.0006 : 0.0002;
-    p.vx += Math.cos(angle) * pull * (dist * 0.02);
-    p.vy += Math.sin(angle) * pull * (dist * 0.02);
-
-    // Swirling tangential vortex velocity
-    const spin = 0.0003 * (1 + mid * 1.5);
-    p.vx += -Math.sin(angle) * spin * (dist * 0.03);
-    p.vy += Math.cos(angle) * spin * (dist * 0.03);
-
-    // 2. Click Supernova Shockwave physics
-    vizState.mouse.activeClicks.forEach(sw => {
-      const sDx = px - sw.x;
-      const sDy = py - sw.y;
-      const sDist = Math.sqrt(sDx * sDx + sDy * sDy);
-      const ringDelta = Math.abs(sDist - sw.radius);
-      if (ringDelta < 45) {
-        // Supernova explosion blasts particles outwards
-        const blastForce = (1 - ringDelta / 45) * 0.025;
-        p.vx += (sDx / (sDist || 1)) * blastForce;
-        p.vy += (sDy / (sDist || 1)) * blastForce;
-      }
-    });
-
-    // 3. Audio bass pulse expansion
-    if (bass > 0.4 && dist < 180) {
-      const kickForce = bass * 0.004;
-      p.vx -= Math.cos(angle) * kickForce;
-      p.vy -= Math.sin(angle) * kickForce;
-    }
-
-    // Velocity damping & integration
-    p.vx *= 0.95;
-    p.vy *= 0.95;
-    p.x += p.vx;
-    p.y += p.vy;
-
-    // Screen wrapping with buffer
-    if (p.x < -0.05) p.x = 1.05;
-    if (p.x > 1.05) p.x = -0.05;
-    if (p.y < -0.05) p.y = 1.05;
-    if (p.y > 1.05) p.y = -0.05;
-
-    px = p.x * width;
-    py = p.y * height;
-    const r = p.size * (1 + high * 1.6);
-
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-
-    if (theme === 'prism') {
-      ctx.fillStyle = `hsl(${p.hue}, 100%, 70%)`;
-      ctx.shadowColor = `hsl(${p.hue}, 100%, 60%)`;
-    } else {
-      ctx.fillStyle = (p.size > 2) ? '#ffd000' : '#00ff87';
-      ctx.shadowColor = '#00ff87';
-    }
-
-    ctx.shadowBlur = 10;
-    ctx.fill();
-
-    // High frequency twinkling diamond spikes on larger stars
-    if (high > 0.35 && p.size > 2.2) {
-      const spike = r * (1.8 + high * 2);
+    if (peakPt) {
+      // Vertical neon laser beacon shooting from summit
+      ctx.globalAlpha = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(peakPt.x, peakPt.y);
+      ctx.lineTo(peakPt.x, peakPt.y - 130);
+      ctx.lineWidth = 2.4;
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 0.8;
-      ctx.beginPath();
-      ctx.moveTo(px - spike, py);
-      ctx.lineTo(px + spike, py);
-      ctx.moveTo(px, py - spike);
-      ctx.lineTo(px, py + spike);
+      ctx.shadowColor = theme === 'prism' ? `hsl(${vizState.pitchState.smoothedPos * 360}, 100%, 65%)` : '#00ff87';
+      ctx.shadowBlur = 18;
       ctx.stroke();
-    }
-  });
 
-  ctx.restore();
-}
-
-function drawVizVector(ctx, width, height) {
-  const cx = width / 2;
-  const cy = height / 2;
-  const bass = vizState.smoothedBass;
-  const mid = vizState.smoothedMid;
-  const high = vizState.smoothedHigh;
-
-  // Base scope size pulses powerfully with bass
-  const scale = Math.min(width, height) * (0.24 + bass * 0.22);
-  const steps = 320;
-  const theme = vizState.theme;
-
-  // Dynamic 3D rotation angles
-  const rotX = vizState.phase * 0.55;
-  const rotY = vizState.phase * 0.85;
-  const rotZ = vizState.phase * 0.4;
-
-  const sinX = Math.sin(rotX), cosX = Math.cos(rotX);
-  const sinY = Math.sin(rotY), cosY = Math.cos(rotY);
-  const sinZ = Math.sin(rotZ), cosZ = Math.cos(rotZ);
-
-  // Audio modulation frequencies
-  const f1 = 2;
-  const f2 = 3;
-  const f3 = 5;
-  const harmonicTwist = mid * 0.6;
-
-  ctx.save();
-
-  const points3D = [];
-  for (let i = 0; i <= steps; i++) {
-    const u = (i / steps) * Math.PI * 2;
-    let waveMod = 0;
-
-    if (vizState.timeArray) {
-      const sIdx = Math.floor((i / steps) * vizState.timeArray.length);
-      waveMod = ((vizState.timeArray[sIdx] - 128) / 128) * (0.3 + bass * 0.45);
-    } else {
-      waveMod = Math.sin(u * 8 + vizState.phase * 3) * (0.15 + bass * 0.25);
-    }
-
-    const r = 1 + waveMod;
-
-    // Harmonograph 3D space curve
-    const x0 = (Math.sin(u * f1 + vizState.phase) * Math.cos(u * f2)) * r;
-    const y0 = (Math.sin(u * f2 + vizState.phase * 1.3)) * r;
-    const z0 = (Math.cos(u * f1) * Math.sin(u * f3 + harmonicTwist)) * r;
-
-    // 3D Euler Rotation
-    // Y-axis rotation
-    const x1 = x0 * cosY + z0 * sinY;
-    const y1 = y0;
-    const z1 = -x0 * sinY + z0 * cosY;
-
-    // X-axis rotation
-    const x2 = x1;
-    const y2 = y1 * cosX - z1 * sinX;
-    const z2 = y1 * sinX + z1 * cosX;
-
-    // Z-axis rotation
-    const x3 = x2 * cosZ - y2 * sinZ;
-    const y3 = x2 * sinZ + y2 * cosZ;
-    const z3 = z2;
-
-    // Perspective Projection
-    const cameraDist = 2.4;
-    const fov = 1.9 / (cameraDist + z3);
-    const px = cx + x3 * scale * fov;
-    const py = cy + y3 * scale * fov;
-
-    points3D.push({ x: px, y: py, z: z3, uNorm: i / steps });
-  }
-
-  // PASS 1: Broad Analog CRT Phosphor Laser Bloom
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  if (theme === 'prism') {
-    ctx.lineWidth = 7;
-    for (let i = 0; i < steps; i++) {
-      const p1 = points3D[i];
-      const p2 = points3D[i + 1];
-      const hue = (p1.uNorm * 360 + vizState.phase * 60) % 360;
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.strokeStyle = `hsla(${hue}, 100%, 65%, 0.22)`;
-      ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
-      ctx.shadowBlur = 24;
-      ctx.stroke();
-    }
-  } else {
-    ctx.beginPath();
-    for (let i = 0; i <= steps; i++) {
-      if (i === 0) ctx.moveTo(points3D[i].x, points3D[i].y);
-      else ctx.lineTo(points3D[i].x, points3D[i].y);
-    }
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = 'rgba(0, 255, 135, 0.25)';
-    ctx.shadowColor = getVizThemeGlowColor();
-    ctx.shadowBlur = 24;
-    ctx.stroke();
-  }
-
-  // PASS 2: Sharp Focused Laser Beam
-  if (theme === 'prism') {
-    ctx.lineWidth = 2.6;
-    for (let i = 0; i < steps; i++) {
-      const p1 = points3D[i];
-      const p2 = points3D[i + 1];
-      const hue = (p1.uNorm * 360 + vizState.phase * 60) % 360;
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.strokeStyle = `hsla(${hue}, 100%, 70%, 0.85)`;
-      ctx.shadowColor = `hsl(${hue}, 100%, 55%)`;
-      ctx.shadowBlur = 12;
-      ctx.stroke();
-    }
-  } else {
-    ctx.beginPath();
-    for (let i = 0; i <= steps; i++) {
-      if (i === 0) ctx.moveTo(points3D[i].x, points3D[i].y);
-      else ctx.lineTo(points3D[i].x, points3D[i].y);
-    }
-    ctx.lineWidth = 2.6;
-    ctx.strokeStyle = getVizGradient(ctx, cx - scale, cy, cx + scale, cy);
-    ctx.shadowColor = getVizThemeGlowColor();
-    ctx.shadowBlur = 14;
-    ctx.stroke();
-  }
-
-  // PASS 3: Core Hot Laser Filament
-  ctx.beginPath();
-  for (let i = 0; i <= steps; i++) {
-    if (i === 0) ctx.moveTo(points3D[i].x, points3D[i].y);
-    else ctx.lineTo(points3D[i].x, points3D[i].y);
-  }
-  ctx.lineWidth = 1.0;
-  ctx.strokeStyle = '#ffffff';
-  ctx.shadowColor = '#ffffff';
-  ctx.shadowBlur = 4;
-  ctx.globalAlpha = 0.8;
-  ctx.stroke();
-
-  // PASS 4: Phosphor Spark Nodes pulsing on the curve
-  const nodeStep = 16;
-  for (let i = 0; i < steps; i += nodeStep) {
-    const pt = points3D[i];
-    const nodeR = (2.2 + high * 3.5) * (1 + pt.z * 0.3);
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, nodeR, 0, Math.PI * 2);
-    if (theme === 'prism') {
-      const hue = (pt.uNorm * 360 + vizState.phase * 60) % 360;
-      ctx.fillStyle = `hsl(${hue}, 100%, 75%)`;
-      ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
-    } else {
+      // Glowing summit star diamond
       ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = getVizThemeGlowColor();
+      ctx.beginPath();
+      ctx.arc(peakPt.x, peakPt.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Floating Note Badge
+      ctx.font = 'bold 12px "SF Mono", Monaco, monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#000000';
+      ctx.shadowBlur = 6;
+      ctx.textAlign = 'center';
+      ctx.fillText(`🏔️ ${vizState.pitchState.note}`, peakPt.x, peakPt.y - 138);
+
+      // Concentric terrain ring ripples
+      ctx.beginPath();
+      ctx.ellipse(peakPt.x, peakPt.y, 40, 12, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
     }
-    ctx.shadowBlur = 10;
-    ctx.fill();
   }
 
   ctx.restore();
@@ -4098,6 +4093,10 @@ function bindAllEvents() {
   document.getElementById('toggleVisualizerBtn')?.addEventListener('click', openVisualizer);
   document.getElementById('exitVisualizerBtn')?.addEventListener('click', closeVisualizer);
   document.getElementById('vizMicToggleBtn')?.addEventListener('click', toggleVizMic);
+  document.getElementById('vizGainToggleBtn')?.addEventListener('click', cycleVizGain);
+  document.getElementById('vizDeviceSelect')?.addEventListener('change', (e) => {
+    changeVizAudioDevice(e.target.value);
+  });
 
   // Visualizer HUD controls - Multi-layer delegation for 100% reliable click handling
   const setVisualizerTheme = (theme) => {
@@ -4138,8 +4137,16 @@ function bindAllEvents() {
       setVisualizerBg(savedBg);
     }
     const savedStyle = localStorage.getItem('viz_style');
-    if (savedStyle && ['waves', 'bars', 'terrain', 'nebula', 'vector'].includes(savedStyle)) {
+    if (savedStyle && ['waves', 'bars', 'terrain'].includes(savedStyle)) {
       setVisualizerStyle(savedStyle);
+    } else {
+      setVisualizerStyle('waves');
+    }
+    const savedGain = localStorage.getItem('viz_sensitivity');
+    if (savedGain) {
+      vizState.sensitivity = parseFloat(savedGain) || 1.0;
+      const label = document.getElementById('vizGainLabel');
+      if (label) label.textContent = `Gain: ${vizState.sensitivity}x`;
     }
   } catch (e) {}
 

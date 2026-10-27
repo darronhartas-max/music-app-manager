@@ -774,13 +774,21 @@
           <button type="button" class="viz-chip active" data-viz-style="waves" title="Fluid Oscilloscope Ribbons">〰️ Waves</button>
           <button type="button" class="viz-chip" data-viz-style="bars" title="Studio Spectrum Frequency Bars">📊 Spectrum Bars</button>
           <button type="button" class="viz-chip" data-viz-style="terrain" title="3D Waterfall Mountain Spectrogram (Most Dynamic)">🏔️ 3D Landscape</button>
-          <button type="button" class="viz-chip" data-viz-style="nebula" title="Interactive Cosmic Audio Galaxy (Move &amp; Click Mouse)">✨ Nebula</button>
-          <button type="button" class="viz-chip" data-viz-style="vector" title="High-Energy 3D Analog Laser Synthesizer Scope">⚡ Vector</button>
         </div>
       </div>
 
       <div class="visualizer-actions">
-        <button type="button" id="vizMicToggleBtn" class="viz-action-btn viz-mic-active" title="Toggle Real-Time Microphone / Audio Input">
+        <div class="viz-device-selector-wrap" title="Audio Input Device (e.g. Built-in Mic to hear studio monitors, or Scarlett)">
+          <span class="btn-icon">🎙️</span>
+          <select id="vizDeviceSelect" class="viz-device-select" title="Choose Audio Input Source">
+            <option value="default">Default Input Device</option>
+          </select>
+        </div>
+        <button type="button" id="vizGainToggleBtn" class="viz-action-btn" title="Cycle Sensitivity / Audio Input Gain Boost (1x, 2x, 4x)">
+          <span class="btn-icon">⚡</span>
+          <span id="vizGainLabel">Gain: 1x</span>
+        </button>
+        <button type="button" id="vizMicToggleBtn" class="viz-action-btn viz-mic-active" title="Toggle Real-Time Audio Input (Mute / Unmute)">
           <span class="btn-icon">🎤</span>
           <span id="vizMicBtnLabel">Mic: Active</span>
         </button>
@@ -790,7 +798,7 @@
       </div>
     </div>
 
-    <!-- Bottom Energy meter readout -->
+    <!-- Bottom Energy meter + Musical Note & Keyboard Scale HUD readout -->
     <div class="visualizer-footer-hud">
       <div class="viz-meters">
         <div class="viz-meter-item">
@@ -806,6 +814,27 @@
           <div class="viz-meter-bar-track"><div id="vizMeterHigh" class="viz-meter-bar-fill"></div></div>
         </div>
       </div>
+
+      <!-- Real-Time Musical Keyboard Pitch & Note Detection -->
+      <div class="viz-pitch-tracker" title="Live Musical Note &amp; Keyboard Pitch Scale Detection">
+        <div class="viz-pitch-badge-wrap">
+          <span class="viz-pitch-icon">🎹</span>
+          <span class="viz-pitch-label">NOTE:</span>
+          <span id="vizPitchNote" class="viz-pitch-note">--</span>
+          <span id="vizPitchFreq" class="viz-pitch-freq"></span>
+        </div>
+        <div class="viz-keyboard-scale-wrap" title="Keyboard Musical Range (Bass → Mid → Treble)">
+          <span class="viz-key-marker low">Bass</span>
+          <div class="viz-keyboard-track">
+            <div class="viz-keyboard-octaves">
+              <span>C1</span><span>C2</span><span>C3</span><span>C4</span><span>C5</span><span>C6</span><span>C7</span>
+            </div>
+            <div id="vizKeyboardIndicator" class="viz-keyboard-indicator"></div>
+          </div>
+          <span class="viz-key-marker high">Treble</span>
+        </div>
+      </div>
+
       <div class="viz-hint-text">
         <span>Click <strong>Close</strong> or press <kbd>Esc</kbd> to return to apps</span>
       </div>

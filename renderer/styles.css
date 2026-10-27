@@ -3988,6 +3988,140 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   color: #ffffff;
 }
 
+.viz-device-selector-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  -webkit-app-region: no-drag !important;
+}
+
+.viz-device-select {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  max-width: 180px;
+  cursor: pointer;
+  -webkit-app-region: no-drag !important;
+}
+
+.viz-device-select option {
+  background: #14141c;
+  color: #ffffff;
+}
+
+.viz-pitch-tracker {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.35rem 0.95rem;
+  background: rgba(19, 19, 28, 0.75);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  pointer-events: auto;
+}
+
+.viz-pitch-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.viz-pitch-icon {
+  font-size: 0.95rem;
+}
+
+.viz-pitch-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.viz-pitch-note {
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-family: 'SF Mono', Monaco, monospace;
+  color: #00ff87;
+  text-shadow: 0 0 10px rgba(0, 255, 135, 0.6);
+  min-width: 32px;
+  display: inline-block;
+  text-align: center;
+}
+
+.viz-pitch-freq {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+.viz-keyboard-scale-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.viz-key-marker {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.viz-keyboard-track {
+  position: relative;
+  width: 140px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.viz-keyboard-octaves {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-keyboard-indicator {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 8px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #00ff87, #ffd000);
+  box-shadow: 0 0 10px rgba(0, 255, 135, 0.8);
+  left: 50%;
+  transform: translateX(-50%);
+  transition: left 0.06s linear, opacity 0.2s ease;
+  opacity: 0.25;
+}
+
+.viz-keyboard-indicator.active {
+  opacity: 1;
+  box-shadow: 0 0 12px #00ff87;
+}
+
 @media (max-width: 768px) {
   .visualizer-hud {
     flex-wrap: wrap;
@@ -4002,8 +4136,13 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   }
   .visualizer-footer-hud {
     padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
   .viz-meter-bar-track {
     width: 50px;
+  }
+  .viz-keyboard-track {
+    width: 100px;
   }
 }
