@@ -3039,13 +3039,526 @@ function showError(message) {
 
 
 // ============================================
+// REAL-TIME STUDIO AUDIO VISUALIZER ENGINE
+// ============================================
+
+const vizState = {
+  active: false,
+  theme: 'eclipse', // 'eclipse' | 'prism' | 'cyber'
+  style: 'waves',   // 'waves' | 'rings' | 'bars'
+  micActive: false,
+  audioCtx: null,
+  analyser: null,
+  micStream: null,
+  animationId: null,
+  dataArray: null,
+  timeArray: null,
+  smoothedBass: 0,
+  smoothedMid: 0,
+  smoothedHigh: 0,
+  phase: 0,
+  barsPeaks: new Array(64).fill(0),
+  particles: []
+};
+
+function initVizParticles() {
+  vizState.particles = [];
+  for (let i = 0; i < 80; i++) {
+    vizState.particles.push({
+      x: Math.random(),
+      y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.002,
+      vy: (Math.random() - 0.5) * 0.002,
+      size: Math.random() * 2 + 1,
+      angle: Math.random() * Math.PI * 2,
+      orbitSpeed: (Math.random() - 0.5) * 0.015,
+      orbitDist: Math.random() * 0.35 + 0.08,
+      hueOffset: Math.random() * 80
+    });
+  }
+}
+
+async function openVisualizer() {
+  if (vizState.active) return;
+  vizState.active = true;
+
+  const overlay = document.getElementById('visualizerOverlay');
+  if (overlay) {
+    overlay.style.display = 'block';
+  }
+
+  initVizParticles();
+  resizeVisualizerCanvas();
+  window.addEventListener('resize', resizeVisualizerCanvas);
+
+  await initVisualizerAudio();
+  startVisualizerLoop();
+}
+
+function closeVisualizer() {
+  if (!vizState.active) return;
+  vizState.active = false;
+
+  const overlay = document.getElementById('visualizerOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+
+  window.removeEventListener('resize', resizeVisualizerCanvas);
+
+  if (vizState.animationId) {
+    cancelAnimationFrame(vizState.animationId);
+    vizState.animationId = null;
+  }
+
+  stopVisualizerAudio();
+}
+
+function toggleVisualizer() {
+  if (vizState.active) closeVisualizer();
+  else openVisualizer();
+}
+
+function resizeVisualizerCanvas() {
+  const canvas = document.getElementById('visualizerCanvas');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  if (ctx) ctx.scale(dpr, dpr);
+}
+
+async function initVisualizerAudio() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    if (!vizState.audioCtx) {
+      vizState.audioCtx = new AudioContextClass();
+    }
+    if (vizState.audioCtx.state === 'suspended') {
+      await vizState.audioCtx.resume();
+    }
+
+    vizState.analyser = vizState.audioCtx.createAnalyser();
+    vizState.analyser.fftSize = 512;
+    vizState.analyser.smoothingTimeConstant = 0.8;
+
+    const bufferLength = vizState.analyser.frequencyBinCount;
+    vizState.dataArray = new Uint8Array(bufferLength);
+    vizState.timeArray = new Uint8Array(bufferLength);
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
+
+    vizState.micStream = stream;
+    const source = vizState.audioCtx.createMediaStreamSource(stream);
+    source.connect(vizState.analyser);
+    // NEVER connect source to audioCtx.destination to prevent acoustic feedback loop
+
+    vizState.micActive = true;
+    updateVizMicButtonUI(true);
+    setVizStatus('Listening to live sound...');
+  } catch (err) {
+    console.warn('[Visualizer] Microphone not granted or unavailable, operating in generative ambient mode:', err);
+    vizState.micActive = false;
+    updateVizMicButtonUI(false);
+    setVizStatus('Generative Ambient Wave (Mic Idle)');
+  }
+}
+
+function stopVisualizerAudio() {
+  if (vizState.micStream) {
+    try {
+      vizState.micStream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
+    vizState.micStream = null;
+  }
+  if (vizState.audioCtx) {
+    try {
+      vizState.audioCtx.close();
+    } catch (e) {}
+    vizState.audioCtx = null;
+  }
+  vizState.analyser = null;
+  vizState.micActive = false;
+  updateVizMicButtonUI(false);
+}
+
+async function toggleVizMic() {
+  if (vizState.micActive) {
+    stopVisualizerAudio();
+    setVizStatus('Generative Ambient Wave (Mic Muted)');
+  } else {
+    await initVisualizerAudio();
+  }
+}
+
+function updateVizMicButtonUI(active) {
+  const btn = document.getElementById('vizMicToggleBtn');
+  const label = document.getElementById('vizMicBtnLabel');
+  if (btn) btn.classList.toggle('viz-mic-active', active);
+  if (label) label.textContent = active ? 'Mic: Active' : 'Mic: Muted';
+}
+
+function setVizStatus(text) {
+  const label = document.getElementById('vizStatusLabel');
+  if (label) label.textContent = text;
+}
+
+function startVisualizerLoop() {
+  const canvas = document.getElementById('visualizerCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const renderFrame = () => {
+    if (!vizState.active) return;
+    renderVisualizerFrame(ctx);
+    vizState.animationId = requestAnimationFrame(renderFrame);
+  };
+
+  if (vizState.animationId) cancelAnimationFrame(vizState.animationId);
+  vizState.animationId = requestAnimationFrame(renderFrame);
+}
+
+function renderVisualizerFrame(ctx) {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  vizState.phase += 0.02;
+
+  let bass = 0, mid = 0, high = 0;
+
+  if (vizState.micActive && vizState.analyser && vizState.dataArray && vizState.timeArray) {
+    vizState.analyser.getByteFrequencyData(vizState.dataArray);
+    vizState.analyser.getByteTimeDomainData(vizState.timeArray);
+
+    let bSum = 0, mSum = 0, hSum = 0;
+    for (let i = 0; i < 8; i++) bSum += vizState.dataArray[i];
+    for (let i = 8; i < 35; i++) mSum += vizState.dataArray[i];
+    for (let i = 35; i < 110; i++) hSum += vizState.dataArray[i];
+
+    bass = (bSum / 8) / 255;
+    mid = (mSum / 27) / 255;
+    high = (hSum / 75) / 255;
+  } else {
+    // Generative procedural motion
+    const t = vizState.phase;
+    bass = (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.65 + (Math.sin(t * 3.4) * 0.15);
+    mid = (Math.sin(t * 2.2 + 1) * 0.5 + 0.5) * 0.5;
+    high = (Math.sin(t * 4.1 + 2) * 0.5 + 0.5) * 0.4;
+    bass = Math.max(0, Math.min(1, bass));
+    mid = Math.max(0, Math.min(1, mid));
+    high = Math.max(0, Math.min(1, high));
+  }
+
+  // Smooth lerp
+  vizState.smoothedBass += (bass - vizState.smoothedBass) * 0.22;
+  vizState.smoothedMid += (mid - vizState.smoothedMid) * 0.22;
+  vizState.smoothedHigh += (high - vizState.smoothedHigh) * 0.22;
+
+  // Energy meters HUD
+  const bBar = document.getElementById('vizMeterBass');
+  const mBar = document.getElementById('vizMeterMid');
+  const hBar = document.getElementById('vizMeterHigh');
+  if (bBar) bBar.style.width = `${Math.min(100, Math.round(vizState.smoothedBass * 110))}%`;
+  if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 110))}%`;
+  if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 110))}%`;
+
+  // Motion blur trail
+  ctx.fillStyle = 'rgba(7, 7, 12, 0.26)';
+  ctx.fillRect(0, 0, width, height);
+
+  // Background radial pulse on heavy bass hits
+  const pulseRadius = Math.max(width, height) * (0.35 + vizState.smoothedBass * 0.35);
+  const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, pulseRadius);
+  if (vizState.theme === 'eclipse') {
+    bgGrad.addColorStop(0, `rgba(0, 255, 135, ${0.08 + vizState.smoothedBass * 0.18})`);
+    bgGrad.addColorStop(0.5, `rgba(255, 94, 54, ${0.05 + vizState.smoothedBass * 0.1})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  } else if (vizState.theme === 'prism') {
+    bgGrad.addColorStop(0, `rgba(0, 240, 255, ${0.08 + vizState.smoothedBass * 0.14})`);
+    bgGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.05 + vizState.smoothedBass * 0.1})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  } else {
+    bgGrad.addColorStop(0, `rgba(0, 240, 255, ${0.09 + vizState.smoothedBass * 0.14})`);
+    bgGrad.addColorStop(0.5, `rgba(255, 0, 127, ${0.06 + vizState.smoothedBass * 0.11})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  }
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  // Draw current visualization style
+  if (vizState.style === 'rings') {
+    drawVizRings(ctx, width, height);
+  } else if (vizState.style === 'bars') {
+    drawVizBars(ctx, width, height);
+  } else {
+    drawVizWaves(ctx, width, height);
+  }
+
+  // Draw floating particles
+  drawVizParticles(ctx, width, height);
+}
+
+function getVizGradient(ctx, x0, y0, x1, y1) {
+  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+  if (vizState.theme === 'eclipse') {
+    grad.addColorStop(0, '#00ff87');
+    grad.addColorStop(0.5, '#ffd000');
+    grad.addColorStop(1, '#ff5e36');
+  } else if (vizState.theme === 'prism') {
+    grad.addColorStop(0, '#00ff87');
+    grad.addColorStop(0.25, '#00f0ff');
+    grad.addColorStop(0.5, '#a855f7');
+    grad.addColorStop(0.75, '#ec4899');
+    grad.addColorStop(1, '#ff5e36');
+  } else {
+    grad.addColorStop(0, '#00f0ff');
+    grad.addColorStop(0.5, '#7000ff');
+    grad.addColorStop(1, '#ff007f');
+  }
+  return grad;
+}
+
+function drawVizWaves(ctx, width, height) {
+  const centerY = height / 2;
+  const numWaves = 4;
+  const points = 120;
+  const sliceWidth = width / (points - 1);
+
+  for (let w = 0; w < numWaves; w++) {
+    const wavePhase = vizState.phase * (1 + w * 0.3) + w * 1.5;
+    const amplitude = (50 + w * 30 + vizState.smoothedBass * 130 + vizState.smoothedMid * 70);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.lineWidth = 3 - w * 0.4;
+    ctx.strokeStyle = getVizGradient(ctx, 0, 0, width, 0);
+    ctx.shadowColor = vizState.theme === 'eclipse' ? '#00ff87' : (vizState.theme === 'prism' ? '#a855f7' : '#00f0ff');
+    ctx.shadowBlur = 18;
+
+    for (let i = 0; i < points; i++) {
+      const x = i * sliceWidth;
+      let audioMod = 0;
+
+      if (vizState.timeArray) {
+        const sampleIdx = Math.floor((i / points) * vizState.timeArray.length);
+        const sample = (vizState.timeArray[sampleIdx] - 128) / 128; // -1 to 1
+        audioMod = sample * (amplitude * 1.4);
+      }
+
+      const sin1 = Math.sin((i * 0.05) + wavePhase) * amplitude;
+      const sin2 = Math.cos((i * 0.02) - wavePhase * 0.7) * (amplitude * 0.5);
+      const y = centerY + sin1 + sin2 + audioMod;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawVizRings(ctx, width, height) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const baseRadius = Math.min(width, height) * 0.16;
+  const numRings = 5;
+
+  ctx.save();
+
+  // Glowing center core (Eclipse Wave heart)
+  const coreRadius = baseRadius * (0.6 + vizState.smoothedBass * 0.6);
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreRadius);
+  if (vizState.theme === 'eclipse') {
+    coreGrad.addColorStop(0, 'rgba(0, 255, 135, 0.9)');
+    coreGrad.addColorStop(0.6, 'rgba(255, 94, 54, 0.4)');
+    coreGrad.addColorStop(1, 'rgba(255, 94, 54, 0)');
+  } else if (vizState.theme === 'prism') {
+    coreGrad.addColorStop(0, 'rgba(0, 240, 255, 0.9)');
+    coreGrad.addColorStop(0.6, 'rgba(236, 72, 153, 0.4)');
+    coreGrad.addColorStop(1, 'rgba(236, 72, 153, 0)');
+  } else {
+    coreGrad.addColorStop(0, 'rgba(0, 240, 255, 0.9)');
+    coreGrad.addColorStop(0.6, 'rgba(255, 0, 127, 0.4)');
+    coreGrad.addColorStop(1, 'rgba(255, 0, 127, 0)');
+  }
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Concentric harmonic rings
+  for (let r = 0; r < numRings; r++) {
+    const ringRadius = baseRadius + r * (baseRadius * 0.38) + vizState.smoothedBass * (r * 22);
+    const harmonicPoints = 100;
+    const harmonicFreq = 3 + r * 2;
+    const ringPhase = vizState.phase * (r % 2 === 0 ? 1 : -1) * (1 + r * 0.2);
+
+    ctx.beginPath();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = getVizGradient(ctx, cx - ringRadius, cy, cx + ringRadius, cy);
+    ctx.shadowColor = vizState.theme === 'eclipse' ? '#00ff87' : '#00f0ff';
+    ctx.shadowBlur = 14;
+
+    for (let i = 0; i <= harmonicPoints; i++) {
+      const angle = (i / harmonicPoints) * Math.PI * 2;
+      let distortion = 0;
+
+      if (vizState.dataArray) {
+        const binIdx = Math.floor((i / harmonicPoints) * Math.min(60, vizState.dataArray.length));
+        distortion = (vizState.dataArray[binIdx] / 255) * (15 + r * 10);
+      } else {
+        distortion = Math.sin(angle * harmonicFreq + ringPhase) * (8 + vizState.smoothedMid * 18);
+      }
+
+      const currentR = ringRadius + distortion;
+      const x = cx + Math.cos(angle) * currentR;
+      const y = cy + Math.sin(angle) * currentR;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawVizBars(ctx, width, height) {
+  const barCount = 48;
+  const barWidth = Math.max(4, (width * 0.8) / barCount);
+  const gap = 4;
+  const totalWidth = barCount * (barWidth + gap);
+  const startX = (width - totalWidth) / 2;
+  const baseHeight = height * 0.72;
+  const maxHeight = height * 0.45;
+
+  ctx.save();
+
+  for (let i = 0; i < barCount; i++) {
+    let barVal = 0;
+    if (vizState.dataArray) {
+      const binIdx = Math.floor(Math.pow(i / barCount, 1.4) * (vizState.dataArray.length * 0.75));
+      barVal = (vizState.dataArray[binIdx] || 0) / 255;
+    } else {
+      const t = vizState.phase * 2 + i * 0.15;
+      barVal = (Math.sin(t) * 0.5 + 0.5) * (0.3 + vizState.smoothedBass * 0.6);
+    }
+
+    const barH = Math.max(6, barVal * maxHeight);
+    const x = startX + i * (barWidth + gap);
+    const y = baseHeight - barH;
+
+    if (barH > vizState.barsPeaks[i]) {
+      vizState.barsPeaks[i] = barH;
+    } else {
+      vizState.barsPeaks[i] = Math.max(0, vizState.barsPeaks[i] - 2);
+    }
+
+    const barGrad = ctx.createLinearGradient(x, baseHeight, x, y);
+    if (vizState.theme === 'eclipse') {
+      barGrad.addColorStop(0, '#00ff87');
+      barGrad.addColorStop(0.6, '#ffd000');
+      barGrad.addColorStop(1, '#ff5e36');
+    } else if (vizState.theme === 'prism') {
+      const hue = (i / barCount) * 300;
+      barGrad.addColorStop(0, `hsl(${hue}, 100%, 60%)`);
+      barGrad.addColorStop(1, `hsl(${hue + 45}, 100%, 50%)`);
+    } else {
+      barGrad.addColorStop(0, '#00f0ff');
+      barGrad.addColorStop(1, '#ff007f');
+    }
+
+    ctx.fillStyle = barGrad;
+    ctx.shadowColor = vizState.theme === 'eclipse' ? '#00ff87' : '#00f0ff';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
+    ctx.fill();
+
+    const peakY = baseHeight - vizState.barsPeaks[i] - 4;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, peakY, barWidth, 2);
+  }
+
+  ctx.restore();
+}
+
+function drawVizParticles(ctx, width, height) {
+  ctx.save();
+  const speedMult = 1 + vizState.smoothedHigh * 2.5;
+
+  vizState.particles.forEach(p => {
+    p.angle += p.orbitSpeed * speedMult;
+    p.x += p.vx * speedMult;
+    p.y += p.vy * speedMult;
+
+    if (p.x < 0) p.x = 1;
+    if (p.x > 1) p.x = 0;
+    if (p.y < 0) p.y = 1;
+    if (p.y > 1) p.y = 0;
+
+    const px = p.x * width;
+    const py = p.y * height;
+    const size = p.size * (1 + vizState.smoothedHigh * 0.8);
+
+    ctx.beginPath();
+    if (vizState.theme === 'eclipse') {
+      ctx.fillStyle = p.hueOffset > 40 ? '#00ff87' : '#ff9436';
+      ctx.shadowColor = '#00ff87';
+    } else if (vizState.theme === 'prism') {
+      ctx.fillStyle = `hsl(${p.hueOffset * 4}, 100%, 65%)`;
+      ctx.shadowColor = '#a855f7';
+    } else {
+      ctx.fillStyle = p.hueOffset > 40 ? '#00f0ff' : '#ff007f';
+      ctx.shadowColor = '#00f0ff';
+    }
+    ctx.shadowBlur = 8;
+    ctx.arc(px, py, size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+// ============================================
 // UNIFIED EVENT DELEGATION & BINDINGS
 // ============================================
 
 function bindAllEvents() {
   // 1. Navigation Tabs
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Visualizer Navigation & Overlay HUD controls
+  document.getElementById('toggleVisualizerBtn')?.addEventListener('click', openVisualizer);
+  document.getElementById('exitVisualizerBtn')?.addEventListener('click', closeVisualizer);
+  document.getElementById('vizMicToggleBtn')?.addEventListener('click', toggleVizMic);
+
+  document.querySelectorAll('[data-viz-theme]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      vizState.theme = btn.dataset.vizTheme;
+      document.querySelectorAll('[data-viz-theme]').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  document.querySelectorAll('[data-viz-style]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      vizState.style = btn.dataset.vizStyle;
+      document.querySelectorAll('[data-viz-style]').forEach(b => b.classList.toggle('active', b === btn));
+    });
   });
 
   // 2. Search Input + Clear Button
@@ -3978,7 +4491,17 @@ function bindAllEvents() {
       }
     }
 
+    // Toggle Visualizer with Cmd/Ctrl + Shift + V
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'v') {
+      e.preventDefault();
+      toggleVisualizer();
+    }
+
     if (e.key === 'Escape') {
+      if (vizState.active) {
+        closeVisualizer();
+        return;
+      }
       closeModal('appModal');
       closeModal('pluginModal');
       closeModal('sessionModal');

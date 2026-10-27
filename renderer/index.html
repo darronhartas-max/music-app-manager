@@ -38,6 +38,9 @@
           <button class="tab-btn" data-tab="settings">
             ⚙️ Tools
           </button>
+          <button id="toggleVisualizerBtn" class="tab-btn visualizer-nav-btn" title="Open Real-Time Audio Visualizer (Hide Apps)">
+            ✨ Visualizer
+          </button>
         </nav>
       </div>
     </header>
@@ -725,11 +728,78 @@
           <span>Show Shortcuts</span>
         </div>
         <div class="shortcut-item">
+          <kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd>
+          <span>Studio Audio Visualizer</span>
+        </div>
+        <div class="shortcut-item">
           <kbd>Esc</kbd>
-          <span>Close Modal/Overlay</span>
+          <span>Close Modal / Exit Visualizer</span>
         </div>
       </div>
       <button class="btn-primary" id="closeShortcutsBtn">Got it!</button>
+    </div>
+  </div>
+
+  <!-- Full-Screen Studio Audio Visualizer Overlay -->
+  <div id="visualizerOverlay" class="visualizer-overlay" style="display: none;">
+    <canvas id="visualizerCanvas"></canvas>
+
+    <!-- Top HUD controls -->
+    <div class="visualizer-hud">
+      <div class="visualizer-brand">
+        <img src="../assets/icon.png" alt="" class="visualizer-brand-icon">
+        <div class="visualizer-brand-info">
+          <span class="visualizer-brand-title">Studio Audio Visualizer</span>
+          <span id="vizStatusLabel" class="visualizer-brand-status">Listening to live sound...</span>
+        </div>
+      </div>
+
+      <div class="visualizer-controls-group">
+        <div class="viz-control-cluster" title="Color Theme">
+          <span class="viz-cluster-label">Color:</span>
+          <button type="button" class="viz-chip active" data-viz-theme="eclipse" title="Logo Neon: Fluorescent Green to Orange">🟢🟠 Eclipse</button>
+          <button type="button" class="viz-chip" data-viz-theme="prism" title="Multicolor Prism Spectrum">🌈 Prism</button>
+          <button type="button" class="viz-chip" data-viz-theme="cyber" title="Cyberpunk Cyan &amp; Hot Pink">⚡ Cyber</button>
+        </div>
+
+        <div class="viz-control-cluster" title="Visual Style">
+          <span class="viz-cluster-label">Style:</span>
+          <button type="button" class="viz-chip active" data-viz-style="waves" title="Fluid Oscilloscope Ribbons">〰️ Waves</button>
+          <button type="button" class="viz-chip" data-viz-style="rings" title="Concentric Pulsing Shockwave Rings">⭕ Rings</button>
+          <button type="button" class="viz-chip" data-viz-style="bars" title="Studio Spectrum Frequency Bars">📊 Spectrum</button>
+        </div>
+      </div>
+
+      <div class="visualizer-actions">
+        <button type="button" id="vizMicToggleBtn" class="viz-action-btn viz-mic-active" title="Toggle Real-Time Microphone / Audio Input">
+          <span class="btn-icon">🎤</span>
+          <span id="vizMicBtnLabel">Mic: Active</span>
+        </button>
+        <button type="button" id="exitVisualizerBtn" class="viz-action-btn viz-close-btn" title="Exit Visualizer (Esc)">
+          ✕ Close
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom Energy meter readout -->
+    <div class="visualizer-footer-hud">
+      <div class="viz-meters">
+        <div class="viz-meter-item">
+          <span class="viz-meter-label">BASS</span>
+          <div class="viz-meter-bar-track"><div id="vizMeterBass" class="viz-meter-bar-fill"></div></div>
+        </div>
+        <div class="viz-meter-item">
+          <span class="viz-meter-label">MID</span>
+          <div class="viz-meter-bar-track"><div id="vizMeterMid" class="viz-meter-bar-fill"></div></div>
+        </div>
+        <div class="viz-meter-item">
+          <span class="viz-meter-label">HIGH</span>
+          <div class="viz-meter-bar-track"><div id="vizMeterHigh" class="viz-meter-bar-fill"></div></div>
+        </div>
+      </div>
+      <div class="viz-hint-text">
+        <span>Click <strong>Close</strong> or press <kbd>Esc</kbd> to return to apps</span>
+      </div>
     </div>
   </div>
 

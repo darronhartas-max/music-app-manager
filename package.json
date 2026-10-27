@@ -48,6 +48,9 @@
     "mac": {
       "category": "public.app-category.music",
       "icon": "assets/icon.icns",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Music App Manager uses audio input strictly for the real-time music visualizer."
+      },
       "target": [
         {
           "target": "dmg",

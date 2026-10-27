@@ -62,11 +62,15 @@ function hardenWindowWebContents(win) {
         event.preventDefault();
     });
 
-    // Enforce 100% passive studio posture: Music App Manager NEVER claims MIDI, audio capture, or media devices
+    // Studio safety posture: NEVER claim MIDI (protects DAWs from CoreMIDI handle deadlocks)
+    // Audio input/microphone is granted exclusively for the user-triggered real-time visualizer
     if (win.webContents.session && typeof win.webContents.session.setPermissionRequestHandler === 'function') {
         win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-            if (['midi', 'midi-sysex', 'media', 'microphone', 'camera'].includes(permission)) {
+            if (['midi', 'midi-sysex', 'camera'].includes(permission)) {
                 return callback(false);
+            }
+            if (['media', 'microphone'].includes(permission)) {
+                return callback(true);
             }
             callback(true);
         });
