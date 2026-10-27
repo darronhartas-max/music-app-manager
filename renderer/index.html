@@ -758,7 +758,6 @@
         <div class="viz-control-cluster" title="Background Backdrop Style">
           <span class="viz-cluster-label">Backdrop:</span>
           <button type="button" class="viz-chip active" data-viz-bg="black" title="Solid Pure Black (100% Static, Zero Motion, Zero Distractions)">🖤 Pure Black</button>
-          <button type="button" class="viz-chip" data-viz-bg="ambient" title="Ambient Breathing Glow (Gentle &amp; Soft, for Slow/Mellow Tracks)">✨ Ambient</button>
           <button type="button" class="viz-chip" data-viz-bg="dynamic" title="Dynamic Reactive Pulse &amp; Stardust (High-Energy for Fast/Club Tracks)">⚡ Pulse</button>
         </div>
 
@@ -777,9 +776,9 @@
             <option value="default">Default Input Device</option>
           </select>
         </div>
-        <button type="button" id="vizGainToggleBtn" class="viz-action-btn" title="Cycle Sensitivity / Audio Input Gain Boost (1x, 2x, 4x)">
+        <button type="button" id="vizGainToggleBtn" class="viz-action-btn" title="Cycle Sensitivity / Audio Input Gain Boost (High 2.5x, Max 4x, Normal 1.5x)">
           <span class="btn-icon">⚡</span>
-          <span id="vizGainLabel">Gain: 1x</span>
+          <span id="vizGainLabel">Gain: High (2.5x)</span>
         </button>
         <button type="button" id="vizMicToggleBtn" class="viz-action-btn viz-mic-active" title="Toggle Real-Time Audio Input (Mute / Unmute)">
           <span class="btn-icon">🎤</span>
@@ -791,7 +790,7 @@
       </div>
     </div>
 
-    <!-- Bottom Energy meter + Musical Note & Keyboard Scale HUD readout -->
+    <!-- Bottom Energy meter + Minimalist Studio HUD readout -->
     <div class="visualizer-footer-hud">
       <div class="viz-meters">
         <div class="viz-meter-item">
@@ -805,26 +804,6 @@
         <div class="viz-meter-item">
           <span class="viz-meter-label">HIGH</span>
           <div class="viz-meter-bar-track"><div id="vizMeterHigh" class="viz-meter-bar-fill"></div></div>
-        </div>
-      </div>
-
-      <!-- Real-Time Musical Keyboard Pitch & Note Detection -->
-      <div class="viz-pitch-tracker" title="Live Musical Note &amp; Keyboard Pitch Scale Detection">
-        <div class="viz-pitch-badge-wrap">
-          <span class="viz-pitch-icon">🎹</span>
-          <span class="viz-pitch-label">NOTE:</span>
-          <span id="vizPitchNote" class="viz-pitch-note">--</span>
-          <span id="vizPitchFreq" class="viz-pitch-freq"></span>
-        </div>
-        <div class="viz-keyboard-scale-wrap" title="Keyboard Musical Range (Bass → Mid → Treble)">
-          <span class="viz-key-marker low">Bass</span>
-          <div class="viz-keyboard-track">
-            <div class="viz-keyboard-octaves">
-              <span>C1</span><span>C2</span><span>C3</span><span>C4</span><span>C5</span><span>C6</span><span>C7</span>
-            </div>
-            <div id="vizKeyboardIndicator" class="viz-keyboard-indicator"></div>
-          </div>
-          <span class="viz-key-marker high">Treble</span>
         </div>
       </div>
 

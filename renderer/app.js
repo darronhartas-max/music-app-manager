@@ -3045,14 +3045,14 @@ function showError(message) {
 const vizState = {
   active: false,
   theme: 'prism',          // Full rainbow spectrum permanently
-  background: 'black',     // 'black' | 'ambient' | 'dynamic'
+  background: 'black',     // 'black' | 'dynamic'
   style: 'waves',          // 'waves' | 'bars' | 'terrain'
   micActive: false,
   audioCtx: null,
   analyser: null,
   micStream: null,
   selectedDeviceId: 'default',
-  sensitivity: 1.0,        // 1.0, 2.0, 4.0
+  sensitivity: 2.5,        // Default High Gain (2.5x)
   animationId: null,
   dataArray: null,
   timeArray: null,
@@ -3068,16 +3068,7 @@ const vizState = {
     isHovering: false,
     activeClicks: []
   },
-  particles: [],
-  pitchState: {
-    active: false,
-    note: '--',
-    freq: 0,
-    midi: 60,
-    rawPos: 0.5,
-    smoothedPos: 0.5,
-    energy: 0
-  }
+  particles: []
 };
 
 async function populateVizAudioDevices() {
@@ -3138,16 +3129,19 @@ async function changeVizAudioDevice(deviceId) {
 }
 
 function cycleVizGain() {
-  if (vizState.sensitivity === 1.0) vizState.sensitivity = 2.0;
-  else if (vizState.sensitivity === 2.0) vizState.sensitivity = 4.0;
-  else vizState.sensitivity = 1.0;
+  if (vizState.sensitivity === 2.5) vizState.sensitivity = 4.0;
+  else if (vizState.sensitivity === 4.0) vizState.sensitivity = 1.5;
+  else vizState.sensitivity = 2.5;
 
   try {
     localStorage.setItem('viz_sensitivity', vizState.sensitivity.toString());
   } catch (e) {}
 
   const label = document.getElementById('vizGainLabel');
-  if (label) label.textContent = `Gain: ${vizState.sensitivity}x`;
+  if (label) {
+    const text = vizState.sensitivity === 2.5 ? 'Gain: High (2.5x)' : vizState.sensitivity === 4.0 ? 'Gain: Max (4x)' : 'Gain: Normal (1.5x)';
+    label.textContent = text;
+  }
 }
 
 function initVizParticles() {
@@ -3283,8 +3277,10 @@ async function initVisualizerAudio(targetDeviceId = null) {
     }
 
     vizState.analyser = vizState.audioCtx.createAnalyser();
-    vizState.analyser.fftSize = 2048; // High FFT size for musical note & pitch resolution
-    vizState.analyser.smoothingTimeConstant = 0.8;
+    vizState.analyser.fftSize = 2048;
+    vizState.analyser.smoothingTimeConstant = 0.76;
+    vizState.analyser.minDecibels = -90;
+    vizState.analyser.maxDecibels = -25;
 
     const bufferLength = vizState.analyser.frequencyBinCount;
     vizState.dataArray = new Uint8Array(bufferLength);
@@ -3378,93 +3374,6 @@ function startVisualizerLoop() {
   vizState.animationId = requestAnimationFrame(renderFrame);
 }
 
-function detectMusicalPitch(dataArray, sampleRate) {
-  const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
-  const binSize = sampleRate / fftSize;
-
-  // Search musical range: A0 (~27.5 Hz) to C8 (~4186 Hz)
-  const minBin = Math.max(2, Math.floor(27 / binSize));
-  const maxBin = Math.min(dataArray.length - 2, Math.ceil(4200 / binSize));
-
-  let maxScore = 0;
-  let peakBin = -1;
-  let rawPeakVal = 0;
-
-  for (let b = minBin; b <= maxBin; b++) {
-    const val = dataArray[b];
-    const freq = b * binSize;
-    // Perceptual tilt: boost higher fundamental frequencies slightly (up to 2.2x at 2kHz) so melody notes register over room rumble
-    const weight = 1.0 + Math.min(2.5, Math.pow(freq / 250, 0.5));
-    const score = val * weight;
-    if (score > maxScore) {
-      maxScore = score;
-      peakBin = b;
-      rawPeakVal = val;
-    }
-  }
-
-  const effectiveEnergy = (rawPeakVal / 255) * vizState.sensitivity;
-
-  if (peakBin > 0 && effectiveEnergy > 0.12) {
-    // Check for fundamental subharmonic
-    const halfBin = Math.round(peakBin / 2);
-    if (halfBin >= minBin && dataArray[halfBin] > rawPeakVal * 0.38) {
-      peakBin = halfBin;
-    }
-
-    // Parabolic interpolation around peak
-    const alpha = dataArray[peakBin - 1] || 0;
-    const beta = dataArray[peakBin];
-    const gamma = dataArray[peakBin + 1] || 0;
-    const denom = (alpha - 2 * beta + gamma);
-    let delta = 0;
-    if (denom !== 0) {
-      delta = 0.5 * (alpha - gamma) / denom;
-    }
-
-    const freq = (peakBin + delta) * binSize;
-
-    if (freq >= 25 && freq <= 4500) {
-      const midi = Math.max(21, Math.min(108, Math.round(69 + 12 * Math.log2(freq / 440))));
-      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const noteName = noteNames[midi % 12];
-      const octave = Math.floor(midi / 12) - 1;
-      const noteStr = `${noteName}${octave}`;
-      const pos = (midi - 21) / 87; // 0.0 (A0) to 1.0 (C8)
-
-      vizState.pitchState.active = true;
-      vizState.pitchState.note = noteStr;
-      vizState.pitchState.freq = Math.round(freq);
-      vizState.pitchState.rawPos = pos;
-      vizState.pitchState.smoothedPos += (pos - vizState.pitchState.smoothedPos) * 0.32;
-      vizState.pitchState.energy = effectiveEnergy;
-      return;
-    }
-  }
-
-  // Decay when quiet
-  if (vizState.pitchState.active) {
-    vizState.pitchState.energy *= 0.88;
-    if (vizState.pitchState.energy < 0.05) {
-      vizState.pitchState.active = false;
-    }
-  }
-}
-
-function simulateGenerativePitch() {
-  const notes = ['C2', 'E2', 'G2', 'A2', 'C3', 'E3', 'G3', 'A3', 'C4', 'E4', 'G4', 'A4', 'C5', 'E5', 'G5', 'A5'];
-  const freqs = [65, 82, 98, 110, 131, 165, 196, 220, 261, 330, 392, 440, 523, 659, 784, 880];
-  const idx = Math.floor((Math.sin(vizState.phase * 0.8) * 0.5 + 0.5) * (notes.length - 1));
-  const pos = idx / (notes.length - 1);
-
-  vizState.pitchState.active = true;
-  vizState.pitchState.note = notes[idx];
-  vizState.pitchState.freq = freqs[idx];
-  vizState.pitchState.rawPos = pos;
-  vizState.pitchState.smoothedPos += (pos - vizState.pitchState.smoothedPos) * 0.18;
-  vizState.pitchState.energy = 0.4 + vizState.smoothedBass * 0.5;
-}
-
 function renderVisualizerFrame(ctx) {
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -3495,38 +3404,37 @@ function renderVisualizerFrame(ctx) {
     for (let i = m0; i <= m1; i++) mSum += vizState.dataArray[i];
     const mCount = Math.max(1, m1 - m0 + 1);
 
-    // HIGH: 2500 Hz - 12000 Hz (bins ~116 to ~558)
+    // HIGH: 2500 Hz - 7500 Hz (bins ~116 to ~348)
     const h0 = m1 + 1;
-    const h1 = Math.min(vizState.dataArray.length - 1, Math.floor(12000 / binSize));
+    const h1 = Math.min(vizState.dataArray.length - 1, Math.floor(7500 / binSize));
     let hSum = 0;
     for (let i = h0; i <= h1; i++) hSum += vizState.dataArray[i];
     const hCount = Math.max(1, h1 - h0 + 1);
 
-    // Scale with Sensitivity Boost and equal-loudness tilt
-    const sens = vizState.sensitivity;
-    bass = Math.min(1, ((bSum / bCount) / 255) * sens);
-    mid = Math.min(1, ((mSum / mCount) / 255) * sens * 1.5);
-    high = Math.min(1, ((hSum / hCount) / 255) * sens * 2.8);
+    // Perceptual logarithmic scaling so mids and highs move in energetic balance
+    const rawBass = (bSum / bCount) / 255;
+    const rawMid = (mSum / mCount) / 255;
+    const rawHigh = (hSum / hCount) / 255;
 
-    // Detect musical keyboard pitch & note
-    detectMusicalPitch(vizState.dataArray, sampleRate);
+    const sens = vizState.sensitivity;
+    bass = Math.min(1, Math.pow(rawBass, 0.75) * sens * 0.9);
+    mid = Math.min(1, Math.pow(rawMid, 0.65) * sens * 1.8);
+    high = Math.min(1, Math.pow(rawHigh, 0.6) * sens * 3.2);
   } else {
     // Generative procedural motion
     const t = vizState.phase;
     bass = (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.65 + (Math.sin(t * 3.4) * 0.15);
     mid = (Math.sin(t * 2.2 + 1) * 0.5 + 0.5) * 0.5;
-    high = (Math.sin(t * 4.1 + 2) * 0.5 + 0.5) * 0.4;
+    high = (Math.sin(t * 4.1 + 2) * 0.5 + 0.5) * 0.45;
     bass = Math.max(0, Math.min(1, bass));
     mid = Math.max(0, Math.min(1, mid));
     high = Math.max(0, Math.min(1, high));
-
-    simulateGenerativePitch();
   }
 
   // Smooth lerp
   vizState.smoothedBass += (bass - vizState.smoothedBass) * 0.22;
-  vizState.smoothedMid += (mid - vizState.smoothedMid) * 0.22;
-  vizState.smoothedHigh += (high - vizState.smoothedHigh) * 0.22;
+  vizState.smoothedMid += (mid - vizState.smoothedMid) * 0.24;
+  vizState.smoothedHigh += (high - vizState.smoothedHigh) * 0.26;
 
   // Energy meters HUD
   const bBar = document.getElementById('vizMeterBass');
@@ -3536,44 +3444,15 @@ function renderVisualizerFrame(ctx) {
   if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 110))}%`;
   if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 110))}%`;
 
-  // Musical Note & Keyboard Pitch HUD updates
-  const noteBadge = document.getElementById('vizPitchNote');
-  const freqBadge = document.getElementById('vizPitchFreq');
-  const keyInd = document.getElementById('vizKeyboardIndicator');
-  if (noteBadge) {
-    noteBadge.textContent = vizState.pitchState.active ? vizState.pitchState.note : '--';
-  }
-  if (freqBadge) {
-    freqBadge.textContent = vizState.pitchState.active ? `(${vizState.pitchState.freq} Hz)` : '';
-  }
-  if (keyInd) {
-    keyInd.style.left = `${(vizState.pitchState.smoothedPos * 100).toFixed(1)}%`;
-    keyInd.classList.toggle('active', vizState.pitchState.active);
-  }
-
-  // Background Backdrop Rendering (100% Solid Black, Ambient Breathe, or Dynamic Pulse)
+  // Background Backdrop Rendering (Solid Pure Black or Dynamic Pulse)
   const bg = vizState.background;
 
   if (bg === 'black') {
     // 1. SOLID PURE BLACK (100% Static - pitch-black void, zero movement, zero distraction)
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
-  } else if (bg === 'ambient') {
-    // 2. AMBIENT BREATHE (Gentle, soft luminescent breathing for slow/mellow/chillout tracks)
-    ctx.fillStyle = 'rgba(7, 7, 12, 0.32)';
-    ctx.fillRect(0, 0, width, height);
-
-    const breath = Math.sin(vizState.phase * 0.4) * 0.015 + 0.04 + vizState.smoothedBass * 0.035;
-    const rad = Math.max(width, height) * 0.58;
-    const ambGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, rad);
-    const ambHue = (vizState.phase * 20) % 360;
-    ambGrad.addColorStop(0, `hsla(${ambHue}, 70%, 55%, ${breath})`);
-    ambGrad.addColorStop(0.6, `hsla(${(ambHue + 60) % 360}, 60%, 40%, ${breath * 0.4})`);
-    ambGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
-    ctx.fillStyle = ambGrad;
-    ctx.fillRect(0, 0, width, height);
   } else {
-    // 3. DYNAMIC PULSE (High-energy audio-reactive punch & glow for club/fast/electronic tracks)
+    // 2. DYNAMIC PULSE (High-energy audio-reactive punch & glow for club/fast/electronic tracks)
     ctx.fillStyle = 'rgba(7, 7, 12, 0.28)';
     ctx.fillRect(0, 0, width, height);
 
@@ -3601,9 +3480,9 @@ function renderVisualizerFrame(ctx) {
     drawVizShockwaves(ctx, width, height);
   }
 
-  // Draw floating stardust particles (only on Ambient and Dynamic backdrops so Static modes remain 100% still)
-  if (bg === 'ambient' || bg === 'dynamic') {
-    drawVizParticles(ctx, width, height, bg === 'ambient');
+  // Draw floating stardust particles (only on Dynamic backdrop so Pure Black mode remains 100% still)
+  if (bg === 'dynamic') {
+    drawVizParticles(ctx, width, height, false);
   }
 }
 
@@ -3627,82 +3506,74 @@ function getVizGradient(ctx, x0, y0, x1, y1) {
 function drawVizWaves(ctx, width, height) {
   const centerY = height / 2;
   const numWaves = 4;
-  const points = 120;
-  const sliceWidth = width / (points - 1);
+  const numPoints = 120;
+  const sliceWidth = width / (numPoints - 1);
 
-  // 1. Musical Key Halo / Aura column at played keyboard pitch position
-  if (vizState.pitchState.active) {
-    const keyX = vizState.pitchState.smoothedPos * width;
-    const auraRadius = 140;
-    const auraGrad = ctx.createRadialGradient(keyX, centerY, 0, keyX, centerY, auraRadius);
-    const hue = (vizState.pitchState.smoothedPos * 360);
-    auraGrad.addColorStop(0, `hsla(${hue}, 100%, 65%, 0.35)`);
-    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = auraGrad;
-    ctx.beginPath();
-    ctx.arc(keyX, centerY, auraRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Vertical note beam
-    ctx.beginPath();
-    ctx.moveTo(keyX, centerY - 110);
-    ctx.lineTo(keyX, centerY + 110);
-    ctx.lineWidth = 1.6;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
-    ctx.shadowBlur = 12;
-    ctx.stroke();
-
-    // Floating note badge above wave
-    ctx.font = 'bold 13px "SF Mono", Monaco, monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = '#000000';
-    ctx.shadowBlur = 8;
-    ctx.textAlign = 'center';
-    ctx.fillText(`🎹 ${vizState.pitchState.note}`, keyX, centerY - 120);
+  // Pre-filter/smooth time-domain audio data to eliminate jagged digitization kinks
+  let smoothedAudio = null;
+  if (vizState.micActive && vizState.timeArray) {
+    const rawLen = vizState.timeArray.length;
+    smoothedAudio = new Float32Array(numPoints);
+    for (let i = 0; i < numPoints; i++) {
+      const centerIdx = Math.floor((i / (numPoints - 1)) * (rawLen - 1));
+      // 5-sample window moving average for silky smooth waveform
+      let sum = 0;
+      let count = 0;
+      for (let offset = -2; offset <= 2; offset++) {
+        const idx = Math.min(rawLen - 1, Math.max(0, centerIdx + offset));
+        sum += (vizState.timeArray[idx] - 128) / 128; // -1 to 1
+        count++;
+      }
+      smoothedAudio[i] = sum / count;
+    }
   }
 
-  // 2. Oscilloscope wave ribbons
+  // Oscilloscope wave ribbons with smooth quadratic Bezier curves
   for (let w = 0; w < numWaves; w++) {
-    const wavePhase = vizState.phase * (1 + w * 0.3) + w * 1.5;
-    const amplitude = (50 + w * 30 + vizState.smoothedBass * 130 + vizState.smoothedMid * 70);
+    const wavePhase = vizState.phase * (1 + w * 0.28) + w * 1.57;
+    // Amplitude driven by full frequency spectrum (bass punch + mid body + high shimmer)
+    const baseAmp = 35 + w * 22;
+    const dynamicAmp = (vizState.smoothedBass * 140 + vizState.smoothedMid * 95 + vizState.smoothedHigh * 60) * (vizState.sensitivity * 0.45);
+    const amplitude = baseAmp + dynamicAmp;
+
+    // Calculate smooth 2D control points
+    const pts = [];
+    for (let i = 0; i < numPoints; i++) {
+      const x = i * sliceWidth;
+      const norm = i / (numPoints - 1);
+      // Window tapering at screen edges for elegant fade-in/fade-out
+      const edgeTaper = Math.sin(norm * Math.PI);
+
+      let audioMod = 0;
+      if (smoothedAudio) {
+        audioMod = smoothedAudio[i] * amplitude * 1.6 * edgeTaper;
+      }
+
+      // Smooth compound harmonics
+      const s1 = Math.sin(norm * 6.28 * 2.0 + wavePhase) * (amplitude * 0.7);
+      const s2 = Math.cos(norm * 6.28 * 4.0 - wavePhase * 0.8) * (amplitude * 0.35);
+      const y = centerY + (s1 + s2) * edgeTaper + audioMod;
+      pts.push({ x, y });
+    }
 
     ctx.save();
     ctx.beginPath();
-    ctx.lineWidth = 3 - w * 0.4;
+    ctx.lineWidth = Math.max(1.8, 3.6 - w * 0.5);
     ctx.strokeStyle = getVizGradient(ctx, 0, 0, width, 0);
-    const waveHue = (w * 90 + vizState.phase * 50) % 360;
+
+    const waveHue = (w * 90 + vizState.phase * 40) % 360;
     ctx.shadowColor = `hsl(${waveHue}, 100%, 60%)`;
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = 16;
+    ctx.globalAlpha = 0.85 - w * 0.15;
 
-    for (let i = 0; i < points; i++) {
-      const x = i * sliceWidth;
-      let audioMod = 0;
-
-      if (vizState.timeArray) {
-        const sampleIdx = Math.floor((i / points) * vizState.timeArray.length);
-        const sample = (vizState.timeArray[sampleIdx] - 128) / 128; // -1 to 1
-        audioMod = sample * (amplitude * 1.4);
-      }
-
-      // Pitch keyboard localized resonance
-      let pitchMod = 0;
-      if (vizState.pitchState.active) {
-        const normX = i / (points - 1);
-        const dist = Math.abs(normX - vizState.pitchState.smoothedPos);
-        if (dist < 0.15) {
-          pitchMod = Math.sin((normX - vizState.pitchState.smoothedPos) * Math.PI / 0.15 + vizState.phase * 6) * (amplitude * 0.5);
-        }
-      }
-
-      const sin1 = Math.sin((i * 0.05) + wavePhase) * amplitude;
-      const sin2 = Math.cos((i * 0.02) - wavePhase * 0.7) * (amplitude * 0.5);
-      const y = centerY + sin1 + sin2 + audioMod + pitchMod;
-
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    // Draw perfectly smooth continuous Bezier curve through midpoints (no kinks)
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const xc = (pts[i].x + pts[i + 1].x) / 2;
+      const yc = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
     }
-
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
     ctx.stroke();
     ctx.restore();
   }
@@ -3715,14 +3586,15 @@ function drawVizBars(ctx, width, height) {
   const totalWidth = barCount * (barWidth + gap);
   const startX = (width - totalWidth) / 2;
   const baseHeight = height * 0.74;
-  const maxHeight = height * 0.46;
+  const maxHeight = height * 0.50;
 
   const sampleRate = (vizState.audioCtx ? vizState.audioCtx.sampleRate : 44100);
   const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
   const binSize = sampleRate / fftSize; // ~21.5 Hz per bin
 
-  const minFreq = 28;     // Sub-bass / A0
-  const maxFreq = 12000;  // High brilliance
+  // Focus on active musical frequency range (32 Hz to 7500 Hz)
+  const minFreq = 32;
+  const maxFreq = 7500;
 
   ctx.save();
 
@@ -3751,13 +3623,17 @@ function drawVizBars(ctx, width, height) {
       }
 
       const avgBinVal = count > 0 ? (sumBinVal / count) : 0;
-      // Blend peak and average for maximum musical punch & fullness
       const rawVal = (maxBinVal * 0.75 + avgBinVal * 0.25) / 255;
 
-      // Perceptual pink-noise tilt compensation: boosts mid/high frequencies
-      // so upper keyboard notes, cymbals, vocals, and synths dance with high energy
-      const tiltComp = 1.0 + Math.pow(norm, 0.85) * 2.4;
-      barVal = Math.min(1.0, rawVal * tiltComp * vizState.sensitivity);
+      // Dynamic range expansion (square-root curve) lifts quiet high-frequency details into view
+      const expandedVal = Math.pow(rawVal, 0.65);
+
+      // Progressive equal-loudness tilt compensation:
+      // Bass is 1.0x, Mids are ~3.2x, Highs are ~5.6x
+      const tiltComp = 1.0 + Math.pow(norm, 0.9) * 4.6;
+
+      // Scale with high sensitivity gain
+      barVal = Math.min(1.0, expandedVal * tiltComp * (vizState.sensitivity * 0.55));
     } else {
       // Generative procedural motion
       const t = vizState.phase * 2.2 + i * 0.18;
@@ -3797,38 +3673,6 @@ function drawVizBars(ctx, width, height) {
     ctx.fillRect(x, peakY, barWidth, 2);
   }
 
-  // Musical Key Note Highlight above corresponding bar
-  if (vizState.pitchState.active) {
-    const activeBarIdx = Math.min(barCount - 1, Math.max(0, Math.floor(vizState.pitchState.smoothedPos * barCount)));
-    const activeX = startX + activeBarIdx * (barWidth + gap);
-    const activeBarH = vizState.barsPeaks[activeBarIdx] || (maxHeight * 0.5);
-    const activeY = baseHeight - activeBarH;
-    const activeHue = (activeBarIdx / barCount) * 360;
-
-    // Glowing vertical spotlight beam
-    const beamGrad = ctx.createLinearGradient(activeX, activeY, activeX, activeY - 80);
-    beamGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
-    beamGrad.addColorStop(1, `hsla(${activeHue}, 100%, 65%, 0)`);
-    ctx.fillStyle = beamGrad;
-    ctx.fillRect(activeX - 2, activeY - 80, barWidth + 4, 80);
-
-    // Glowing white crown
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = `hsl(${activeHue}, 100%, 60%)`;
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(activeX + barWidth / 2, activeY - 6, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Note name badge
-    ctx.font = 'bold 12px "SF Mono", Monaco, monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = '#000000';
-    ctx.shadowBlur = 6;
-    ctx.textAlign = 'center';
-    ctx.fillText(vizState.pitchState.note, activeX + barWidth / 2, activeY - 88);
-  }
-
   ctx.restore();
 }
 
@@ -3840,8 +3684,9 @@ function drawVizTerrain(ctx, width, height) {
   const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
   const binSize = sampleRate / fftSize;
 
-  const minFreq = 28;
-  const maxFreq = 12000;
+  // Focus on active musical frequency range (32 Hz to 7500 Hz)
+  const minFreq = 32;
+  const maxFreq = 7500;
 
   // 1. Capture current frequency slice across musical spectrum
   const slice = new Float32Array(numCols);
@@ -3865,8 +3710,9 @@ function drawVizTerrain(ctx, width, height) {
       }
       const avgVal = count > 0 ? (sumVal / count) : 0;
       const rawVal = (maxVal * 0.75 + avgVal * 0.25) / 255;
-      const tiltComp = 1.0 + Math.pow(norm, 0.85) * 2.4;
-      slice[c] = Math.min(1.0, rawVal * tiltComp * vizState.sensitivity);
+      const expandedVal = Math.pow(rawVal, 0.65);
+      const tiltComp = 1.0 + Math.pow(norm, 0.9) * 4.6;
+      slice[c] = Math.min(1.0, expandedVal * tiltComp * (vizState.sensitivity * 0.55));
     }
   } else {
     // Generative synth landscape
@@ -3979,48 +3825,6 @@ function drawVizTerrain(ctx, width, height) {
     ctx.stroke();
   }
 
-  // Musical Summit Laser & Note Beacon on the 3D Mountain
-  if (vizState.pitchState.active && gridPoints.length > 0) {
-    const activeCol = Math.min(numCols - 1, Math.max(0, Math.floor(vizState.pitchState.smoothedPos * numCols)));
-    const frontRow = gridPoints[gridPoints.length - 1];
-    const peakPt = frontRow[activeCol];
-
-    if (peakPt) {
-      const activeHue = vizState.pitchState.smoothedPos * 360;
-      // Vertical neon laser beacon shooting from summit
-      ctx.globalAlpha = 1.0;
-      ctx.beginPath();
-      ctx.moveTo(peakPt.x, peakPt.y);
-      ctx.lineTo(peakPt.x, peakPt.y - 130);
-      ctx.lineWidth = 2.4;
-      ctx.strokeStyle = '#ffffff';
-      ctx.shadowColor = `hsl(${activeHue}, 100%, 65%)`;
-      ctx.shadowBlur = 18;
-      ctx.stroke();
-
-      // Glowing summit star diamond
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(peakPt.x, peakPt.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Floating Note Badge
-      ctx.font = 'bold 12px "SF Mono", Monaco, monospace';
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 6;
-      ctx.textAlign = 'center';
-      ctx.fillText(`🏔️ ${vizState.pitchState.note}`, peakPt.x, peakPt.y - 138);
-
-      // Concentric terrain ring ripples
-      ctx.beginPath();
-      ctx.ellipse(peakPt.x, peakPt.y, 40, 12, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-    }
-  }
-
   ctx.restore();
 }
 
@@ -4125,7 +3929,7 @@ function bindAllEvents() {
   // Restore saved visualizer preferences
   try {
     const savedBg = localStorage.getItem('viz_backdrop');
-    if (savedBg && ['black', 'ambient', 'dynamic'].includes(savedBg)) {
+    if (savedBg && ['black', 'dynamic'].includes(savedBg)) {
       setVisualizerBg(savedBg);
     } else {
       setVisualizerBg('black');
@@ -4138,9 +3942,14 @@ function bindAllEvents() {
     }
     const savedGain = localStorage.getItem('viz_sensitivity');
     if (savedGain) {
-      vizState.sensitivity = parseFloat(savedGain) || 1.0;
-      const label = document.getElementById('vizGainLabel');
-      if (label) label.textContent = `Gain: ${vizState.sensitivity}x`;
+      vizState.sensitivity = parseFloat(savedGain) || 2.5;
+    } else {
+      vizState.sensitivity = 2.5;
+    }
+    const label = document.getElementById('vizGainLabel');
+    if (label) {
+      const text = vizState.sensitivity === 2.5 ? 'Gain: High (2.5x)' : vizState.sensitivity === 4.0 ? 'Gain: Max (4x)' : 'Gain: Normal (1.5x)';
+      label.textContent = text;
     }
   } catch (e) {}
 
