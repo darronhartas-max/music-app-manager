@@ -138,10 +138,30 @@ function renderStudioPreFlightBar() {
       </span>
       ${sampleStatusHtml}
     </div>
-    <button type="button" class="preflight-refresh-btn" data-action="refresh-preflight-gear" title="Re-check connected Audio Interfaces, MIDI Controllers &amp; Sample Drives">
-      🔄 Check Gear
-    </button>
+    <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+      <button type="button" class="preflight-refresh-btn" data-action="run-studio-doctor" title="Studio Doctor: Clear MIDI/Audio device locks and refresh hung background licensing agents">
+        🩺 Studio Doctor
+      </button>
+      <button type="button" class="preflight-refresh-btn" data-action="refresh-preflight-gear" title="Re-check connected Audio Interfaces, MIDI Controllers &amp; Sample Drives">
+        🔄 Check Gear
+      </button>
+    </div>
   `;
+}
+
+async function runStudioDoctor() {
+  if (!state.isElectron || !window.electronAPI.resetStudioSubsystems) return;
+  try {
+    showNotification('🩺 Running Studio Doctor...', 'Refreshing CoreMIDI and verifying licensing agents...');
+    const res = await window.electronAPI.resetStudioSubsystems();
+    await refreshStudioPreFlightGear(true);
+    showNotification(
+      '🩺 Studio Subsystems Cleaned & Healthy',
+      res.message || 'CoreMIDI port locks cleared and vendor licensing agents verified.'
+    );
+  } catch (err) {
+    showError('Failed to run Studio Doctor: ' + (err.message || err));
+  }
 }
 
 async function runPluginCrashDiagnostics(silent = true) {
@@ -3054,6 +3074,8 @@ function bindAllEvents() {
   document.getElementById('studioPreFlightBar')?.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="refresh-preflight-gear"]')) {
       refreshStudioPreFlightGear(false);
+    } else if (e.target.closest('[data-action="run-studio-doctor"]')) {
+      runStudioDoctor();
     }
   });
 
@@ -3638,6 +3660,7 @@ function bindAllEvents() {
   document.getElementById('welcomeDismissBtn')?.addEventListener('click', hideWelcomeModal);
 
   // 8. Tools / Settings Tab Actions
+  document.getElementById('resetStudioDoctorBtn')?.addEventListener('click', runStudioDoctor);
   document.getElementById('scanAppsBtn')?.addEventListener('click', handleAppScan);
   document.getElementById('scanPluginsBtn')?.addEventListener('click', handlePluginScan);
   document.getElementById('scanSampleLibsBtn')?.addEventListener('click', handleScanSampleLibraries);

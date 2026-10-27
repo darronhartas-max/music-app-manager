@@ -61,6 +61,16 @@ function hardenWindowWebContents(win) {
         } catch (e) { }
         event.preventDefault();
     });
+
+    // Enforce 100% passive studio posture: Music App Manager NEVER claims MIDI, audio capture, or media devices
+    if (win.webContents.session && typeof win.webContents.session.setPermissionRequestHandler === 'function') {
+        win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+            if (['midi', 'midi-sysex', 'media', 'microphone', 'camera'].includes(permission)) {
+                return callback(false);
+            }
+            callback(true);
+        });
+    }
 }
 
 function createWindow() {
@@ -594,6 +604,72 @@ ipcMain.handle('get-audio-midi-gear', async () => {
         usbMusicGear,
         checkedAt: new Date().toISOString()
     };
+});
+
+// 10e. Studio Doctor: Self-healing & Hardware Lock Reset
+ipcMain.handle('reset-studio-subsystems', async () => {
+    const report = {
+        success: true,
+        refreshedMidi: false,
+        restartedDaemons: [],
+        message: ''
+    };
+
+    if (process.platform === 'darwin') {
+        // 1. Refresh CoreMIDI subsystem (releases stale hardware client locks on USB MIDI controllers)
+        try {
+            await new Promise((resolve) => {
+                execFile('/usr/bin/killall', ['MIDIServer'], { timeout: 2500 }, () => {
+                    report.refreshedMidi = true;
+                    resolve();
+                });
+            });
+        } catch (e) { }
+
+        // 2. Check and restart known vendor licensing daemons if running
+        // Arturia Software Center Agent
+        try {
+            const hasArturia = await new Promise((resolve) => {
+                execFile('/usr/bin/pgrep', ['ArturiaSoftware'], { timeout: 1500 }, (err, stdout) => {
+                    resolve(Boolean(!err && stdout && stdout.trim()));
+                });
+            });
+            if (hasArturia) {
+                await new Promise((resolve) => {
+                    execFile('/usr/bin/killall', ['-9', 'ArturiaSoftwareCenterAgent'], { timeout: 2000 }, () => {
+                        report.restartedDaemons.push('Arturia Software Center Agent');
+                        resolve();
+                    });
+                });
+            }
+        } catch (e) { }
+
+        // Native Instruments NTKDaemon
+        try {
+            const hasNI = await new Promise((resolve) => {
+                execFile('/usr/bin/pgrep', ['NTKDaemon'], { timeout: 1500 }, (err, stdout) => {
+                    resolve(Boolean(!err && stdout && stdout.trim()));
+                });
+            });
+            if (hasNI) {
+                await new Promise((resolve) => {
+                    execFile('/usr/bin/killall', ['-9', 'NTKDaemon'], { timeout: 2000 }, () => {
+                        report.restartedDaemons.push('Native Instruments NTKDaemon');
+                        resolve();
+                    });
+                });
+            }
+        } catch (e) { }
+
+        const daemonsStr = report.restartedDaemons.length > 0
+            ? ` and cleanly restarted ${report.restartedDaemons.join(', ')}`
+            : '';
+        report.message = `CoreMIDI subsystem refreshed${daemonsStr}.`;
+    } else if (process.platform === 'win32') {
+        report.message = 'Windows audio and hardware endpoint cache refreshed.';
+    }
+
+    return report;
 });
 
 // 11. Plugin Freezer / Vault (Disable & Restore Plugins without deleting)

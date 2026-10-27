@@ -307,9 +307,13 @@
         <!-- 6. Library Maintenance & Storage -->
         <div class="settings-section">
           <h2 class="settings-title">💾 Library Maintenance</h2>
-          <p class="settings-description">Manage configuration files, refresh app icons, and remove missing software.</p>
+          <p class="settings-description">Manage configuration files, refresh app icons, or run the 1-click Studio Reset Doctor to unfreeze hung audio/MIDI daemons.</p>
 
           <div class="settings-actions">
+            <button id="resetStudioDoctorBtn" class="action-btn" title="Refresh CoreMIDI, clear hardware port locks, and restart hung vendor license agents (Arturia, NI, etc.) without rebooting">
+              <span class="btn-icon">🩺</span>
+              Studio Reset &amp; Hardware Doctor
+            </button>
             <button id="refreshIconsBtn" class="action-btn">
               <span class="btn-icon">🖼️</span>
               Refresh App Icons

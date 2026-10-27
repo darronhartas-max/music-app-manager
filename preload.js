@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Studio Pre-Flight Check: Connected Audio Interfaces & MIDI/USB Gear
     getAudioMidiGear: () => ipcRenderer.invoke('get-audio-midi-gear'),
+    resetStudioSubsystems: () => ipcRenderer.invoke('reset-studio-subsystems'),
 
     // Freeze / Unfreeze a plugin file into or out of the Plugin Vault
     setPluginFrozen: (payload) => ipcRenderer.invoke('set-plugin-frozen', payload),
