@@ -3337,23 +3337,46 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
    Apps Layout Toggle (Icons Grid vs Compact List)
    ============================================ */
 
-.apps-layout-toggle {
+.layout-toggle {
   display: inline-flex;
 }
 
-.apps-layout-toggle .segment-btn {
+.layout-toggle-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
+  padding: 0.375rem 0.875rem;
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-secondary) !important;
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  border-radius: calc(var(--radius-sm) - 2px);
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: all 0.25s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  box-shadow: none !important;
 }
 
-.apps-layout-toggle .segment-btn .btn-icon {
+.layout-toggle-btn:hover {
+  color: var(--text-primary) !important;
+  background: var(--hover-bg) !important;
+}
+
+.layout-toggle-btn.active {
+  background: var(--accent-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: var(--shadow-glow) !important;
+}
+
+.layout-toggle-btn:not(.active) {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+}
+
+.layout-toggle-btn .btn-icon {
   font-size: 0.85rem;
   line-height: 1;
 }
@@ -3600,6 +3623,7 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
 
   .quick-filter-btn,
   .view-btn,
+  .layout-toggle-btn,
   .segment-btn,
   .toolbar-btn {
     padding: 0.28rem 0.55rem;

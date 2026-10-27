@@ -297,13 +297,15 @@ async function saveConfig() {
 }
 
 function updateAppLayoutToggleUI() {
-  document.querySelectorAll('[data-app-layout]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.appLayout === state.appLayoutMode);
+  const currentMode = state.appLayoutMode || 'grid';
+  document.querySelectorAll('.layout-toggle-btn').forEach(btn => {
+    const isActive = btn.dataset.appLayout === currentMode;
+    btn.classList.toggle('active', isActive);
   });
   const container = document.getElementById('appsContainer');
   if (container) {
-    container.classList.toggle('layout-list', state.appLayoutMode === 'list');
-    container.classList.toggle('layout-grid', state.appLayoutMode !== 'list');
+    container.classList.toggle('layout-list', currentMode === 'list');
+    container.classList.toggle('layout-grid', currentMode !== 'list');
   }
 }
 
@@ -649,6 +651,8 @@ function findAppByPath(appPath) {
 function renderApps() {
   const container = document.getElementById('appsContainer');
   if (!container) return;
+
+  updateAppLayoutToggleUI();
 
   const isList = state.appLayoutMode === 'list';
   container.classList.toggle('edit-mode', state.editMode);
@@ -1542,7 +1546,7 @@ function renderPlugins() {
   if (!tbody) return;
 
   // Update view mode buttons
-  document.querySelectorAll('.segment-btn').forEach(btn => {
+  document.querySelectorAll('#pluginsTab .segment-btn[data-mode]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === state.pluginViewMode);
   });
 
@@ -3116,9 +3120,11 @@ function bindAllEvents() {
     });
   });
 
-  document.querySelectorAll('[data-app-layout]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const layout = btn.dataset.appLayout;
+  document.querySelectorAll('.layout-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const targetBtn = e.target.closest('.layout-toggle-btn');
+      if (!targetBtn) return;
+      const layout = targetBtn.dataset.appLayout;
       if (!layout || layout === state.appLayoutMode) return;
       state.appLayoutMode = layout;
       if (!state.appData.settings) state.appData.settings = {};
@@ -3394,8 +3400,9 @@ function bindAllEvents() {
     });
   });
 
-  document.querySelectorAll('.segment-btn').forEach(btn => {
+  document.querySelectorAll('#pluginsTab .segment-btn[data-mode]').forEach(btn => {
     btn.addEventListener('click', async () => {
+      if (!btn.dataset.mode) return;
       state.pluginViewMode = btn.dataset.mode;
       state.pluginPage = 1;
       state.appData.settings.pluginViewMode = state.pluginViewMode;
