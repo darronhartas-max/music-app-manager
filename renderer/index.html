@@ -310,9 +310,13 @@
           <p class="settings-description">Manage configuration files, refresh app icons, or run the 1-click Studio Reset Doctor to unfreeze hung audio/MIDI daemons.</p>
 
           <div class="settings-actions">
-            <button id="resetStudioDoctorBtn" class="action-btn" title="Refresh CoreMIDI, clear hardware port locks, and restart hung vendor license agents (Arturia, NI, etc.) without rebooting">
-              <span class="btn-icon">🩺</span>
-              Studio Reset &amp; Hardware Doctor
+            <button id="resetStudioDoctorBtn" class="action-btn doctor-action-btn" title="Refresh CoreMIDI, clear hardware port locks, and restart hung vendor license agents (Arturia, NI, etc.) without rebooting">
+              <svg class="doctor-icon-svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <rect x="8.5" y="2" width="7" height="20" rx="2.5" fill="#10B981"/>
+                <rect x="2" y="8.5" width="20" height="7" rx="2.5" fill="#10B981"/>
+                <path d="M4.5 12h2.5l2-4 3 8 2-6 2 3 1-1h2.5" stroke="#0a0d14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              </svg>
+              <span>Studio Reset &amp; Hardware Doctor</span>
             </button>
             <button id="refreshIconsBtn" class="action-btn">
               <span class="btn-icon">🖼️</span>

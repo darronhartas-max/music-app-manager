@@ -3259,3 +3259,56 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   border-color: var(--accent-primary);
   color: var(--text-primary);
 }
+
+/* Studio Doctor Rescue Button */
+.preflight-doctor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.18);
+}
+
+.preflight-doctor-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #a7f3d0;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.45);
+  transform: translateY(-1px);
+}
+
+.doctor-icon-svg {
+  display: block;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.7));
+  transition: transform 0.2s ease;
+}
+
+.preflight-doctor-btn:hover .doctor-icon-svg,
+.doctor-action-btn:hover .doctor-icon-svg {
+  transform: scale(1.12);
+}
+
+.doctor-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  color: #6ee7b7 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+}
+
+.doctor-action-btn:hover {
+  background: rgba(16, 185, 129, 0.16) !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.35) !important;
+}

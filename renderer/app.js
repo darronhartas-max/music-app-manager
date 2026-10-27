@@ -138,9 +138,14 @@ function renderStudioPreFlightBar() {
       </span>
       ${sampleStatusHtml}
     </div>
-    <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-      <button type="button" class="preflight-refresh-btn" data-action="run-studio-doctor" title="Studio Doctor: Clear MIDI/Audio device locks and refresh hung background licensing agents">
-        🩺 Studio Doctor
+    <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+      <button type="button" class="preflight-doctor-btn" data-action="run-studio-doctor" title="Studio Doctor: Clear MIDI/Audio device locks and refresh hung background licensing agents">
+        <svg class="doctor-icon-svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <rect x="8.5" y="2" width="7" height="20" rx="2.5" fill="#10B981"/>
+          <rect x="2" y="8.5" width="20" height="7" rx="2.5" fill="#10B981"/>
+          <path d="M4.5 12h2.5l2-4 3 8 2-6 2 3 1-1h2.5" stroke="#0a0d14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span>Studio Doctor</span>
       </button>
       <button type="button" class="preflight-refresh-btn" data-action="refresh-preflight-gear" title="Re-check connected Audio Interfaces, MIDI Controllers &amp; Sample Drives">
         🔄 Check Gear
