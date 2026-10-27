@@ -3278,17 +3278,35 @@ function renderVisualizerFrame(ctx) {
   // Background radial pulse on heavy bass hits
   const pulseRadius = Math.max(width, height) * (0.35 + vizState.smoothedBass * 0.35);
   const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, pulseRadius);
-  if (vizState.theme === 'eclipse') {
+  const theme = vizState.theme;
+
+  if (theme === 'eclipse') {
     bgGrad.addColorStop(0, `rgba(0, 255, 135, ${0.08 + vizState.smoothedBass * 0.18})`);
     bgGrad.addColorStop(0.5, `rgba(255, 94, 54, ${0.05 + vizState.smoothedBass * 0.1})`);
     bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
-  } else if (vizState.theme === 'prism') {
+  } else if (theme === 'prism') {
     bgGrad.addColorStop(0, `rgba(0, 240, 255, ${0.08 + vizState.smoothedBass * 0.14})`);
     bgGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.05 + vizState.smoothedBass * 0.1})`);
     bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
-  } else {
+  } else if (theme === 'cyber') {
     bgGrad.addColorStop(0, `rgba(0, 240, 255, ${0.09 + vizState.smoothedBass * 0.14})`);
     bgGrad.addColorStop(0.5, `rgba(255, 0, 127, ${0.06 + vizState.smoothedBass * 0.11})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  } else if (theme === 'aurora') {
+    bgGrad.addColorStop(0, `rgba(16, 185, 129, ${0.09 + vizState.smoothedBass * 0.15})`);
+    bgGrad.addColorStop(0.5, `rgba(192, 132, 252, ${0.05 + vizState.smoothedBass * 0.1})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  } else if (theme === 'solar') {
+    bgGrad.addColorStop(0, `rgba(253, 224, 71, ${0.09 + vizState.smoothedBass * 0.16})`);
+    bgGrad.addColorStop(0.5, `rgba(220, 38, 38, ${0.06 + vizState.smoothedBass * 0.12})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  } else if (theme === 'ocean') {
+    bgGrad.addColorStop(0, `rgba(45, 212, 191, ${0.09 + vizState.smoothedBass * 0.14})`);
+    bgGrad.addColorStop(0.5, `rgba(29, 78, 216, ${0.06 + vizState.smoothedBass * 0.1})`);
+    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+  } else {
+    bgGrad.addColorStop(0, `rgba(0, 255, 135, ${0.08 + vizState.smoothedBass * 0.18})`);
+    bgGrad.addColorStop(0.5, `rgba(255, 94, 54, ${0.05 + vizState.smoothedBass * 0.1})`);
     bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
   }
   ctx.fillStyle = bgGrad;
@@ -3299,6 +3317,12 @@ function renderVisualizerFrame(ctx) {
     drawVizRings(ctx, width, height);
   } else if (vizState.style === 'bars') {
     drawVizBars(ctx, width, height);
+  } else if (vizState.style === 'nebula') {
+    drawVizNebula(ctx, width, height);
+  } else if (vizState.style === 'kaleidoscope') {
+    drawVizKaleidoscope(ctx, width, height);
+  } else if (vizState.style === 'lissajous') {
+    drawVizLissajous(ctx, width, height);
   } else {
     drawVizWaves(ctx, width, height);
   }
@@ -3307,22 +3331,53 @@ function renderVisualizerFrame(ctx) {
   drawVizParticles(ctx, width, height);
 }
 
+function getVizThemeGlowColor() {
+  switch (vizState.theme) {
+    case 'eclipse': return '#00ff87';
+    case 'prism': return '#a855f7';
+    case 'cyber': return '#00f0ff';
+    case 'aurora': return '#10b981';
+    case 'solar': return '#ff5722';
+    case 'ocean': return '#38bdf8';
+    default: return '#00ff87';
+  }
+}
+
 function getVizGradient(ctx, x0, y0, x1, y1) {
   const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-  if (vizState.theme === 'eclipse') {
+  const theme = vizState.theme;
+
+  if (theme === 'eclipse') {
     grad.addColorStop(0, '#00ff87');
     grad.addColorStop(0.5, '#ffd000');
     grad.addColorStop(1, '#ff5e36');
-  } else if (vizState.theme === 'prism') {
+  } else if (theme === 'prism') {
     grad.addColorStop(0, '#00ff87');
     grad.addColorStop(0.25, '#00f0ff');
     grad.addColorStop(0.5, '#a855f7');
     grad.addColorStop(0.75, '#ec4899');
     grad.addColorStop(1, '#ff5e36');
-  } else {
+  } else if (theme === 'cyber') {
     grad.addColorStop(0, '#00f0ff');
     grad.addColorStop(0.5, '#7000ff');
     grad.addColorStop(1, '#ff007f');
+  } else if (theme === 'aurora') {
+    grad.addColorStop(0, '#10b981');
+    grad.addColorStop(0.4, '#06b6d4');
+    grad.addColorStop(0.7, '#818cf8');
+    grad.addColorStop(1, '#c084fc');
+  } else if (theme === 'solar') {
+    grad.addColorStop(0, '#fde047');
+    grad.addColorStop(0.5, '#ff5722');
+    grad.addColorStop(1, '#dc2626');
+  } else if (theme === 'ocean') {
+    grad.addColorStop(0, '#2dd4bf');
+    grad.addColorStop(0.5, '#38bdf8');
+    grad.addColorStop(1, '#1d4ed8');
+  } else {
+    grad.addColorStop(0, '#00ff87');
+    grad.addColorStop(0.5, '#ffd000');
+    grad.addColorStop(1, '#ff5e36');
   }
   return grad;
 }
@@ -3341,7 +3396,7 @@ function drawVizWaves(ctx, width, height) {
     ctx.beginPath();
     ctx.lineWidth = 3 - w * 0.4;
     ctx.strokeStyle = getVizGradient(ctx, 0, 0, width, 0);
-    ctx.shadowColor = vizState.theme === 'eclipse' ? '#00ff87' : (vizState.theme === 'prism' ? '#a855f7' : '#00f0ff');
+    ctx.shadowColor = getVizThemeGlowColor();
     ctx.shadowBlur = 18;
 
     for (let i = 0; i < points; i++) {
@@ -3378,19 +3433,11 @@ function drawVizRings(ctx, width, height) {
   // Glowing center core (Eclipse Wave heart)
   const coreRadius = baseRadius * (0.6 + vizState.smoothedBass * 0.6);
   const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreRadius);
-  if (vizState.theme === 'eclipse') {
-    coreGrad.addColorStop(0, 'rgba(0, 255, 135, 0.9)');
-    coreGrad.addColorStop(0.6, 'rgba(255, 94, 54, 0.4)');
-    coreGrad.addColorStop(1, 'rgba(255, 94, 54, 0)');
-  } else if (vizState.theme === 'prism') {
-    coreGrad.addColorStop(0, 'rgba(0, 240, 255, 0.9)');
-    coreGrad.addColorStop(0.6, 'rgba(236, 72, 153, 0.4)');
-    coreGrad.addColorStop(1, 'rgba(236, 72, 153, 0)');
-  } else {
-    coreGrad.addColorStop(0, 'rgba(0, 240, 255, 0.9)');
-    coreGrad.addColorStop(0.6, 'rgba(255, 0, 127, 0.4)');
-    coreGrad.addColorStop(1, 'rgba(255, 0, 127, 0)');
-  }
+  const glowColor = getVizThemeGlowColor();
+
+  coreGrad.addColorStop(0, '#ffffff');
+  coreGrad.addColorStop(0.5, glowColor);
+  coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = coreGrad;
   ctx.beginPath();
   ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
@@ -3406,7 +3453,7 @@ function drawVizRings(ctx, width, height) {
     ctx.beginPath();
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = getVizGradient(ctx, cx - ringRadius, cy, cx + ringRadius, cy);
-    ctx.shadowColor = vizState.theme === 'eclipse' ? '#00ff87' : '#00f0ff';
+    ctx.shadowColor = glowColor;
     ctx.shadowBlur = 14;
 
     for (let i = 0; i <= harmonicPoints; i++) {
@@ -3466,22 +3513,10 @@ function drawVizBars(ctx, width, height) {
       vizState.barsPeaks[i] = Math.max(0, vizState.barsPeaks[i] - 2);
     }
 
-    const barGrad = ctx.createLinearGradient(x, baseHeight, x, y);
-    if (vizState.theme === 'eclipse') {
-      barGrad.addColorStop(0, '#00ff87');
-      barGrad.addColorStop(0.6, '#ffd000');
-      barGrad.addColorStop(1, '#ff5e36');
-    } else if (vizState.theme === 'prism') {
-      const hue = (i / barCount) * 300;
-      barGrad.addColorStop(0, `hsl(${hue}, 100%, 60%)`);
-      barGrad.addColorStop(1, `hsl(${hue + 45}, 100%, 50%)`);
-    } else {
-      barGrad.addColorStop(0, '#00f0ff');
-      barGrad.addColorStop(1, '#ff007f');
-    }
+    const barGrad = getVizGradient(ctx, x, baseHeight, x, y);
 
     ctx.fillStyle = barGrad;
-    ctx.shadowColor = vizState.theme === 'eclipse' ? '#00ff87' : '#00f0ff';
+    ctx.shadowColor = getVizThemeGlowColor();
     ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
@@ -3495,9 +3530,199 @@ function drawVizBars(ctx, width, height) {
   ctx.restore();
 }
 
+function drawVizNebula(ctx, width, height) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const bass = vizState.smoothedBass;
+  const mid = vizState.smoothedMid;
+  const high = vizState.smoothedHigh;
+
+  ctx.save();
+
+  // Central vortex singularity
+  const coreR = 25 + bass * 60;
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+  coreGrad.addColorStop(0, '#ffffff');
+  coreGrad.addColorStop(0.35, getVizThemeGlowColor());
+  coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  ctx.fill();
+
+  const particleCount = vizState.particles.length;
+  const glowColor = getVizThemeGlowColor();
+
+  // Draw constellation interconnect lines between nearby particles
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < particleCount; i += 2) {
+    const p1 = vizState.particles[i];
+    const x1 = p1.x * width;
+    const y1 = p1.y * height;
+
+    for (let j = i + 1; j < Math.min(particleCount, i + 8); j++) {
+      const p2 = vizState.particles[j];
+      const x2 = p2.x * width;
+      const y2 = p2.y * height;
+      const dx = x1 - x2;
+      const dy = y1 - y2;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 85) {
+        const alpha = (1 - dist / 85) * (0.15 + mid * 0.45);
+        ctx.strokeStyle = glowColor;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw orbiting stardust trails
+  ctx.globalAlpha = 1;
+  vizState.particles.forEach(p => {
+    const dx = p.x * width - cx;
+    const dy = p.y * height - cy;
+    const currentDist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) + 0.015 * (1 + mid * 2);
+    const targetDist = currentDist + (bass * 4) - 0.5;
+    const finalDist = Math.max(20, targetDist);
+
+    p.x = (cx + Math.cos(angle) * finalDist) / width;
+    p.y = (cy + Math.sin(angle) * finalDist) / height;
+
+    const px = p.x * width;
+    const py = p.y * height;
+    const r = p.size * (1 + high * 1.5);
+
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = glowColor;
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = 10;
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function drawVizKaleidoscope(ctx, width, height) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const slices = 12;
+  const sliceAngle = (Math.PI * 2) / slices;
+  const maxR = Math.min(width, height) * (0.38 + vizState.smoothedBass * 0.18);
+  const points = 40;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(vizState.phase * 0.3);
+
+  for (let s = 0; s < slices; s++) {
+    ctx.save();
+    ctx.rotate(s * sliceAngle);
+
+    ctx.beginPath();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = getVizGradient(ctx, 0, 0, maxR, maxR);
+    ctx.shadowColor = getVizThemeGlowColor();
+    ctx.shadowBlur = 16;
+
+    for (let i = 0; i < points; i++) {
+      const norm = i / points;
+      let freqVal = 0;
+      if (vizState.dataArray) {
+        const bin = Math.floor(norm * (vizState.dataArray.length * 0.6));
+        freqVal = (vizState.dataArray[bin] || 0) / 255;
+      } else {
+        freqVal = Math.sin(norm * Math.PI * 4 + vizState.phase * 2) * 0.5 + 0.5;
+      }
+
+      const r = norm * maxR + (freqVal * 45);
+      const theta = (norm * (sliceAngle * 0.9)) + (freqVal * 0.2);
+      const x = Math.cos(theta) * r;
+      const y = Math.sin(theta) * r;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.stroke();
+
+    // Mirror reflection of slice for true kaleidoscope symmetry
+    ctx.scale(1, -1);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Central blooming gem
+  const gemR = 15 + vizState.smoothedBass * 28;
+  const gemGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, gemR);
+  gemGrad.addColorStop(0, '#ffffff');
+  gemGrad.addColorStop(0.5, getVizThemeGlowColor());
+  gemGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gemGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, gemR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawVizLissajous(ctx, width, height) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const bass = vizState.smoothedBass;
+  const mid = vizState.smoothedMid;
+  const radX = Math.min(width, height) * (0.28 + bass * 0.16);
+  const radY = Math.min(width, height) * (0.22 + mid * 0.14);
+  const steps = 300;
+  const numTrails = 3;
+
+  ctx.save();
+
+  for (let tIdx = 0; tIdx < numTrails; tIdx++) {
+    const trailOffset = tIdx * 0.35;
+    const p = vizState.phase * 1.5 + trailOffset;
+    const freqA = 3;
+    const freqB = 2;
+
+    ctx.beginPath();
+    ctx.lineWidth = 3 - tIdx * 0.6;
+    ctx.strokeStyle = getVizGradient(ctx, cx - radX, cy, cx + radX, cy);
+    ctx.shadowColor = getVizThemeGlowColor();
+    ctx.shadowBlur = 18;
+
+    for (let i = 0; i <= steps; i++) {
+      const u = (i / steps) * Math.PI * 2;
+      let audioMod = 0;
+
+      if (vizState.timeArray) {
+        const sIdx = Math.floor((i / steps) * vizState.timeArray.length);
+        audioMod = ((vizState.timeArray[sIdx] - 128) / 128) * (30 + bass * 40);
+      }
+
+      const x = cx + Math.sin(u * freqA + p) * (radX + audioMod);
+      const y = cy + Math.sin(u * freqB + p * 0.8) * (radY + audioMod);
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function drawVizParticles(ctx, width, height) {
   ctx.save();
   const speedMult = 1 + vizState.smoothedHigh * 2.5;
+  const glowColor = getVizThemeGlowColor();
 
   vizState.particles.forEach(p => {
     p.angle += p.orbitSpeed * speedMult;
@@ -3514,16 +3739,8 @@ function drawVizParticles(ctx, width, height) {
     const size = p.size * (1 + vizState.smoothedHigh * 0.8);
 
     ctx.beginPath();
-    if (vizState.theme === 'eclipse') {
-      ctx.fillStyle = p.hueOffset > 40 ? '#00ff87' : '#ff9436';
-      ctx.shadowColor = '#00ff87';
-    } else if (vizState.theme === 'prism') {
-      ctx.fillStyle = `hsl(${p.hueOffset * 4}, 100%, 65%)`;
-      ctx.shadowColor = '#a855f7';
-    } else {
-      ctx.fillStyle = p.hueOffset > 40 ? '#00f0ff' : '#ff007f';
-      ctx.shadowColor = '#00f0ff';
-    }
+    ctx.fillStyle = glowColor;
+    ctx.shadowColor = glowColor;
     ctx.shadowBlur = 8;
     ctx.arc(px, py, size, 0, Math.PI * 2);
     ctx.fill();
@@ -3547,18 +3764,59 @@ function bindAllEvents() {
   document.getElementById('exitVisualizerBtn')?.addEventListener('click', closeVisualizer);
   document.getElementById('vizMicToggleBtn')?.addEventListener('click', toggleVizMic);
 
-  document.querySelectorAll('[data-viz-theme]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      vizState.theme = btn.dataset.vizTheme;
-      document.querySelectorAll('[data-viz-theme]').forEach(b => b.classList.toggle('active', b === btn));
+  // Visualizer HUD controls - Multi-layer delegation for 100% reliable click handling
+  const setVisualizerTheme = (theme) => {
+    if (!theme) return;
+    vizState.theme = theme;
+    document.querySelectorAll('[data-viz-theme]').forEach(b => {
+      b.classList.toggle('active', b.dataset.vizTheme === theme);
     });
+  };
+
+  const setVisualizerStyle = (style) => {
+    if (!style) return;
+    vizState.style = style;
+    document.querySelectorAll('[data-viz-style]').forEach(b => {
+      b.classList.toggle('active', b.dataset.vizStyle === style);
+    });
+  };
+
+  // Direct click & pointerdown handlers on chips
+  document.querySelectorAll('[data-viz-theme]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setVisualizerTheme(btn.dataset.vizTheme);
+    });
+    btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   });
 
   document.querySelectorAll('[data-viz-style]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      vizState.style = btn.dataset.vizStyle;
-      document.querySelectorAll('[data-viz-style]').forEach(b => b.classList.toggle('active', b === btn));
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setVisualizerStyle(btn.dataset.vizStyle);
     });
+    btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  });
+
+  // Global document delegation fallback to guarantee clicks register on icon or text
+  document.addEventListener('click', (e) => {
+    const themeBtn = e.target.closest('[data-viz-theme]');
+    if (themeBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      setVisualizerTheme(themeBtn.dataset.vizTheme);
+      return;
+    }
+
+    const styleBtn = e.target.closest('[data-viz-style]');
+    if (styleBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      setVisualizerStyle(styleBtn.dataset.vizStyle);
+      return;
+    }
   });
 
   // 2. Search Input + Clear Button
