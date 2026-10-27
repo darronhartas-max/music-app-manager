@@ -20,7 +20,7 @@
       <div class="header-content">
         <div class="logo">
           <img src="../assets/icon.png" alt="Music App Manager" class="logo-icon-img">
-          <h1>Music App Manager</h1>
+          <h1 class="brand-title"><span class="brand-music-app">Music App</span> <span class="brand-manager">Manager</span></h1>
         </div>
 
         <div class="search-container">
@@ -48,41 +48,50 @@
     <!-- Apps Tab -->
     <div id="appsTab" class="tab-content active">
       <div class="apps-toolbar">
-        <div class="quick-filters">
-          <button class="quick-filter-btn active" data-filter="all">All Apps</button>
-          <button class="quick-filter-btn" data-filter="favorites">⭐ Favorites</button>
-          <button class="quick-filter-btn" data-filter="recent">🕐 Recent</button>
+        <div class="apps-toolbar-left">
+          <div class="segmented-control app-filter-control" title="Filter applications">
+            <button type="button" class="segment-btn quick-filter-btn active" data-filter="all">All</button>
+            <button type="button" class="segment-btn quick-filter-btn" data-filter="favorites" title="Favorites only">⭐ Favorites</button>
+            <button type="button" class="segment-btn quick-filter-btn" data-filter="recent" title="Recently launched">🕐 Recent</button>
+          </div>
+          <div class="segmented-control app-group-control" title="Group applications">
+            <button type="button" class="segment-btn view-btn active" data-view="category" title="Group by Category">📂 Category</button>
+            <button type="button" class="segment-btn view-btn" data-view="manufacturer" title="Group by Manufacturer">🏢 Manufacturer</button>
+          </div>
+          <div class="segmented-control app-layout-control" title="Toggle Layout: Icons Grid vs Compact List">
+            <button type="button" class="segment-btn layout-toggle-btn active" data-app-layout="grid" title="Icons Grid View">
+              <span class="btn-icon">🔲</span>
+            </button>
+            <button type="button" class="segment-btn layout-toggle-btn" data-app-layout="list" title="Compact List View">
+              <span class="btn-icon">☰</span>
+            </button>
+          </div>
         </div>
-        <div class="view-toggle">
-          <button class="view-btn active" data-view="category">📂 By Category</button>
-          <button class="view-btn" data-view="manufacturer">🏢 By Manufacturer</button>
-        </div>
-        <div class="layout-toggle view-toggle" title="Toggle between Icons grid and compact List view">
-          <button type="button" class="layout-toggle-btn active" data-app-layout="grid" title="Icons View (Grid)">
-            <span class="btn-icon">🔲</span> Icons
+
+        <div class="apps-toolbar-right">
+          <button type="button" id="togglePreFlightBtn" class="toolbar-btn preflight-toggle-btn" title="Toggle Studio Pre-Flight Panel (Audio Interface, MIDI Gear & Sample Drives)">
+            <span class="btn-icon">🎧</span>
+            <span>Studio Gear</span>
+            <span id="preflightStatusDot" class="preflight-status-dot"></span>
+            <span id="preflightToggleArrow" class="toggle-arrow">▾</span>
           </button>
-          <button type="button" class="layout-toggle-btn" data-app-layout="list" title="Compact List View">
-            <span class="btn-icon">☰</span> List
-          </button>
-        </div>
-        <div class="apps-actions">
-          <button id="newSessionBtn" class="toolbar-btn" title="Create a 1-click multi-app Studio Session bundle">
+          <button type="button" id="newSessionBtn" class="toolbar-btn" title="Create a 1-click multi-app Studio Session bundle">
             <span class="btn-icon">🚀</span>
-            New Session
+            <span>Session</span>
           </button>
-          <button id="addAppBtn" class="toolbar-btn">
-            <span class="btn-icon">➕</span>
-            Add App
-          </button>
-          <button id="editModeBtn" class="toolbar-btn" title="Switch between Launch Mode and Edit/Reorder Mode">
+          <button type="button" id="editModeBtn" class="toolbar-btn" title="Switch between Launch Mode and Edit/Reorder Mode">
             <span class="btn-icon">✏️</span>
-            Edit / Reorder
+            <span>Edit</span>
+          </button>
+          <button type="button" id="addAppBtn" class="toolbar-btn btn-primary-compact" title="Add a new music application">
+            <span class="btn-icon">➕</span>
+            <span>Add App</span>
           </button>
         </div>
       </div>
 
-      <!-- Studio Pre-Flight Check Bar (Audio Interface, MIDI Controllers & Sample Drives) -->
-      <div id="studioPreFlightBar" class="studio-preflight-bar">
+      <!-- Studio Pre-Flight Check Bar (Collapsible Audio Interface, MIDI Controllers & Sample Drives Panel) -->
+      <div id="studioPreFlightBar" class="studio-preflight-bar preflight-collapsed">
         <!-- Dynamically populated with connected Audio, MIDI & Sample Drive status -->
       </div>
 

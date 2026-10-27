@@ -125,6 +125,18 @@ function renderStudioPreFlightBar() {
        </span>`
     : '';
 
+  // Update status dot on toolbar toggle
+  const statusDot = document.getElementById('preflightStatusDot');
+  if (statusDot) {
+    if (offlineDrives.length > 0) {
+      statusDot.className = 'preflight-status-dot warn';
+      statusDot.title = `${offlineDrives.length} sample drive(s) offline`;
+    } else {
+      statusDot.className = 'preflight-status-dot';
+      statusDot.title = 'Studio gear connected & healthy';
+    }
+  }
+
   bar.innerHTML = `
     <div class="preflight-left">
       <span class="preflight-title">🎧 Studio Pre-Flight:</span>
@@ -4128,6 +4140,30 @@ function bindAllEvents() {
   document.getElementById('newSessionBtn')?.addEventListener('click', openNewSessionModal);
   document.getElementById('addAppBtn')?.addEventListener('click', openAddAppModal);
   document.getElementById('editModeBtn')?.addEventListener('click', toggleEditMode);
+
+  // Studio Pre-Flight Collapsible Toggle
+  const preflightBar = document.getElementById('studioPreFlightBar');
+  const togglePreFlightBtn = document.getElementById('togglePreFlightBtn');
+  const preflightArrow = document.getElementById('preflightToggleArrow');
+
+  if (preflightBar && togglePreFlightBtn) {
+    // Restore saved toggle state (default to collapsed for clean look)
+    const isExpanded = localStorage.getItem('apps_preflight_expanded') === 'true';
+    preflightBar.classList.toggle('preflight-collapsed', !isExpanded);
+    togglePreFlightBtn.classList.toggle('active', isExpanded);
+    if (preflightArrow) preflightArrow.textContent = isExpanded ? '▴' : '▾';
+
+    togglePreFlightBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const nowExpanded = preflightBar.classList.contains('preflight-collapsed');
+      preflightBar.classList.toggle('preflight-collapsed', !nowExpanded);
+      togglePreFlightBtn.classList.toggle('active', nowExpanded);
+      if (preflightArrow) preflightArrow.textContent = nowExpanded ? '▴' : '▾';
+      try {
+        localStorage.setItem('apps_preflight_expanded', nowExpanded ? 'true' : 'false');
+      } catch (err) {}
+    });
+  }
 
   document.getElementById('studioPreFlightBar')?.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="refresh-preflight-gear"]')) {
