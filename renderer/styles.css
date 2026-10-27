@@ -3820,6 +3820,11 @@ th.sortable.desc .sort-arrow { opacity: 1; content: ' ▼'; }
   -webkit-app-region: no-drag !important;
 }
 
+.viz-control-cluster + .viz-control-cluster {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+  padding-left: 0.85rem;
+}
+
 .viz-cluster-label {
   font-size: 0.72rem;
   font-weight: 700;

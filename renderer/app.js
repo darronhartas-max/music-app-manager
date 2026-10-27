@@ -3044,8 +3044,9 @@ function showError(message) {
 
 const vizState = {
   active: false,
-  theme: 'eclipse', // 'eclipse' | 'prism' | 'cyber'
-  style: 'waves',   // 'waves' | 'bars' | 'terrain' | 'nebula' | 'vector'
+  theme: 'eclipse',        // 'eclipse' | 'prism'
+  background: 'vignette',   // 'black' | 'vignette' | 'ambient' | 'dynamic'
+  style: 'waves',          // 'waves' | 'bars' | 'terrain' | 'nebula' | 'vector'
   micActive: false,
   audioCtx: null,
   analyser: null,
@@ -3330,35 +3331,66 @@ function renderVisualizerFrame(ctx) {
   if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 110))}%`;
   if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 110))}%`;
 
-  // Motion blur trail
-  ctx.fillStyle = 'rgba(7, 7, 12, 0.28)';
-  ctx.fillRect(0, 0, width, height);
+  // Background Backdrop Rendering
+  const bg = vizState.background;
 
-  // Background radial pulse on heavy bass hits
-  const pulseRadius = Math.max(width, height) * (0.35 + vizState.smoothedBass * 0.35);
-  const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, pulseRadius);
-  const theme = vizState.theme;
+  if (bg === 'black') {
+    // 1. SOLID PURE BLACK (100% Static - zero motion, zero particles, zero distractions)
+    ctx.fillStyle = '#060608';
+    ctx.fillRect(0, 0, width, height);
+  } else if (bg === 'vignette') {
+    // 2. STUDIO VIGNETTE (100% Static - elegant acoustic studio charcoal room, no movement)
+    const vigGrad = ctx.createRadialGradient(
+      width / 2, height / 2, 0,
+      width / 2, height / 2, Math.max(width, height) * 0.72
+    );
+    vigGrad.addColorStop(0, '#15161f'); // soft warm charcoal center
+    vigGrad.addColorStop(0.5, '#0b0c11');
+    vigGrad.addColorStop(1, '#040406'); // deep dark border
+    ctx.fillStyle = vigGrad;
+    ctx.fillRect(0, 0, width, height);
+  } else if (bg === 'ambient') {
+    // 3. AMBIENT BREATHE (Gentle, soft luminescent breathing for slow/mellow/chillout tracks)
+    ctx.fillStyle = 'rgba(7, 7, 12, 0.32)';
+    ctx.fillRect(0, 0, width, height);
 
-  if (theme === 'eclipse') {
-    bgGrad.addColorStop(0, `rgba(0, 255, 135, ${0.08 + vizState.smoothedBass * 0.18})`);
-    bgGrad.addColorStop(0.5, `rgba(255, 94, 54, ${0.05 + vizState.smoothedBass * 0.1})`);
-    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
-  } else if (theme === 'prism') {
-    const rainbowHue = (vizState.phase * 50) % 360;
-    bgGrad.addColorStop(0, `hsla(${rainbowHue}, 100%, 60%, ${0.09 + vizState.smoothedBass * 0.16})`);
-    bgGrad.addColorStop(0.5, `hsla(${(rainbowHue + 120) % 360}, 100%, 50%, ${0.05 + vizState.smoothedBass * 0.1})`);
-    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
-  } else if (theme === 'cyber') {
-    bgGrad.addColorStop(0, `rgba(0, 240, 255, ${0.09 + vizState.smoothedBass * 0.14})`);
-    bgGrad.addColorStop(0.5, `rgba(255, 0, 127, ${0.06 + vizState.smoothedBass * 0.11})`);
-    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+    const breath = Math.sin(vizState.phase * 0.4) * 0.015 + 0.04 + vizState.smoothedBass * 0.035;
+    const rad = Math.max(width, height) * 0.58;
+    const ambGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, rad);
+
+    if (vizState.theme === 'prism') {
+      const ambHue = (vizState.phase * 20) % 360;
+      ambGrad.addColorStop(0, `hsla(${ambHue}, 70%, 55%, ${breath})`);
+      ambGrad.addColorStop(0.6, `hsla(${(ambHue + 60) % 360}, 60%, 40%, ${breath * 0.4})`);
+      ambGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+    } else {
+      ambGrad.addColorStop(0, `rgba(0, 255, 135, ${breath})`);
+      ambGrad.addColorStop(0.6, `rgba(255, 148, 54, ${breath * 0.4})`);
+      ambGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+    }
+    ctx.fillStyle = ambGrad;
+    ctx.fillRect(0, 0, width, height);
   } else {
-    bgGrad.addColorStop(0, `rgba(0, 255, 135, ${0.08 + vizState.smoothedBass * 0.18})`);
-    bgGrad.addColorStop(0.5, `rgba(255, 94, 54, ${0.05 + vizState.smoothedBass * 0.1})`);
-    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+    // 4. DYNAMIC PULSE (High-energy audio-reactive punch & glow for club/fast/electronic tracks)
+    ctx.fillStyle = 'rgba(7, 7, 12, 0.28)';
+    ctx.fillRect(0, 0, width, height);
+
+    const pulseRadius = Math.max(width, height) * (0.35 + vizState.smoothedBass * 0.38);
+    const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, pulseRadius);
+
+    if (vizState.theme === 'prism') {
+      const rainbowHue = (vizState.phase * 50) % 360;
+      bgGrad.addColorStop(0, `hsla(${rainbowHue}, 100%, 60%, ${0.09 + vizState.smoothedBass * 0.16})`);
+      bgGrad.addColorStop(0.5, `hsla(${(rainbowHue + 120) % 360}, 100%, 50%, ${0.05 + vizState.smoothedBass * 0.1})`);
+      bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+    } else {
+      bgGrad.addColorStop(0, `rgba(0, 255, 135, ${0.08 + vizState.smoothedBass * 0.18})`);
+      bgGrad.addColorStop(0.5, `rgba(255, 94, 54, ${0.05 + vizState.smoothedBass * 0.1})`);
+      bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
+    }
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
   }
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, width, height);
 
   // Draw current visualization style
   if (vizState.style === 'terrain') {
@@ -3378,28 +3410,21 @@ function renderVisualizerFrame(ctx) {
     drawVizShockwaves(ctx, width, height);
   }
 
-  // Draw floating stardust particles
-  drawVizParticles(ctx, width, height);
+  // Draw floating stardust particles (only on Ambient and Dynamic backdrops so Static modes remain 100% still)
+  if (bg === 'ambient' || bg === 'dynamic') {
+    drawVizParticles(ctx, width, height, bg === 'ambient');
+  }
 }
 
 function getVizThemeGlowColor() {
-  switch (vizState.theme) {
-    case 'eclipse': return '#00ff87';
-    case 'prism': return '#00f0ff';
-    case 'cyber': return '#ff007f';
-    default: return '#00ff87';
-  }
+  return vizState.theme === 'prism' ? '#00f0ff' : '#00ff87';
 }
 
 function getVizGradient(ctx, x0, y0, x1, y1) {
   const grad = ctx.createLinearGradient(x0, y0, x1, y1);
   const theme = vizState.theme;
 
-  if (theme === 'eclipse') {
-    grad.addColorStop(0, '#00ff87');
-    grad.addColorStop(0.5, '#ffd000');
-    grad.addColorStop(1, '#ff5e36');
-  } else if (theme === 'prism') {
+  if (theme === 'prism') {
     grad.addColorStop(0, '#ff0033');    // Pure Red
     grad.addColorStop(0.16, '#ff7700'); // Vibrant Orange
     grad.addColorStop(0.33, '#ffee00'); // Radiant Yellow
@@ -3408,10 +3433,6 @@ function getVizGradient(ctx, x0, y0, x1, y1) {
     grad.addColorStop(0.83, '#2979ff'); // Cobalt Blue
     grad.addColorStop(0.92, '#8b5cf6'); // Deep Violet
     grad.addColorStop(1.0, '#ec4899');  // Hot Magenta
-  } else if (theme === 'cyber') {
-    grad.addColorStop(0, '#00f0ff');
-    grad.addColorStop(0.5, '#7000ff');
-    grad.addColorStop(1, '#ff007f');
   } else {
     grad.addColorStop(0, '#00ff87');
     grad.addColorStop(0.5, '#ffd000');
@@ -3509,11 +3530,6 @@ function drawVizBars(ctx, width, height) {
       barGrad.addColorStop(0, `hsla(${hue}, 100%, 45%, 0.85)`);
       barGrad.addColorStop(1, `hsla(${(hue + 25) % 360}, 100%, 65%, 1)`);
       glowColor = `hsl(${hue}, 100%, 55%)`;
-    } else if (theme === 'cyber') {
-      barGrad = ctx.createLinearGradient(x, baseHeight, x, y);
-      barGrad.addColorStop(0, '#00f0ff');
-      barGrad.addColorStop(1, '#ff007f');
-      glowColor = '#ff007f';
     } else {
       barGrad = getVizGradient(ctx, x, baseHeight, x, y);
       glowColor = '#00ff87';
@@ -3631,12 +3647,6 @@ function drawVizTerrain(ctx, width, height) {
     if (theme === 'prism') {
       ctx.strokeStyle = getVizGradient(ctx, startX, 0, endX, 0);
       ctx.shadowColor = `hsl(${(r * 12 + vizState.phase * 40) % 360}, 100%, 60%)`;
-    } else if (theme === 'cyber') {
-      const cyberGrad = ctx.createLinearGradient(startX, 0, endX, 0);
-      cyberGrad.addColorStop(0, '#00f0ff');
-      cyberGrad.addColorStop(1, '#ff007f');
-      ctx.strokeStyle = cyberGrad;
-      ctx.shadowColor = '#00f0ff';
     } else {
       ctx.strokeStyle = getVizGradient(ctx, startX, 0, endX, 0);
       ctx.shadowColor = '#00ff87';
@@ -3672,8 +3682,6 @@ function drawVizTerrain(ctx, width, height) {
     }
     if (theme === 'prism') {
       ctx.strokeStyle = `hsl(${(c / numCols) * 360}, 100%, 65%)`;
-    } else if (theme === 'cyber') {
-      ctx.strokeStyle = '#00f0ff';
     } else {
       ctx.strokeStyle = '#00ff87';
     }
@@ -3704,8 +3712,6 @@ function drawVizNebula(ctx, width, height) {
   if (theme === 'prism') {
     const coreHue = (vizState.phase * 70) % 360;
     coreGrad.addColorStop(0.35, `hsl(${coreHue}, 100%, 65%)`);
-  } else if (theme === 'cyber') {
-    coreGrad.addColorStop(0.35, '#00f0ff');
   } else {
     coreGrad.addColorStop(0.35, '#00ff87');
   }
@@ -3814,9 +3820,6 @@ function drawVizNebula(ctx, width, height) {
     if (theme === 'prism') {
       ctx.fillStyle = `hsl(${p.hue}, 100%, 70%)`;
       ctx.shadowColor = `hsl(${p.hue}, 100%, 60%)`;
-    } else if (theme === 'cyber') {
-      ctx.fillStyle = (p.size > 2) ? '#ff007f' : '#00f0ff';
-      ctx.shadowColor = '#00f0ff';
     } else {
       ctx.fillStyle = (p.size > 2) ? '#ffd000' : '#00ff87';
       ctx.shadowColor = '#00ff87';
@@ -3940,7 +3943,7 @@ function drawVizVector(ctx, width, height) {
       else ctx.lineTo(points3D[i].x, points3D[i].y);
     }
     ctx.lineWidth = 8;
-    ctx.strokeStyle = theme === 'cyber' ? 'rgba(0, 240, 255, 0.25)' : 'rgba(0, 255, 135, 0.25)';
+    ctx.strokeStyle = 'rgba(0, 255, 135, 0.25)';
     ctx.shadowColor = getVizThemeGlowColor();
     ctx.shadowBlur = 24;
     ctx.stroke();
@@ -4031,9 +4034,6 @@ function drawVizShockwaves(ctx, width, height) {
       const hue = (sw.radius * 2) % 360;
       ctx.strokeStyle = `hsla(${hue}, 100%, 65%, ${sw.alpha})`;
       ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
-    } else if (theme === 'cyber') {
-      ctx.strokeStyle = `rgba(0, 240, 255, ${sw.alpha * 0.9})`;
-      ctx.shadowColor = '#ff007f';
     } else {
       ctx.strokeStyle = `rgba(0, 255, 135, ${sw.alpha * 0.9})`;
       ctx.shadowColor = '#ffd000';
@@ -4045,10 +4045,14 @@ function drawVizShockwaves(ctx, width, height) {
   ctx.restore();
 }
 
-function drawVizParticles(ctx, width, height) {
+function drawVizParticles(ctx, width, height, isAmbient = false) {
   ctx.save();
-  const speedMult = 1 + vizState.smoothedHigh * 2.5;
+  const speedMult = isAmbient ? 0.35 : (1 + vizState.smoothedHigh * 2.5);
   const theme = vizState.theme;
+
+  if (isAmbient) {
+    ctx.globalAlpha = 0.45;
+  }
 
   vizState.particles.forEach(p => {
     p.angle += p.orbitSpeed * speedMult;
@@ -4062,7 +4066,7 @@ function drawVizParticles(ctx, width, height) {
 
     const px = p.x * width;
     const py = p.y * height;
-    const size = p.size * (1 + vizState.smoothedHigh * 0.8);
+    const size = isAmbient ? (p.size * 0.8) : (p.size * (1 + vizState.smoothedHigh * 0.8));
 
     ctx.beginPath();
     if (theme === 'prism') {
@@ -4072,7 +4076,7 @@ function drawVizParticles(ctx, width, height) {
       ctx.fillStyle = getVizThemeGlowColor();
       ctx.shadowColor = getVizThemeGlowColor();
     }
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = isAmbient ? 4 : 8;
     ctx.arc(px, py, size, 0, Math.PI * 2);
     ctx.fill();
   });
@@ -4099,18 +4103,45 @@ function bindAllEvents() {
   const setVisualizerTheme = (theme) => {
     if (!theme) return;
     vizState.theme = theme;
+    try { localStorage.setItem('viz_theme', theme); } catch (e) {}
     document.querySelectorAll('[data-viz-theme]').forEach(b => {
       b.classList.toggle('active', b.dataset.vizTheme === theme);
+    });
+  };
+
+  const setVisualizerBg = (bg) => {
+    if (!bg) return;
+    vizState.background = bg;
+    try { localStorage.setItem('viz_backdrop', bg); } catch (e) {}
+    document.querySelectorAll('[data-viz-bg]').forEach(b => {
+      b.classList.toggle('active', b.dataset.vizBg === bg);
     });
   };
 
   const setVisualizerStyle = (style) => {
     if (!style) return;
     vizState.style = style;
+    try { localStorage.setItem('viz_style', style); } catch (e) {}
     document.querySelectorAll('[data-viz-style]').forEach(b => {
       b.classList.toggle('active', b.dataset.vizStyle === style);
     });
   };
+
+  // Restore saved visualizer preferences
+  try {
+    const savedTheme = localStorage.getItem('viz_theme');
+    if (savedTheme && (savedTheme === 'eclipse' || savedTheme === 'prism')) {
+      setVisualizerTheme(savedTheme);
+    }
+    const savedBg = localStorage.getItem('viz_backdrop');
+    if (savedBg && ['black', 'vignette', 'ambient', 'dynamic'].includes(savedBg)) {
+      setVisualizerBg(savedBg);
+    }
+    const savedStyle = localStorage.getItem('viz_style');
+    if (savedStyle && ['waves', 'bars', 'terrain', 'nebula', 'vector'].includes(savedStyle)) {
+      setVisualizerStyle(savedStyle);
+    }
+  } catch (e) {}
 
   // Direct click & pointerdown handlers on chips
   document.querySelectorAll('[data-viz-theme]').forEach(btn => {
@@ -4118,6 +4149,15 @@ function bindAllEvents() {
       e.preventDefault();
       e.stopPropagation();
       setVisualizerTheme(btn.dataset.vizTheme);
+    });
+    btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  });
+
+  document.querySelectorAll('[data-viz-bg]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setVisualizerBg(btn.dataset.vizBg);
     });
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   });
@@ -4138,6 +4178,14 @@ function bindAllEvents() {
       e.preventDefault();
       e.stopPropagation();
       setVisualizerTheme(themeBtn.dataset.vizTheme);
+      return;
+    }
+
+    const bgBtn = e.target.closest('[data-viz-bg]');
+    if (bgBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      setVisualizerBg(bgBtn.dataset.vizBg);
       return;
     }
 
