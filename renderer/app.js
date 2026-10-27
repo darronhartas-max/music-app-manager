@@ -3057,14 +3057,12 @@ function showError(message) {
 const vizState = {
   active: false,
   theme: 'prism',          // Full rainbow spectrum permanently
-  background: 'black',     // 'black' | 'dynamic'
   style: 'waves',          // 'waves' | 'bars' | 'terrain'
   micActive: false,
   audioCtx: null,
   analyser: null,
   micStream: null,
   selectedDeviceId: 'default',
-  sensitivity: 2.5,        // Default High Gain (2.5x)
   animationId: null,
   dataArray: null,
   timeArray: null,
@@ -3072,15 +3070,20 @@ const vizState = {
   smoothedMid: 0,
   smoothedHigh: 0,
   phase: 0,
+  agc: {
+    rollingPeak: 0.1,
+    currentGain: 2.4
+  },
   barsPeaks: new Array(64).fill(0),
+  peakVelocities: new Array(64).fill(0),
+  barsSmoothed: new Array(64).fill(0),
   terrainHistory: [],
   mouse: {
     x: 0.5,
     y: 0.5,
     isHovering: false,
     activeClicks: []
-  },
-  particles: []
+  }
 };
 
 async function populateVizAudioDevices() {
@@ -3140,41 +3143,6 @@ async function changeVizAudioDevice(deviceId) {
   }
 }
 
-function cycleVizGain() {
-  if (vizState.sensitivity === 2.5) vizState.sensitivity = 4.0;
-  else if (vizState.sensitivity === 4.0) vizState.sensitivity = 1.5;
-  else vizState.sensitivity = 2.5;
-
-  try {
-    localStorage.setItem('viz_sensitivity', vizState.sensitivity.toString());
-  } catch (e) {}
-
-  const label = document.getElementById('vizGainLabel');
-  if (label) {
-    const text = vizState.sensitivity === 2.5 ? 'Gain: High (2.5x)' : vizState.sensitivity === 4.0 ? 'Gain: Max (4x)' : 'Gain: Normal (1.5x)';
-    label.textContent = text;
-  }
-}
-
-function initVizParticles() {
-  vizState.particles = [];
-  vizState.terrainHistory = [];
-  vizState.mouse.activeClicks = [];
-  for (let i = 0; i < 90; i++) {
-    vizState.particles.push({
-      x: Math.random(),
-      y: Math.random(),
-      vx: (Math.random() - 0.5) * 0.002,
-      vy: (Math.random() - 0.5) * 0.002,
-      size: Math.random() * 2.2 + 1,
-      angle: Math.random() * Math.PI * 2,
-      orbitSpeed: (Math.random() - 0.5) * 0.015,
-      orbitDist: Math.random() * 0.35 + 0.08,
-      hue: (i / 90) * 360
-    });
-  }
-}
-
 function onVizPointerMove(e) {
   const rect = e.currentTarget.getBoundingClientRect();
   vizState.mouse.x = (e.clientX - rect.left) / rect.width;
@@ -3225,7 +3193,8 @@ async function openVisualizer() {
     canvas.addEventListener('pointerleave', onVizPointerLeave);
   }
 
-  initVizParticles();
+  vizState.terrainHistory = [];
+  vizState.mouse.activeClicks = [];
   resizeVisualizerCanvas();
   window.addEventListener('resize', resizeVisualizerCanvas);
 
@@ -3290,9 +3259,9 @@ async function initVisualizerAudio(targetDeviceId = null) {
 
     vizState.analyser = vizState.audioCtx.createAnalyser();
     vizState.analyser.fftSize = 2048;
-    vizState.analyser.smoothingTimeConstant = 0.70;
-    vizState.analyser.minDecibels = -100;
-    vizState.analyser.maxDecibels = -15;
+    vizState.analyser.smoothingTimeConstant = 0.65;
+    vizState.analyser.minDecibels = -90;
+    vizState.analyser.maxDecibels = -10;
 
     const bufferLength = vizState.analyser.frequencyBinCount;
     vizState.dataArray = new Uint8Array(bufferLength);
@@ -3386,118 +3355,6 @@ function startVisualizerLoop() {
   vizState.animationId = requestAnimationFrame(renderFrame);
 }
 
-function renderVisualizerFrame(ctx) {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  vizState.phase += 0.02;
-
-  let bass = 0, mid = 0, high = 0;
-
-  if (vizState.micActive && vizState.analyser && vizState.dataArray && vizState.timeArray) {
-    vizState.analyser.getByteFrequencyData(vizState.dataArray);
-    vizState.analyser.getByteTimeDomainData(vizState.timeArray);
-
-    const sampleRate = vizState.audioCtx ? vizState.audioCtx.sampleRate : 44100;
-    const fftSize = vizState.analyser.fftSize || 2048;
-    const binSize = sampleRate / fftSize; // ~21.5 Hz per bin
-
-    // BASS: 20 Hz - 200 Hz (bins 1 to ~9)
-    const b0 = Math.max(1, Math.floor(20 / binSize));
-    const b1 = Math.floor(200 / binSize);
-    let bSum = 0;
-    for (let i = b0; i <= b1; i++) bSum += vizState.dataArray[i];
-    const bCount = Math.max(1, b1 - b0 + 1);
-
-    // MID: 200 Hz - 1500 Hz (bins ~9 to ~70)
-    const m0 = b1 + 1;
-    const m1 = Math.floor(1500 / binSize);
-    let mSum = 0;
-    for (let i = m0; i <= m1; i++) mSum += vizState.dataArray[i];
-    const mCount = Math.max(1, m1 - m0 + 1);
-
-    // HIGH: 1500 Hz - 8000 Hz (bins ~70 to ~370)
-    const h0 = m1 + 1;
-    const h1 = Math.min(vizState.dataArray.length - 1, Math.floor(8000 / binSize));
-    let hSum = 0;
-    for (let i = h0; i <= h1; i++) hSum += vizState.dataArray[i];
-    const hCount = Math.max(1, h1 - h0 + 1);
-
-    // Perceptual logarithmic scaling so mids and highs move in energetic balance
-    const rawBass = (bSum / bCount) / 255;
-    const rawMid = (mSum / mCount) / 255;
-    const rawHigh = (hSum / hCount) / 255;
-
-    const sens = vizState.sensitivity;
-    bass = Math.min(1, Math.pow(rawBass, 0.58) * sens * 1.1);
-    mid = Math.min(1, Math.pow(rawMid, 0.50) * sens * 2.2);
-    high = Math.min(1, Math.pow(rawHigh, 0.45) * sens * 3.8);
-  } else {
-    // Generative procedural motion
-    const t = vizState.phase;
-    bass = (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.65 + (Math.sin(t * 3.4) * 0.15);
-    mid = (Math.sin(t * 2.2 + 1) * 0.5 + 0.5) * 0.5;
-    high = (Math.sin(t * 4.1 + 2) * 0.5 + 0.5) * 0.45;
-    bass = Math.max(0, Math.min(1, bass));
-    mid = Math.max(0, Math.min(1, mid));
-    high = Math.max(0, Math.min(1, high));
-  }
-
-  // Smooth lerp
-  vizState.smoothedBass += (bass - vizState.smoothedBass) * 0.22;
-  vizState.smoothedMid += (mid - vizState.smoothedMid) * 0.24;
-  vizState.smoothedHigh += (high - vizState.smoothedHigh) * 0.26;
-
-  // Energy meters HUD
-  const bBar = document.getElementById('vizMeterBass');
-  const mBar = document.getElementById('vizMeterMid');
-  const hBar = document.getElementById('vizMeterHigh');
-  if (bBar) bBar.style.width = `${Math.min(100, Math.round(vizState.smoothedBass * 110))}%`;
-  if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 110))}%`;
-  if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 110))}%`;
-
-  // Background Backdrop Rendering (Solid Pure Black or Dynamic Pulse)
-  const bg = vizState.background;
-
-  if (bg === 'black') {
-    // 1. SOLID PURE BLACK (100% Static - pitch-black void, zero movement, zero distraction)
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, width, height);
-  } else {
-    // 2. DYNAMIC PULSE (High-energy audio-reactive punch & glow for club/fast/electronic tracks)
-    ctx.fillStyle = 'rgba(7, 7, 12, 0.28)';
-    ctx.fillRect(0, 0, width, height);
-
-    const pulseRadius = Math.max(width, height) * (0.35 + vizState.smoothedBass * 0.38);
-    const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, pulseRadius);
-    const rainbowHue = (vizState.phase * 50) % 360;
-    bgGrad.addColorStop(0, `hsla(${rainbowHue}, 100%, 60%, ${0.09 + vizState.smoothedBass * 0.16})`);
-    bgGrad.addColorStop(0.5, `hsla(${(rainbowHue + 120) % 360}, 100%, 50%, ${0.05 + vizState.smoothedBass * 0.1})`);
-    bgGrad.addColorStop(1, 'rgba(7, 7, 12, 0)');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  // Draw current visualization style (Waves, Bars, Terrain)
-  if (vizState.style === 'terrain') {
-    drawVizTerrain(ctx, width, height);
-  } else if (vizState.style === 'bars') {
-    drawVizBars(ctx, width, height);
-  } else {
-    drawVizWaves(ctx, width, height);
-  }
-
-  // Draw supernova click shockwaves
-  if (vizState.mouse.activeClicks.length > 0) {
-    drawVizShockwaves(ctx, width, height);
-  }
-
-  // Draw floating stardust particles (only on Dynamic backdrop so Pure Black mode remains 100% still)
-  if (bg === 'dynamic') {
-    drawVizParticles(ctx, width, height, false);
-  }
-}
-
 function getVizThemeGlowColor() {
   return '#00f0ff';
 }
@@ -3515,70 +3372,209 @@ function getVizGradient(ctx, x0, y0, x1, y1) {
   return grad;
 }
 
-function drawVizWaves(ctx, width, height) {
-  const centerY = height / 2;
-  const numWaves = 4;
-  const numPoints = 120;
-  const sliceWidth = width / (numPoints - 1);
-
-  // Pre-filter/smooth time-domain audio data to eliminate jagged digitization kinks
-  let smoothedAudio = null;
-  if (vizState.micActive && vizState.timeArray) {
-    const rawLen = vizState.timeArray.length;
-    smoothedAudio = new Float32Array(numPoints);
-    for (let i = 0; i < numPoints; i++) {
-      const centerIdx = Math.floor((i / (numPoints - 1)) * (rawLen - 1));
-      // 5-sample window moving average for silky smooth waveform
-      let sum = 0;
-      let count = 0;
-      for (let offset = -2; offset <= 2; offset++) {
-        const idx = Math.min(rawLen - 1, Math.max(0, centerIdx + offset));
-        sum += (vizState.timeArray[idx] - 128) / 128; // -1 to 1
-        count++;
-      }
-      smoothedAudio[i] = sum / count;
+function getSpectrumBands(count) {
+  const bands = new Float32Array(count);
+  if (!vizState.micActive || !vizState.dataArray || !vizState.analyser) {
+    // Generative procedural motion when mic is muted or idle
+    const t = vizState.phase;
+    for (let i = 0; i < count; i++) {
+      const norm = i / (count - 1);
+      const s1 = Math.sin(t * 2.2 + norm * 6.28 * 2) * 0.5 + 0.5;
+      const s2 = Math.cos(t * 1.6 - norm * 6.28 * 3) * 0.3;
+      const bell = Math.sin(norm * Math.PI);
+      bands[i] = Math.max(0.08, Math.min(1.0, (s1 + s2 * bell) * 0.65));
     }
+    return bands;
   }
 
-  // Oscilloscope wave ribbons with smooth quadratic Bezier curves
-  for (let w = 0; w < numWaves; w++) {
-    const wavePhase = vizState.phase * (1 + w * 0.28) + w * 1.57;
-    // Amplitude driven by full frequency spectrum (bass punch + mid body + high shimmer)
-    const baseAmp = 35 + w * 22;
-    const dynamicAmp = (vizState.smoothedBass * 140 + vizState.smoothedMid * 95 + vizState.smoothedHigh * 60) * (vizState.sensitivity * 0.45);
-    const amplitude = baseAmp + dynamicAmp;
+  const sampleRate = vizState.audioCtx ? vizState.audioCtx.sampleRate : 48000;
+  const fftSize = vizState.analyser.fftSize || 2048;
+  const binSize = sampleRate / fftSize; // ~21.5 Hz to ~23.4 Hz per bin
+  const totalBins = vizState.dataArray.length; // 1024
 
-    // Calculate smooth 2D control points
+  // Full musical frequency range: 40 Hz (low bass) to 12,500 Hz (treble / air)
+  const minFreq = 40;
+  const maxFreq = 12500;
+
+  const rawBands = new Float32Array(count);
+  let maxBandVal = 0;
+
+  for (let i = 0; i < count; i++) {
+    const norm = i / (count - 1);
+    // Logarithmic frequency bounds across full musical spectrum
+    const fLow = minFreq * Math.pow(maxFreq / minFreq, i / count);
+    const fHigh = minFreq * Math.pow(maxFreq / minFreq, (i + 1) / count);
+    const fCenter = (fLow + fHigh) / 2;
+
+    // Discard DC offset and < 35 Hz ambient sub-rumble
+    const binStart = Math.max(2, Math.floor(fLow / binSize));
+    const binEnd = Math.min(totalBins - 1, Math.max(binStart, Math.ceil(fHigh / binSize)));
+
+    let maxBin = 0;
+    let sumBin = 0;
+    let nBins = 0;
+
+    for (let b = binStart; b <= binEnd; b++) {
+      const val = vizState.dataArray[b];
+      if (val > maxBin) maxBin = val;
+      sumBin += val;
+      nBins++;
+    }
+
+    const avgBin = nBins > 0 ? (sumBin / nBins) : 0;
+    // Combine peak (for pitch harmonics & keyboard notes) and average (for musical body)
+    const rawVal = (maxBin * 0.72 + avgBin * 0.28) / 255.0;
+
+    // Acoustic Equal-Loudness & Pink-Noise Compensation:
+    // Natural sound drops ~3-4.5 dB/octave. High frequencies require progressive compensation
+    // so keys, guitars, vocals, and hi-hats have equal visual excursion to bass.
+    const eqBoost = 1.0 + Math.pow(norm, 0.65) * 3.4;
+
+    // Sub-rumble / 50Hz/60Hz mains hum protection on lowest frequencies
+    const rumbleFilter = fCenter < 65 ? Math.max(0.25, (fCenter - 32) / 33) : 1.0;
+
+    const val = rawVal * eqBoost * rumbleFilter;
+    rawBands[i] = val;
+    if (val > maxBandVal) maxBandVal = val;
+  }
+
+  // Automatic Gain Control (AGC): Instant attack on loud transients, smooth 1.5s decay on quiet
+  if (maxBandVal > vizState.agc.rollingPeak) {
+    vizState.agc.rollingPeak = maxBandVal;
+  } else {
+    vizState.agc.rollingPeak = vizState.agc.rollingPeak * 0.982 + maxBandVal * 0.018;
+  }
+
+  let targetGain = 2.4;
+  if (vizState.agc.rollingPeak > 0.025) {
+    targetGain = 0.82 / Math.max(0.04, vizState.agc.rollingPeak);
+    targetGain = Math.max(1.0, Math.min(6.5, targetGain));
+  }
+  vizState.agc.currentGain += (targetGain - vizState.agc.currentGain) * 0.05;
+
+  // Apply AGC gain and 3-tap neighbor smoothing for organic, fluid motion
+  for (let i = 0; i < count; i++) {
+    const left = i > 0 ? rawBands[i - 1] : rawBands[i];
+    const curr = rawBands[i];
+    const right = i < count - 1 ? rawBands[i + 1] : rawBands[i];
+    const smoothed = (left * 0.2 + curr * 0.6 + right * 0.2) * vizState.agc.currentGain;
+    bands[i] = Math.max(0.0, Math.min(1.0, smoothed));
+  }
+
+  return bands;
+}
+
+function renderVisualizerFrame(ctx) {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  vizState.phase += 0.02;
+
+  // 1. Strictly Pure Solid Black Backdrop (100% Static, zero distraction)
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, width, height);
+
+  // Read latest audio buffer from analyser
+  if (vizState.micActive && vizState.analyser && vizState.dataArray && vizState.timeArray) {
+    vizState.analyser.getByteFrequencyData(vizState.dataArray);
+    vizState.analyser.getByteTimeDomainData(vizState.timeArray);
+  }
+
+  // 2. Extract balanced 48-band spectrum across full 40 Hz - 12.5 kHz range
+  const spectrum48 = getSpectrumBands(48);
+
+  // 3. Compute BASS, MID, HIGH for the bottom meters from the balanced spectrum
+  let bSum = 0;
+  for (let i = 0; i < 12; i++) bSum += spectrum48[i];
+  const bassVal = bSum / 12;
+
+  let mSum = 0;
+  for (let i = 12; i < 32; i++) mSum += spectrum48[i];
+  const midVal = mSum / 20;
+
+  let hSum = 0;
+  for (let i = 32; i < 48; i++) hSum += spectrum48[i];
+  const highVal = hSum / 16;
+
+  vizState.smoothedBass += (bassVal - vizState.smoothedBass) * 0.24;
+  vizState.smoothedMid += (midVal - vizState.smoothedMid) * 0.26;
+  vizState.smoothedHigh += (highVal - vizState.smoothedHigh) * 0.28;
+
+  const bBar = document.getElementById('vizMeterBass');
+  const mBar = document.getElementById('vizMeterMid');
+  const hBar = document.getElementById('vizMeterHigh');
+  if (bBar) bBar.style.width = `${Math.min(100, Math.round(vizState.smoothedBass * 115))}%`;
+  if (mBar) mBar.style.width = `${Math.min(100, Math.round(vizState.smoothedMid * 115))}%`;
+  if (hBar) hBar.style.width = `${Math.min(100, Math.round(vizState.smoothedHigh * 115))}%`;
+
+  // 4. Render active style across full width
+  if (vizState.style === 'terrain') {
+    drawVizTerrain(ctx, width, height, spectrum48);
+  } else if (vizState.style === 'bars') {
+    drawVizBars(ctx, width, height, spectrum48);
+  } else {
+    drawVizWaves(ctx, width, height, spectrum48);
+  }
+
+  // Draw supernova click shockwaves
+  if (vizState.mouse.activeClicks.length > 0) {
+    drawVizShockwaves(ctx, width, height);
+  }
+}
+
+function drawVizWaves(ctx, width, height, spectrum48) {
+  const centerY = height / 2;
+  const numRibbons = 4;
+  const numPoints = 64;
+  const sliceWidth = width / (numPoints - 1);
+
+  // Resample 48 spectrum bands to 64 points across the width
+  const pointsEnergy = new Float32Array(numPoints);
+  for (let i = 0; i < numPoints; i++) {
+    const specIdx = (i / (numPoints - 1)) * (spectrum48.length - 1);
+    const i0 = Math.floor(specIdx);
+    const i1 = Math.min(spectrum48.length - 1, i0 + 1);
+    const frac = specIdx - i0;
+    pointsEnergy[i] = spectrum48[i0] * (1 - frac) + spectrum48[i1] * frac;
+  }
+
+  ctx.save();
+
+  for (let w = 0; w < numRibbons; w++) {
+    const ribbonPhase = vizState.phase * (1.1 + w * 0.22) + w * 1.57;
+    const ribbonDir = (w % 2 === 0) ? 1 : -1;
+    const maxAmp = (height * 0.36) * (1.0 - w * 0.12);
+
     const pts = [];
     for (let i = 0; i < numPoints; i++) {
-      const x = i * sliceWidth;
       const norm = i / (numPoints - 1);
-      // Window tapering at screen edges for elegant fade-in/fade-out
+      const x = i * sliceWidth;
+
+      // Window taper at left and right edges
       const edgeTaper = Math.sin(norm * Math.PI);
 
-      let audioMod = 0;
-      if (smoothedAudio) {
-        audioMod = smoothedAudio[i] * amplitude * 1.6 * edgeTaper;
-      }
+      // Base undulating sine wave
+      const baseWave = Math.sin(norm * Math.PI * 4 + ribbonPhase) * 22;
 
-      // Smooth compound harmonics
-      const s1 = Math.sin(norm * 6.28 * 2.0 + wavePhase) * (amplitude * 0.7);
-      const s2 = Math.cos(norm * 6.28 * 4.0 - wavePhase * 0.8) * (amplitude * 0.35);
-      const y = centerY + (s1 + s2) * edgeTaper + audioMod;
+      // Real music displacement mapped from frequency at this horizontal position:
+      // Left = Bass, Center = Mids/Vocals/Keys, Right = Treble/Cymbals
+      const energy = pointsEnergy[i];
+      const audioDisplacement = energy * maxAmp * ribbonDir;
+
+      const y = centerY + (baseWave + audioDisplacement) * edgeTaper;
       pts.push({ x, y });
     }
 
-    ctx.save();
     ctx.beginPath();
-    ctx.lineWidth = Math.max(1.8, 3.6 - w * 0.5);
+    ctx.lineWidth = Math.max(2, 4.0 - w * 0.6);
     ctx.strokeStyle = getVizGradient(ctx, 0, 0, width, 0);
 
-    const waveHue = (w * 90 + vizState.phase * 40) % 360;
+    const waveHue = (w * 90 + vizState.phase * 35) % 360;
     ctx.shadowColor = `hsl(${waveHue}, 100%, 60%)`;
-    ctx.shadowBlur = 16;
-    ctx.globalAlpha = 0.85 - w * 0.15;
+    ctx.shadowBlur = 18;
+    ctx.globalAlpha = 0.88 - w * 0.14;
 
-    // Draw perfectly smooth continuous Bezier curve through midpoints (no kinks)
+    // Smooth Bezier interpolation through midpoints for silky curves with zero kinks
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let i = 0; i < pts.length - 1; i++) {
       const xc = (pts[i].x + pts[i + 1].x) / 2;
@@ -3587,119 +3583,56 @@ function drawVizWaves(ctx, width, height) {
     }
     ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
     ctx.stroke();
-    ctx.restore();
   }
+
+  ctx.restore();
 }
 
-function drawVizBars(ctx, width, height) {
-  const barCount = 48;
-  const barWidth = Math.max(4, (width * 0.82) / barCount);
+function drawVizBars(ctx, width, height, spectrum48) {
+  const barCount = spectrum48.length;
+  const totalBarWidth = width * 0.86;
+  const barWidth = Math.max(4, (totalBarWidth / barCount) - 4);
   const gap = 4;
-  const totalWidth = barCount * (barWidth + gap);
-  const startX = (width - totalWidth) / 2;
-  const baseHeight = height * 0.74;
-  const maxHeight = height * 0.52;
-
-  const sampleRate = (vizState.audioCtx ? vizState.audioCtx.sampleRate : 44100);
-  const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
-  const binSize = sampleRate / fftSize; // ~21.5 Hz per bin
-
-  // Focus on active musical core (25 Hz to 2800 Hz) where all real song energy lives
-  const minFreq = 25;
-  const maxFreq = 2800;
-
-  // Upper brilliance accumulator (2.5 kHz to 10 kHz) to inject into high bars
-  let upperAir = 0;
-  if (vizState.micActive && vizState.dataArray) {
-    const airStart = Math.min(vizState.dataArray.length - 1, Math.floor(2500 / binSize));
-    const airEnd = Math.min(vizState.dataArray.length - 1, Math.floor(9500 / binSize));
-    let airSum = 0;
-    for (let b = airStart; b <= airEnd; b++) airSum += vizState.dataArray[b];
-    const airNorm = (airSum / Math.max(1, airEnd - airStart + 1)) / 255;
-    upperAir = Math.pow(airNorm, 0.5) * 2.6;
-  }
+  const actualSpan = barCount * (barWidth + gap);
+  const startX = (width - actualSpan) / 2;
+  const baseHeight = height * 0.76;
+  const maxHeight = height * 0.54;
 
   ctx.save();
 
-  // Draw spectrum frequency bars
   for (let i = 0; i < barCount; i++) {
-    const norm = i / (barCount - 1);
-    let barVal = 0;
+    const energy = spectrum48[i];
+    const targetH = Math.max(8, energy * maxHeight);
 
-    if (vizState.micActive && vizState.dataArray) {
-      // 1. Direct Logarithmic Musical Band
-      const fLow = minFreq * Math.pow(maxFreq / minFreq, i / barCount);
-      const fHigh = minFreq * Math.pow(maxFreq / minFreq, (i + 1) / barCount);
-
-      const binStart = Math.max(1, Math.floor(fLow / binSize));
-      const binEnd = Math.min(vizState.dataArray.length - 1, Math.max(binStart, Math.ceil(fHigh / binSize)));
-
-      let maxBinVal = 0;
-      let sumBinVal = 0;
-      let count = 0;
-
-      for (let b = binStart; b <= binEnd; b++) {
-        const v = vizState.dataArray[b];
-        if (v > maxBinVal) maxBinVal = v;
-        sumBinVal += v;
-        count++;
-      }
-
-      const avgBinVal = count > 0 ? (sumBinVal / count) : 0;
-      const rawVal = (maxBinVal * 0.75 + avgBinVal * 0.25) / 255;
-
-      // Dynamic root expansion: pulls quiet mid/high details into high visibility
-      const expandedVal = Math.pow(rawVal, 0.52);
-
-      // Progressive tilt curve: compensates for natural acoustic rolloff
-      const tiltComp = 1.0 + Math.pow(norm, 0.75) * 5.0;
-      const directEnergy = expandedVal * tiltComp * (vizState.sensitivity * 0.65);
-
-      // 2. Harmonic overtone dispersion (music naturally disperses energy into mids/highs)
-      const harmonicDispersion = (vizState.smoothedBass * 0.4 + vizState.smoothedMid * 0.55) * Math.sin(norm * Math.PI * 0.85) * 0.6;
-
-      // 3. Upper Air / Cymbal Injection (drives the right-hand bars whenever high frequencies exist)
-      const highBarWeight = Math.pow(norm, 1.3);
-      const trebleLift = upperAir * highBarWeight * 1.5;
-
-      // 4. Over-emphasized impact combination
-      let totalEnergy = directEnergy + harmonicDispersion + trebleLift;
-
-      // If audio is playing, ensure bars have lively responsive pulse across all frequencies
-      if (vizState.smoothedBass > 0.03 || vizState.smoothedMid > 0.03) {
-        const livelyFloor = (vizState.smoothedBass * 0.14 + vizState.smoothedMid * 0.18) * Math.sin(norm * Math.PI) + (vizState.smoothedHigh * 0.22 * norm);
-        totalEnergy = Math.max(totalEnergy, livelyFloor);
-      }
-
-      barVal = Math.min(1.0, totalEnergy);
+    if (!vizState.barsSmoothed[i]) vizState.barsSmoothed[i] = targetH;
+    if (targetH > vizState.barsSmoothed[i]) {
+      vizState.barsSmoothed[i] += (targetH - vizState.barsSmoothed[i]) * 0.65;
     } else {
-      // Generative procedural motion
-      const t = vizState.phase * 2.2 + i * 0.18;
-      const wave = Math.sin(t) * 0.5 + 0.5;
-      const harmonic = Math.cos(t * 1.5 - norm * 4) * 0.3;
-      barVal = Math.max(0.12, Math.min(1.0, (wave + harmonic) * (0.35 + vizState.smoothedBass * 0.55)));
+      vizState.barsSmoothed[i] += (targetH - vizState.barsSmoothed[i]) * 0.22;
     }
+    const barH = vizState.barsSmoothed[i];
 
-    const barH = Math.max(6, barVal * maxHeight);
     const x = startX + i * (barWidth + gap);
     const y = baseHeight - barH;
 
-    if (barH > vizState.barsPeaks[i]) {
+    // Floating peak cap physics
+    if (!vizState.barsPeaks[i] || barH >= vizState.barsPeaks[i]) {
       vizState.barsPeaks[i] = barH;
+      vizState.peakVelocities[i] = 0;
     } else {
-      vizState.barsPeaks[i] = Math.max(0, vizState.barsPeaks[i] - 2);
+      vizState.peakVelocities[i] = (vizState.peakVelocities[i] || 0) + 0.35;
+      vizState.barsPeaks[i] = Math.max(0, vizState.barsPeaks[i] - vizState.peakVelocities[i]);
     }
 
-    // Always vibrant Rainbow Prism HSL across the entire screen
     const hue = (i / barCount) * 360;
     const barGrad = ctx.createLinearGradient(x, baseHeight, x, y);
     barGrad.addColorStop(0, `hsla(${hue}, 100%, 45%, 0.85)`);
     barGrad.addColorStop(1, `hsla(${(hue + 25) % 360}, 100%, 65%, 1)`);
-    const glowColor = `hsl(${hue}, 100%, 55%)`;
 
     ctx.fillStyle = barGrad;
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = `hsl(${hue}, 100%, 55%)`;
+    ctx.shadowBlur = 14;
+
     ctx.beginPath();
     ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
     ctx.fill();
@@ -3707,84 +3640,18 @@ function drawVizBars(ctx, width, height) {
     const peakY = baseHeight - vizState.barsPeaks[i] - 4;
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 5;
+    ctx.shadowBlur = 6;
     ctx.fillRect(x, peakY, barWidth, 2);
   }
 
   ctx.restore();
 }
 
-function drawVizTerrain(ctx, width, height) {
+function drawVizTerrain(ctx, width, height, spectrum48) {
   const numRows = 28;
-  const numCols = 40;
+  const numCols = spectrum48.length;
 
-  const sampleRate = (vizState.audioCtx ? vizState.audioCtx.sampleRate : 44100);
-  const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
-  const binSize = sampleRate / fftSize;
-
-  // Focus on active musical core (25 Hz to 2800 Hz)
-  const minFreq = 25;
-  const maxFreq = 2800;
-
-  let upperAir = 0;
-  if (vizState.micActive && vizState.dataArray) {
-    const airStart = Math.min(vizState.dataArray.length - 1, Math.floor(2500 / binSize));
-    const airEnd = Math.min(vizState.dataArray.length - 1, Math.floor(9500 / binSize));
-    let airSum = 0;
-    for (let b = airStart; b <= airEnd; b++) airSum += vizState.dataArray[b];
-    const airNorm = (airSum / Math.max(1, airEnd - airStart + 1)) / 255;
-    upperAir = Math.pow(airNorm, 0.5) * 2.6;
-  }
-
-  // 1. Capture current frequency slice across musical spectrum
-  const slice = new Float32Array(numCols);
-  if (vizState.micActive && vizState.dataArray) {
-    for (let c = 0; c < numCols; c++) {
-      const norm = c / (numCols - 1);
-      const fLow = minFreq * Math.pow(maxFreq / minFreq, c / numCols);
-      const fHigh = minFreq * Math.pow(maxFreq / minFreq, (c + 1) / numCols);
-
-      const binStart = Math.max(1, Math.floor(fLow / binSize));
-      const binEnd = Math.min(vizState.dataArray.length - 1, Math.max(binStart, Math.ceil(fHigh / binSize)));
-
-      let maxVal = 0;
-      let sumVal = 0;
-      let count = 0;
-      for (let b = binStart; b <= binEnd; b++) {
-        const v = vizState.dataArray[b];
-        if (v > maxVal) maxVal = v;
-        sumVal += v;
-        count++;
-      }
-      const avgVal = count > 0 ? (sumVal / count) : 0;
-      const rawVal = (maxVal * 0.75 + avgVal * 0.25) / 255;
-      const expandedVal = Math.pow(rawVal, 0.52);
-      const tiltComp = 1.0 + Math.pow(norm, 0.75) * 5.0;
-      const directEnergy = expandedVal * tiltComp * (vizState.sensitivity * 0.65);
-
-      const harmonicDispersion = (vizState.smoothedBass * 0.4 + vizState.smoothedMid * 0.55) * Math.sin(norm * Math.PI * 0.85) * 0.6;
-      const trebleLift = upperAir * Math.pow(norm, 1.3) * 1.5;
-
-      let totalEnergy = directEnergy + harmonicDispersion + trebleLift;
-      if (vizState.smoothedBass > 0.03 || vizState.smoothedMid > 0.03) {
-        const livelyFloor = (vizState.smoothedBass * 0.14 + vizState.smoothedMid * 0.18) * Math.sin(norm * Math.PI) + (vizState.smoothedHigh * 0.22 * norm);
-        totalEnergy = Math.max(totalEnergy, livelyFloor);
-      }
-
-      slice[c] = Math.min(1.0, totalEnergy);
-    }
-  } else {
-    // Generative synth landscape
-    const t = vizState.phase;
-    for (let c = 0; c < numCols; c++) {
-      const norm = c / (numCols - 1);
-      const s1 = Math.sin(t * 2.5 + norm * 7) * 0.5 + 0.5;
-      const s2 = Math.cos(t * 1.8 - norm * 5) * 0.3;
-      slice[c] = Math.max(0, Math.min(1, (s1 + s2) * (0.35 + vizState.smoothedBass * 0.5)));
-    }
-  }
-
-  // Push to history buffer
+  const slice = new Float32Array(spectrum48);
   vizState.terrainHistory.push(slice);
   if (vizState.terrainHistory.length > numRows) {
     vizState.terrainHistory.shift();
@@ -3798,31 +3665,29 @@ function drawVizTerrain(ctx, width, height) {
   const horizonY = height * 0.35;
   const frontY = height * 0.88;
 
-  // Pre-calculate 2D points for each row and column for wireframe mesh
   const gridPoints = [];
 
   for (let r = 0; r < historyLen; r++) {
     const rowSlice = vizState.terrainHistory[r];
-    const zNorm = (r + 1) / historyLen; // 0 (horizon) -> 1 (foreground)
-    const pZ = Math.pow(zNorm, 2.0); // Non-linear 3D perspective
+    const zNorm = (r + 1) / historyLen;
+    const pZ = Math.pow(zNorm, 2.0);
 
     const yBase = horizonY + pZ * (frontY - horizonY);
-    const rowWidth = width * (0.24 + pZ * 0.72);
+    const rowWidth = width * (0.24 + pZ * 0.74);
     const startX = (width - rowWidth) / 2;
-    const peakHeight = (height * 0.38) * (0.2 + pZ * 0.8);
+    const peakHeight = (height * 0.40) * (0.25 + pZ * 0.75);
 
     const rowPoints = [];
     for (let c = 0; c < numCols; c++) {
       const colNorm = c / (numCols - 1);
       const x = startX + colNorm * rowWidth;
       const val = rowSlice[c];
-      const y = yBase - (val * peakHeight * (1 + vizState.smoothedBass * 0.45));
+      const y = yBase - (val * peakHeight);
       rowPoints.push({ x, y, yBase, val, pZ, zNorm });
     }
     gridPoints.push(rowPoints);
   }
 
-  // Draw perspective rows from horizon (oldest) to foreground (newest)
   for (let r = 0; r < gridPoints.length; r++) {
     const rowPoints = gridPoints[r];
     const pZ = rowPoints[0].pZ;
@@ -3831,7 +3696,7 @@ function drawVizTerrain(ctx, width, height) {
     const endX = rowPoints[numCols - 1].x;
     const yBase = rowPoints[0].yBase;
 
-    // Dark valley occlusion fill to create solid 3D mountain ridges
+    // Solid dark valley occlusion fill
     ctx.beginPath();
     ctx.moveTo(startX, yBase + 4);
     for (let c = 0; c < numCols; c++) {
@@ -3839,27 +3704,27 @@ function drawVizTerrain(ctx, width, height) {
     }
     ctx.lineTo(endX, yBase + 4);
     ctx.closePath();
-    ctx.fillStyle = `rgba(7, 7, 12, ${0.72 + zNorm * 0.22})`;
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.75 + zNorm * 0.22})`;
     ctx.fill();
 
-    // Stroke mountain ridge
+    // Mountain ridge stroke in rainbow gradient
     ctx.beginPath();
     for (let c = 0; c < numCols; c++) {
       if (c === 0) ctx.moveTo(rowPoints[c].x, rowPoints[c].y);
       else ctx.lineTo(rowPoints[c].x, rowPoints[c].y);
     }
 
-    ctx.lineWidth = 0.8 + pZ * 2.2;
+    ctx.lineWidth = 0.9 + pZ * 2.2;
     ctx.strokeStyle = getVizGradient(ctx, startX, 0, endX, 0);
     ctx.shadowColor = `hsl(${(r * 12 + vizState.phase * 40) % 360}, 100%, 60%)`;
     ctx.shadowBlur = 8 * pZ;
-    ctx.globalAlpha = 0.25 + pZ * 0.75;
+    ctx.globalAlpha = 0.28 + pZ * 0.72;
     ctx.stroke();
 
-    // High peak summits sparkle
-    if (pZ > 0.4) {
+    // Summit stars
+    if (pZ > 0.45) {
       for (let c = 0; c < numCols; c++) {
-        if (rowPoints[c].val > 0.65) {
+        if (rowPoints[c].val > 0.62) {
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
           ctx.arc(rowPoints[c].x, rowPoints[c].y, 2.5 * pZ, 0, Math.PI * 2);
@@ -3869,7 +3734,7 @@ function drawVizTerrain(ctx, width, height) {
     }
   }
 
-  // Draw longitudinal 3D wireframe connecting ribs between rows
+  // Connecting longitudinal wireframe ribs
   ctx.globalAlpha = 0.18;
   ctx.lineWidth = 1;
   const colStep = 4;
@@ -3914,39 +3779,6 @@ function drawVizShockwaves(ctx, width, height) {
   ctx.restore();
 }
 
-function drawVizParticles(ctx, width, height, isAmbient = false) {
-  ctx.save();
-  const speedMult = isAmbient ? 0.35 : (1 + vizState.smoothedHigh * 2.5);
-
-  if (isAmbient) {
-    ctx.globalAlpha = 0.45;
-  }
-
-  vizState.particles.forEach(p => {
-    p.angle += p.orbitSpeed * speedMult;
-    p.x += p.vx * speedMult;
-    p.y += p.vy * speedMult;
-
-    if (p.x < 0) p.x = 1;
-    if (p.x > 1) p.x = 0;
-    if (p.y < 0) p.y = 1;
-    if (p.y > 1) p.y = 0;
-
-    const px = p.x * width;
-    const py = p.y * height;
-    const size = isAmbient ? (p.size * 0.8) : (p.size * (1 + vizState.smoothedHigh * 0.8));
-
-    ctx.beginPath();
-    ctx.fillStyle = `hsl(${p.hue}, 100%, 70%)`;
-    ctx.shadowColor = `hsl(${p.hue}, 100%, 60%)`;
-    ctx.shadowBlur = isAmbient ? 4 : 8;
-    ctx.arc(px, py, size, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  ctx.restore();
-}
-
 // ============================================
 // UNIFIED EVENT DELEGATION & BINDINGS
 // ============================================
@@ -3961,21 +3793,11 @@ function bindAllEvents() {
   document.getElementById('toggleVisualizerBtn')?.addEventListener('click', openVisualizer);
   document.getElementById('exitVisualizerBtn')?.addEventListener('click', closeVisualizer);
   document.getElementById('vizMicToggleBtn')?.addEventListener('click', toggleVizMic);
-  document.getElementById('vizGainToggleBtn')?.addEventListener('click', cycleVizGain);
   document.getElementById('vizDeviceSelect')?.addEventListener('change', (e) => {
     changeVizAudioDevice(e.target.value);
   });
 
-  // Visualizer HUD controls - Multi-layer delegation for 100% reliable click handling
-  const setVisualizerBg = (bg) => {
-    if (!bg) return;
-    vizState.background = bg;
-    try { localStorage.setItem('viz_backdrop', bg); } catch (e) {}
-    document.querySelectorAll('[data-viz-bg]').forEach(b => {
-      b.classList.toggle('active', b.dataset.vizBg === bg);
-    });
-  };
-
+  // Visualizer HUD controls - Multi-layer delegation for 100% reliable style click handling
   const setVisualizerStyle = (style) => {
     if (!style) return;
     vizState.style = style;
@@ -3985,43 +3807,17 @@ function bindAllEvents() {
     });
   };
 
-  // Restore saved visualizer preferences
+  // Restore saved visualizer style
   try {
-    const savedBg = localStorage.getItem('viz_backdrop');
-    if (savedBg && ['black', 'dynamic'].includes(savedBg)) {
-      setVisualizerBg(savedBg);
-    } else {
-      setVisualizerBg('black');
-    }
     const savedStyle = localStorage.getItem('viz_style');
     if (savedStyle && ['waves', 'bars', 'terrain'].includes(savedStyle)) {
       setVisualizerStyle(savedStyle);
     } else {
       setVisualizerStyle('waves');
     }
-    const savedGain = localStorage.getItem('viz_sensitivity');
-    if (savedGain) {
-      vizState.sensitivity = parseFloat(savedGain) || 2.5;
-    } else {
-      vizState.sensitivity = 2.5;
-    }
-    const label = document.getElementById('vizGainLabel');
-    if (label) {
-      const text = vizState.sensitivity === 2.5 ? 'Gain: High (2.5x)' : vizState.sensitivity === 4.0 ? 'Gain: Max (4x)' : 'Gain: Normal (1.5x)';
-      label.textContent = text;
-    }
   } catch (e) {}
 
-  // Direct click & pointerdown handlers on chips
-  document.querySelectorAll('[data-viz-bg]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setVisualizerBg(btn.dataset.vizBg);
-    });
-    btn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  });
-
+  // Direct click & pointerdown handlers on style chips
   document.querySelectorAll('[data-viz-style]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -4031,16 +3827,8 @@ function bindAllEvents() {
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   });
 
-  // Global document delegation fallback to guarantee clicks register on icon or text
+  // Global document delegation fallback to guarantee style clicks register on icon or text
   document.addEventListener('click', (e) => {
-    const bgBtn = e.target.closest('[data-viz-bg]');
-    if (bgBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      setVisualizerBg(bgBtn.dataset.vizBg);
-      return;
-    }
-
     const styleBtn = e.target.closest('[data-viz-style]');
     if (styleBtn) {
       e.preventDefault();
