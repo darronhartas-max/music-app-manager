@@ -3278,9 +3278,9 @@ async function initVisualizerAudio(targetDeviceId = null) {
 
     vizState.analyser = vizState.audioCtx.createAnalyser();
     vizState.analyser.fftSize = 2048;
-    vizState.analyser.smoothingTimeConstant = 0.76;
-    vizState.analyser.minDecibels = -90;
-    vizState.analyser.maxDecibels = -25;
+    vizState.analyser.smoothingTimeConstant = 0.70;
+    vizState.analyser.minDecibels = -100;
+    vizState.analyser.maxDecibels = -15;
 
     const bufferLength = vizState.analyser.frequencyBinCount;
     vizState.dataArray = new Uint8Array(bufferLength);
@@ -3390,23 +3390,23 @@ function renderVisualizerFrame(ctx) {
     const fftSize = vizState.analyser.fftSize || 2048;
     const binSize = sampleRate / fftSize; // ~21.5 Hz per bin
 
-    // BASS: 20 Hz - 250 Hz (bins 1 to ~12)
+    // BASS: 20 Hz - 200 Hz (bins 1 to ~9)
     const b0 = Math.max(1, Math.floor(20 / binSize));
-    const b1 = Math.floor(250 / binSize);
+    const b1 = Math.floor(200 / binSize);
     let bSum = 0;
     for (let i = b0; i <= b1; i++) bSum += vizState.dataArray[i];
     const bCount = Math.max(1, b1 - b0 + 1);
 
-    // MID: 250 Hz - 2500 Hz (bins ~12 to ~116)
+    // MID: 200 Hz - 1500 Hz (bins ~9 to ~70)
     const m0 = b1 + 1;
-    const m1 = Math.floor(2500 / binSize);
+    const m1 = Math.floor(1500 / binSize);
     let mSum = 0;
     for (let i = m0; i <= m1; i++) mSum += vizState.dataArray[i];
     const mCount = Math.max(1, m1 - m0 + 1);
 
-    // HIGH: 2500 Hz - 7500 Hz (bins ~116 to ~348)
+    // HIGH: 1500 Hz - 8000 Hz (bins ~70 to ~370)
     const h0 = m1 + 1;
-    const h1 = Math.min(vizState.dataArray.length - 1, Math.floor(7500 / binSize));
+    const h1 = Math.min(vizState.dataArray.length - 1, Math.floor(8000 / binSize));
     let hSum = 0;
     for (let i = h0; i <= h1; i++) hSum += vizState.dataArray[i];
     const hCount = Math.max(1, h1 - h0 + 1);
@@ -3417,9 +3417,9 @@ function renderVisualizerFrame(ctx) {
     const rawHigh = (hSum / hCount) / 255;
 
     const sens = vizState.sensitivity;
-    bass = Math.min(1, Math.pow(rawBass, 0.75) * sens * 0.9);
-    mid = Math.min(1, Math.pow(rawMid, 0.65) * sens * 1.8);
-    high = Math.min(1, Math.pow(rawHigh, 0.6) * sens * 3.2);
+    bass = Math.min(1, Math.pow(rawBass, 0.58) * sens * 1.1);
+    mid = Math.min(1, Math.pow(rawMid, 0.50) * sens * 2.2);
+    high = Math.min(1, Math.pow(rawHigh, 0.45) * sens * 3.8);
   } else {
     // Generative procedural motion
     const t = vizState.phase;
@@ -3581,20 +3581,31 @@ function drawVizWaves(ctx, width, height) {
 
 function drawVizBars(ctx, width, height) {
   const barCount = 48;
-  const barWidth = Math.max(4, (width * 0.8) / barCount);
+  const barWidth = Math.max(4, (width * 0.82) / barCount);
   const gap = 4;
   const totalWidth = barCount * (barWidth + gap);
   const startX = (width - totalWidth) / 2;
   const baseHeight = height * 0.74;
-  const maxHeight = height * 0.50;
+  const maxHeight = height * 0.52;
 
   const sampleRate = (vizState.audioCtx ? vizState.audioCtx.sampleRate : 44100);
   const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
   const binSize = sampleRate / fftSize; // ~21.5 Hz per bin
 
-  // Focus on active musical frequency range (32 Hz to 7500 Hz)
-  const minFreq = 32;
-  const maxFreq = 7500;
+  // Focus on active musical core (25 Hz to 2800 Hz) where all real song energy lives
+  const minFreq = 25;
+  const maxFreq = 2800;
+
+  // Upper brilliance accumulator (2.5 kHz to 10 kHz) to inject into high bars
+  let upperAir = 0;
+  if (vizState.micActive && vizState.dataArray) {
+    const airStart = Math.min(vizState.dataArray.length - 1, Math.floor(2500 / binSize));
+    const airEnd = Math.min(vizState.dataArray.length - 1, Math.floor(9500 / binSize));
+    let airSum = 0;
+    for (let b = airStart; b <= airEnd; b++) airSum += vizState.dataArray[b];
+    const airNorm = (airSum / Math.max(1, airEnd - airStart + 1)) / 255;
+    upperAir = Math.pow(airNorm, 0.5) * 2.6;
+  }
 
   ctx.save();
 
@@ -3604,7 +3615,7 @@ function drawVizBars(ctx, width, height) {
     let barVal = 0;
 
     if (vizState.micActive && vizState.dataArray) {
-      // Logarithmic musical frequency band calculation
+      // 1. Direct Logarithmic Musical Band
       const fLow = minFreq * Math.pow(maxFreq / minFreq, i / barCount);
       const fHigh = minFreq * Math.pow(maxFreq / minFreq, (i + 1) / barCount);
 
@@ -3625,21 +3636,36 @@ function drawVizBars(ctx, width, height) {
       const avgBinVal = count > 0 ? (sumBinVal / count) : 0;
       const rawVal = (maxBinVal * 0.75 + avgBinVal * 0.25) / 255;
 
-      // Dynamic range expansion (square-root curve) lifts quiet high-frequency details into view
-      const expandedVal = Math.pow(rawVal, 0.65);
+      // Dynamic root expansion: pulls quiet mid/high details into high visibility
+      const expandedVal = Math.pow(rawVal, 0.52);
 
-      // Progressive equal-loudness tilt compensation:
-      // Bass is 1.0x, Mids are ~3.2x, Highs are ~5.6x
-      const tiltComp = 1.0 + Math.pow(norm, 0.9) * 4.6;
+      // Progressive tilt curve: compensates for natural acoustic rolloff
+      const tiltComp = 1.0 + Math.pow(norm, 0.75) * 5.0;
+      const directEnergy = expandedVal * tiltComp * (vizState.sensitivity * 0.65);
 
-      // Scale with high sensitivity gain
-      barVal = Math.min(1.0, expandedVal * tiltComp * (vizState.sensitivity * 0.55));
+      // 2. Harmonic overtone dispersion (music naturally disperses energy into mids/highs)
+      const harmonicDispersion = (vizState.smoothedBass * 0.4 + vizState.smoothedMid * 0.55) * Math.sin(norm * Math.PI * 0.85) * 0.6;
+
+      // 3. Upper Air / Cymbal Injection (drives the right-hand bars whenever high frequencies exist)
+      const highBarWeight = Math.pow(norm, 1.3);
+      const trebleLift = upperAir * highBarWeight * 1.5;
+
+      // 4. Over-emphasized impact combination
+      let totalEnergy = directEnergy + harmonicDispersion + trebleLift;
+
+      // If audio is playing, ensure bars have lively responsive pulse across all frequencies
+      if (vizState.smoothedBass > 0.03 || vizState.smoothedMid > 0.03) {
+        const livelyFloor = (vizState.smoothedBass * 0.14 + vizState.smoothedMid * 0.18) * Math.sin(norm * Math.PI) + (vizState.smoothedHigh * 0.22 * norm);
+        totalEnergy = Math.max(totalEnergy, livelyFloor);
+      }
+
+      barVal = Math.min(1.0, totalEnergy);
     } else {
       // Generative procedural motion
       const t = vizState.phase * 2.2 + i * 0.18;
       const wave = Math.sin(t) * 0.5 + 0.5;
       const harmonic = Math.cos(t * 1.5 - norm * 4) * 0.3;
-      barVal = Math.max(0.08, Math.min(1.0, (wave + harmonic) * (0.35 + vizState.smoothedBass * 0.55)));
+      barVal = Math.max(0.12, Math.min(1.0, (wave + harmonic) * (0.35 + vizState.smoothedBass * 0.55)));
     }
 
     const barH = Math.max(6, barVal * maxHeight);
@@ -3652,7 +3678,7 @@ function drawVizBars(ctx, width, height) {
       vizState.barsPeaks[i] = Math.max(0, vizState.barsPeaks[i] - 2);
     }
 
-    // Always vibrant Rainbow Prism HSL
+    // Always vibrant Rainbow Prism HSL across the entire screen
     const hue = (i / barCount) * 360;
     const barGrad = ctx.createLinearGradient(x, baseHeight, x, y);
     barGrad.addColorStop(0, `hsla(${hue}, 100%, 45%, 0.85)`);
@@ -3661,7 +3687,7 @@ function drawVizBars(ctx, width, height) {
 
     ctx.fillStyle = barGrad;
     ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
     ctx.fill();
@@ -3669,7 +3695,7 @@ function drawVizBars(ctx, width, height) {
     const peakY = baseHeight - vizState.barsPeaks[i] - 4;
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 4;
+    ctx.shadowBlur = 5;
     ctx.fillRect(x, peakY, barWidth, 2);
   }
 
@@ -3684,9 +3710,19 @@ function drawVizTerrain(ctx, width, height) {
   const fftSize = vizState.analyser ? vizState.analyser.fftSize : 2048;
   const binSize = sampleRate / fftSize;
 
-  // Focus on active musical frequency range (32 Hz to 7500 Hz)
-  const minFreq = 32;
-  const maxFreq = 7500;
+  // Focus on active musical core (25 Hz to 2800 Hz)
+  const minFreq = 25;
+  const maxFreq = 2800;
+
+  let upperAir = 0;
+  if (vizState.micActive && vizState.dataArray) {
+    const airStart = Math.min(vizState.dataArray.length - 1, Math.floor(2500 / binSize));
+    const airEnd = Math.min(vizState.dataArray.length - 1, Math.floor(9500 / binSize));
+    let airSum = 0;
+    for (let b = airStart; b <= airEnd; b++) airSum += vizState.dataArray[b];
+    const airNorm = (airSum / Math.max(1, airEnd - airStart + 1)) / 255;
+    upperAir = Math.pow(airNorm, 0.5) * 2.6;
+  }
 
   // 1. Capture current frequency slice across musical spectrum
   const slice = new Float32Array(numCols);
@@ -3710,9 +3746,20 @@ function drawVizTerrain(ctx, width, height) {
       }
       const avgVal = count > 0 ? (sumVal / count) : 0;
       const rawVal = (maxVal * 0.75 + avgVal * 0.25) / 255;
-      const expandedVal = Math.pow(rawVal, 0.65);
-      const tiltComp = 1.0 + Math.pow(norm, 0.9) * 4.6;
-      slice[c] = Math.min(1.0, expandedVal * tiltComp * (vizState.sensitivity * 0.55));
+      const expandedVal = Math.pow(rawVal, 0.52);
+      const tiltComp = 1.0 + Math.pow(norm, 0.75) * 5.0;
+      const directEnergy = expandedVal * tiltComp * (vizState.sensitivity * 0.65);
+
+      const harmonicDispersion = (vizState.smoothedBass * 0.4 + vizState.smoothedMid * 0.55) * Math.sin(norm * Math.PI * 0.85) * 0.6;
+      const trebleLift = upperAir * Math.pow(norm, 1.3) * 1.5;
+
+      let totalEnergy = directEnergy + harmonicDispersion + trebleLift;
+      if (vizState.smoothedBass > 0.03 || vizState.smoothedMid > 0.03) {
+        const livelyFloor = (vizState.smoothedBass * 0.14 + vizState.smoothedMid * 0.18) * Math.sin(norm * Math.PI) + (vizState.smoothedHigh * 0.22 * norm);
+        totalEnergy = Math.max(totalEnergy, livelyFloor);
+      }
+
+      slice[c] = Math.min(1.0, totalEnergy);
     }
   } else {
     // Generative synth landscape
